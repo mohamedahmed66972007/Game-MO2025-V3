@@ -5,7 +5,7 @@ import { send } from "@/lib/websocket";
 import { useState } from "react";
 
 export function GameOverScreen() {
-  const { multiplayer, setMode } = useNumberGame();
+  const { multiplayer, setMode, resetMultiplayer, setChallengeStatus, setOpponentId, setOpponentName, setMySecretCode } = useNumberGame();
   const [showOpponentAttempts, setShowOpponentAttempts] = useState(false);
 
   const isTie = multiplayer.gameResult === "tie";
@@ -188,6 +188,26 @@ export function GameOverScreen() {
             >
               <span className="mr-2">🔄</span>
               طلب إعادة المباراة
+            </Button>
+
+            <Button
+              onClick={() => {
+                setChallengeStatus("none");
+                setOpponentId(null);
+                setOpponentName("");
+                setMySecretCode([]);
+                resetMultiplayer();
+              }}
+              className={`w-full ${
+                isTie
+                  ? "bg-yellow-600 hover:bg-yellow-700"
+                  : isWinner
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-red-600 hover:bg-red-700"
+              } text-white`}
+              size="lg"
+            >
+              العودة للغرفة
             </Button>
 
             <Button

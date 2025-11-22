@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "./button";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
+import { send } from "@/lib/websocket";
 import { Sliders } from "lucide-react";
 
 export function GameSettings({ onConfirm, isMultiplayer = false }: { onConfirm: (settings: { numDigits: number; maxAttempts: number }) => void; isMultiplayer?: boolean }) {
@@ -15,6 +16,11 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: { onConfirm: 
     const settings = { numDigits, maxAttempts };
     if (isMultiplayer) {
       setMultiplayerSettings(settings);
+      // Send settings to all players in the room
+      send({
+        type: "update_settings",
+        settings,
+      });
     } else {
       setSingleplayerSettings(settings);
     }

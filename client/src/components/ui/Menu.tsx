@@ -1,19 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./button";
 import { Input } from "./input";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
-import { connectWebSocket } from "@/lib/websocket";
+import { connectWebSocket, getLastPlayerName } from "@/lib/websocket";
 import { Gamepad2, Users, User, Key, DoorOpen, ArrowLeft, BookOpen } from "lucide-react";
 import { GameSettings } from "./GameSettings";
 
 export function Menu() {
-  const { setMode, startSingleplayer, setPlayerName } = useNumberGame();
+  const { setMode, startSingleplayer, setPlayerName, setIsConnecting } = useNumberGame();
   const [showMultiplayer, setShowMultiplayer] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [playerName, setPlayerNameInput] = useState("");
   const [roomId, setRoomId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const savedPlayerName = getLastPlayerName();
+    if (savedPlayerName) {
+      setPlayerNameInput(savedPlayerName);
+    }
+  }, []);
 
   const handleSingleplayer = () => {
     setShowSettings(true);
@@ -40,6 +47,7 @@ export function Menu() {
     setIsLoading(true);
     setPlayerName(playerName);
     setMode("multiplayer");
+    setIsConnecting(true);
     connectWebSocket(playerName);
   };
 
@@ -55,6 +63,7 @@ export function Menu() {
     setIsLoading(true);
     setPlayerName(playerName);
     setMode("multiplayer");
+    setIsConnecting(true);
     connectWebSocket(playerName, roomId.toUpperCase());
   };
 
@@ -197,7 +206,7 @@ export function Menu() {
               خمن الرقم السري المكون من <span className="text-blue-600 font-bold">4 أرقام</span>
             </p>
             <p className="text-center text-gray-600 text-sm mb-8">
-              لديك <span className="text-purple-600 font-semibold">20 محاولة</span> فقط!
+
             </p>
 
             <div className="space-y-4">
@@ -234,7 +243,7 @@ export function Menu() {
               </li>
               <li className="flex items-start">
                 <span className="text-blue-600 font-bold ml-3 mt-0.5">②</span>
-                <span><strong className="text-blue-700">ادخل اللعبة:</strong> انقر على الشاشة لقفل المؤشر ودخول الغرفة الثلاثية</span>
+                <span><strong className="text-blue-700">ادخل اللعبة:</strong> انقر على الشاشة لقفل المؤشر ودخول الغرفة </span>
               </li>
               <li className="flex items-start">
                 <span className="text-blue-600 font-bold ml-3 mt-0.5">③</span>
@@ -242,7 +251,7 @@ export function Menu() {
               </li>
               <li className="flex items-start">
                 <span className="text-blue-600 font-bold ml-3 mt-0.5">④</span>
-                <span><strong className="text-blue-700">الخمن:</strong> انقر على الأرقام في الغرفة لبناء تخمينك، ثم اضغط ✓ للتأكيد</span>
+                <span><strong className="text-blue-700">التخمين:</strong> انقر على الأرقام في الغرفة لبناء تخمينك، ثم اضغط ✓ للتأكيد</span>
               </li>
               <li className="flex items-start">
                 <span className="text-blue-600 font-bold ml-3 mt-0.5">⑤</span>

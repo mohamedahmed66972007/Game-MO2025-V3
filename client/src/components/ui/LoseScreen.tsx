@@ -3,7 +3,7 @@ import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send } from "@/lib/websocket";
 
 export function LoseScreen() {
-  const { mode, singleplayer, multiplayer, restartSingleplayer, setMode, setShowResults, setShowOpponentAttempts } = useNumberGame();
+  const { mode, singleplayer, multiplayer, restartSingleplayer, setMode, setShowResults, setShowOpponentAttempts, resetMultiplayer, setChallengeStatus, setOpponentId, setOpponentName, setMySecretCode } = useNumberGame();
   
   const isSingleplayer = mode === "singleplayer";
   const attempts = isSingleplayer ? singleplayer.attempts.length : multiplayer.attempts.length;
@@ -20,11 +20,21 @@ export function LoseScreen() {
   };
 
   const handleBackToLobby = () => {
-    setShowResults(false);
-    setMode("menu");
-    setTimeout(() => {
-      window.location.reload();
-    }, 300);
+    if (isMultiplayer) {
+      // Reset game state but keep multiplayer session
+      setChallengeStatus("none");
+      setOpponentId(null);
+      setOpponentName("");
+      setMySecretCode([]);
+      setShowResults(false);
+      resetMultiplayer();
+    } else {
+      setShowResults(false);
+      setMode("menu");
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    }
   };
 
   const handleShowOpponentAttempts = () => {
@@ -92,7 +102,7 @@ export function LoseScreen() {
                 onClick={handleBackToLobby}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl"
               >
-                العودة للقائمة
+                العودة للغرفة
               </Button>
             </>
           ) : (

@@ -31,6 +31,8 @@ interface MultiplayerState {
   playerName: string;
   players: { id: string; name: string }[];
   opponentId: string | null;
+  opponentName: string;
+  playersGaming: { player1Id: string; player1Name: string; player2Id: string; player2Name: string }[];
   mySecretCode: number[];
   opponentSecretCode: number[];
   currentGuess: number[];
@@ -59,11 +61,13 @@ interface MultiplayerState {
 
 interface NumberGameState {
   mode: GameMode;
+  isConnecting: boolean;
   singleplayer: SingleplayerState;
   multiplayer: MultiplayerState;
 
   // Mode actions
   setMode: (mode: GameMode) => void;
+  setIsConnecting: (isConnecting: boolean) => void;
 
   // Singleplayer actions
   startSingleplayer: (settings: GameSettings) => void;
@@ -79,6 +83,8 @@ interface NumberGameState {
   setPlayerName: (name: string) => void;
   setPlayers: (players: { id: string; name: string }[]) => void;
   setOpponentId: (opponentId: string | null) => void;
+  setOpponentName: (name: string) => void;
+  setPlayersGaming: (playersGaming: { player1Id: string; player1Name: string; player2Id: string; player2Name: string }[]) => void;
   setMySecretCode: (code: number[]) => void;
   setOpponentSecretCode: (code: number[]) => void;
   addMultiplayerDigit: (digit: number) => void;
@@ -144,6 +150,7 @@ const checkGuess = (secret: number[], guess: number[]): { correctCount: number; 
 export const useNumberGame = create<NumberGameState>()(
   subscribeWithSelector((set, get) => ({
     mode: "menu",
+    isConnecting: false,
     singleplayer: {
       secretCode: [],
       currentGuess: [],
@@ -159,6 +166,8 @@ export const useNumberGame = create<NumberGameState>()(
       playerName: "",
       players: [],
       opponentId: null,
+      opponentName: "",
+      playersGaming: [],
       mySecretCode: [],
       opponentSecretCode: [],
       currentGuess: [],
@@ -186,6 +195,7 @@ export const useNumberGame = create<NumberGameState>()(
     },
 
     setMode: (mode) => set({ mode }),
+    setIsConnecting: (isConnecting) => set({ isConnecting }),
 
     startSingleplayer: (settings: GameSettings = { numDigits: 4, maxAttempts: 20 }) => {
       const secretCode = generateSecretCode(settings.numDigits);
@@ -270,6 +280,8 @@ export const useNumberGame = create<NumberGameState>()(
     setPlayerName: (playerName) => set((state) => ({ multiplayer: { ...state.multiplayer, playerName } })),
     setPlayers: (players) => set((state) => ({ multiplayer: { ...state.multiplayer, players } })),
     setOpponentId: (opponentId) => set((state) => ({ multiplayer: { ...state.multiplayer, opponentId } })),
+    setOpponentName: (opponentName) => set((state) => ({ multiplayer: { ...state.multiplayer, opponentName } })),
+    setPlayersGaming: (playersGaming) => set((state) => ({ multiplayer: { ...state.multiplayer, playersGaming } })),
     setMySecretCode: (mySecretCode) => set((state) => ({ multiplayer: { ...state.multiplayer, mySecretCode } })),
     setOpponentSecretCode: (opponentSecretCode) => set((state) => ({ multiplayer: { ...state.multiplayer, opponentSecretCode } })),
     setIsChallengeSender: (isChallengeSender) => set((state) => ({ multiplayer: { ...state.multiplayer, isChallengeSender } })),
@@ -334,6 +346,8 @@ export const useNumberGame = create<NumberGameState>()(
       set((state) => ({
         multiplayer: {
           ...state.multiplayer,
+          roomId: "",
+          playerId: "",
           currentGuess: [],
           attempts: [],
           opponentAttempts: [],
@@ -351,6 +365,41 @@ export const useNumberGame = create<NumberGameState>()(
           showResults: false,
           turnTimerActive: true,
           showOpponentAttempts: false,
+          playersGaming: [],
+          startTime: 0,
+          endTime: null,
+          opponentSecretCode: [],
+          opponentId: null,
+          challengeStatus: "none",
+          mySecretCode: [],
+        },
+      })),
+    
+    resetMultiplayerGameOnly: () =>
+      set((state) => ({
+        multiplayer: {
+          ...state.multiplayer,
+          currentGuess: [],
+          attempts: [],
+          opponentAttempts: [],
+          phase: "playing",
+          isMyTurn: false,
+          turnTimeLeft: 60,
+          firstWinnerId: null,
+          firstWinnerAttempts: 0,
+          gameResult: "pending",
+          rematchRequested: false,
+          pendingWin: false,
+          pendingWinMessage: "",
+          opponentStatus: "لم يفز الخصم بعد",
+          opponentWonFirst: false,
+          showResults: false,
+          turnTimerActive: true,
+          showOpponentAttempts: false,
+          playersGaming: [],
+          startTime: 0,
+          endTime: null,
+          opponentSecretCode: [],
         },
       })),
 

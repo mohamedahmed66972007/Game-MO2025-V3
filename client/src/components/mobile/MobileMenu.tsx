@@ -38,7 +38,6 @@ export function MobileMenu() {
           
           <div className="space-y-2 text-gray-600">
             <p className="text-lg">خمن الرقم السري المكون من 4 أرقام</p>
-            <p className="text-sm">لديك 20 محاولة فقط</p>
           </div>
         </div>
 
@@ -69,8 +68,8 @@ export function MobileMenu() {
             <li>1. <strong>اختر رقمك السري:</strong> 4 أرقام يحاول الخصم تخمينها</li>
             <li>2. <strong>خمن الرقم:</strong> أدخل 4 أرقام من اختيارك</li>
             <li>3. <strong>الملاحظات:</strong> رقم أزرق = صح بأي موضع، رقم أخضر = صح بالموضع الصحيح</li>
-            <li>4. <strong>اللاعب الأول:</strong> من يخمن الرقم السري أولاً يفوز!</li>
-            <li>5. لديك 20 محاولة فقط في كل دور</li>
+            <li>4. من يخمن الرقم السري أولاً يفوز!</li>
+            <li>5. يمكن تخصيص عدد الأرقام وعدد المحاولات في كل جولة</li>
           </ul>
         </div>
       </div>

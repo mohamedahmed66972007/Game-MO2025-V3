@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { useNumberGame, GamePhase } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
 import { send } from "@/lib/websocket";
+import { toast } from "sonner";
 import { DisplayPanel } from "./DisplayPanel";
 
 interface ButtonProps {
@@ -388,9 +389,15 @@ export function NumberPanel({ isPointerLocked = false }: NumberPanelProps) {
     if (mode === "singleplayer") {
       playDigit(digit);
       addDigitToGuess(digit);
-    } else if (mode === "multiplayer" && multiplayer.turnTimeLeft > 0) {
-      playDigit(digit);
-      addMultiplayerDigit(digit);
+    } else if (mode === "multiplayer") {
+      if (!multiplayer.isMyTurn) {
+        toast.warning("يرجى انتظار دورك", { duration: 5000 });
+        return;
+      }
+      if (multiplayer.turnTimeLeft > 0) {
+        playDigit(digit);
+        addMultiplayerDigit(digit);
+      }
     }
   };
 
@@ -398,9 +405,15 @@ export function NumberPanel({ isPointerLocked = false }: NumberPanelProps) {
     if (mode === "singleplayer") {
       playDelete();
       deleteLastDigit();
-    } else if (mode === "multiplayer" && multiplayer.turnTimeLeft > 0) {
-      playDelete();
-      deleteMultiplayerDigit();
+    } else if (mode === "multiplayer") {
+      if (!multiplayer.isMyTurn) {
+        toast.warning("يرجى انتظار دورك", { duration: 5000 });
+        return;
+      }
+      if (multiplayer.turnTimeLeft > 0) {
+        playDelete();
+        deleteMultiplayerDigit();
+      }
     }
   };
 
@@ -413,20 +426,26 @@ export function NumberPanel({ isPointerLocked = false }: NumberPanelProps) {
       } else {
         playError();
       }
-    } else if (mode === "multiplayer" && multiplayer.turnTimeLeft > 0) {
-      const currentGuess = multiplayer.currentGuess;
-      if (currentGuess.length === numDigits) {
-        playConfirm();
-        // CRITICAL: Save guess BEFORE calling submitMultiplayerGuess (which clears it)
-        const guessToSend = [...currentGuess];
-        submitMultiplayerGuess();
-        send({
-          type: "submit_guess",
-          opponentId: multiplayer.opponentId,
-          guess: guessToSend,
-        });
-      } else {
-        playError();
+    } else if (mode === "multiplayer") {
+      if (!multiplayer.isMyTurn) {
+        toast.warning("يرجى انتظار دورك", { duration: 5000 });
+        return;
+      }
+      if (multiplayer.turnTimeLeft > 0) {
+        const currentGuess = multiplayer.currentGuess;
+        if (currentGuess.length === numDigits) {
+          playConfirm();
+          // CRITICAL: Save guess BEFORE calling submitMultiplayerGuess (which clears it)
+          const guessToSend = [...currentGuess];
+          submitMultiplayerGuess();
+          send({
+            type: "submit_guess",
+            opponentId: multiplayer.opponentId,
+            guess: guessToSend,
+          });
+        } else {
+          playError();
+        }
       }
     }
   };
@@ -434,9 +453,22 @@ export function NumberPanel({ isPointerLocked = false }: NumberPanelProps) {
   // Keyboard input listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only allow input during active gameplay
-      const isGameActive = (mode === "singleplayer") || 
-                          (mode === "multiplayer" && multiplayer.turnTimeLeft > 0);
+      // Check if game is active
+      const isGameActive = mode === "singleplayer" || 
+                          (mode === "multiplayer" && multiplayer.isMyTurn && multiplayer.turnTimeLeft > 0);
+      
+      // For multiplayer, show warning if not player's turn
+      if (mode === "multiplayer" && !multiplayer.isMyTurn) {
+        if ((e.key >= "0" && e.key <= "9") || 
+            e.key === "Backspace" || 
+            e.key === "Delete" ||
+            e.key === "Enter" || 
+            e.code === "Space") {
+          e.preventDefault();
+          toast.warning("يرجى انتظار دورك", { duration: 5000 });
+          return;
+        }
+      }
       
       if (!isGameActive) return;
       

@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
 import { send, connectWebSocket, disconnect } from "@/lib/websocket";
-import { Home, Check, X, Users, Copy, Maximize2, Minimize2 } from "lucide-react";
+import { Home, Check, X, Users, Copy, Maximize2, Minimize2, Settings } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
+import { clearSession } from "@/lib/websocket";
 
 export function MobileMultiplayer() {
   const {
@@ -37,6 +38,13 @@ export function MobileMultiplayer() {
   }, [numDigits]);
 
   useEffect(() => {
+    if (input.length !== numDigits) {
+      setInput(Array(numDigits).fill(""));
+    }
+    setFocusedIndex(0);
+  }, [numDigits]);
+
+  useEffect(() => {
     if (multiplayer.roomId && !multiplayer.playerId) {
       connectWebSocket(playerName);
     }
@@ -46,12 +54,12 @@ export function MobileMultiplayer() {
     if (!multiplayer.isMyTurn || multiplayer.turnTimeLeft <= 0) return;
     
     const timer = setInterval(() => {
-      const { setTurnTimeLeft, turnTimeLeft } = useNumberGame.getState().multiplayer;
-      if (turnTimeLeft > 0) {
+      const state = useNumberGame.getState();
+      if (state.multiplayer.turnTimeLeft > 0) {
         useNumberGame.setState({
           multiplayer: {
-            ...useNumberGame.getState().multiplayer,
-            turnTimeLeft: turnTimeLeft - 1,
+            ...state.multiplayer,
+            turnTimeLeft: state.multiplayer.turnTimeLeft - 1,
           },
         });
       }
@@ -65,6 +73,21 @@ export function MobileMultiplayer() {
       setShowOpponentWonAlert(true);
     }
   }, [multiplayer.opponentWonFirst]);
+
+  // Load player name from localStorage on mount
+  useEffect(() => {
+    const savedName = localStorage.getItem("playerName");
+    if (savedName) {
+      setPlayerName(savedName);
+    }
+  }, []);
+
+  // Save player name to localStorage whenever it changes
+  useEffect(() => {
+    if (playerName.trim()) {
+      localStorage.setItem("playerName", playerName);
+    }
+  }, [playerName]);
 
   const handleCreateRoom = () => {
     if (!playerName.trim()) return;
@@ -193,6 +216,22 @@ export function MobileMultiplayer() {
     setMode("menu");
   };
 
+  const handleBackToRoom = () => {
+    const { setChallengeStatus, setOpponentId, setOpponentName, setMySecretCode, setShowResults } = useNumberGame.getState();
+    setChallengeStatus("none");
+    setOpponentId(null);
+    setOpponentName("");
+    setMySecretCode([]);
+    setShowResults(false);
+  };
+
+  const handleLeaveRoom = () => {
+    const { resetMultiplayer } = useNumberGame.getState();
+    disconnect();
+    clearSession();
+    resetMultiplayer();
+  };
+
   const copyRoomId = () => {
     if (multiplayer.roomId) {
       navigator.clipboard.writeText(multiplayer.roomId);
@@ -307,25 +346,33 @@ export function MobileMultiplayer() {
   if (multiplayer.roomId && (!multiplayer.opponentId || multiplayer.challengeStatus === "received")) {
     return (
       <div className="min-h-screen p-6 bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <button
-          onClick={handleHome}
-          className="mb-4 flex items-center gap-2 text-gray-700 hover:text-gray-900"
-        >
-          <Home className="w-5 h-5" />
-          <span>العودة</span>
-        </button>
+        <div className="mb-4 flex items-center justify-between">
+          <button
+            onClick={handleHome}
+            className="flex items-center gap-2 text-gray-700 hover:text-gray-900"
+          >
+            <span>الرئيسية</span>
+            <Home className="w-5 h-5" />
+          </button>
+          <button
+            onClick={handleLeaveRoom}
+            className="flex items-center gap-2 text-red-600 hover:text-red-700 font-semibold"
+          >
+            <X className="w-5 h-5" />
+            <span>خروج</span>
+          </button>
+        </div>
 
         <div className="max-w-md mx-auto space-y-6">
-          <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-800">غرفة اللعب</h2>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-sm font-semibold rounded-lg shadow-md"
-              >
-                ⚙️
-              </button>
-            </div>
+          <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200 relative">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="absolute top-4 right-4 p-2 hover:bg-blue-100 rounded-lg transition-colors"
+            >
+              <Settings className="w-6 h-6 text-blue-600" />
+            </button>
+            
+            <h2 className="text-2xl font-bold text-gray-800 text-center mb-4">غرفة اللعب</h2>
             
             <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
               <p className="text-sm text-gray-600 text-center mb-2">رمز الغرفة</p>
@@ -343,25 +390,27 @@ export function MobileMultiplayer() {
             <div className="space-y-2">
               <h3 className="font-bold text-gray-800 flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                اللاعبون ({multiplayer.players.length}/4)
+                اللاعبون ({multiplayer.players.length})
               </h3>
-              {multiplayer.players.map((player) => (
-                <div
-                  key={player.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                >
-                  <span className="font-semibold text-gray-800">{player.name}</span>
-                  {player.id !== multiplayer.playerId && (
-                    <button
-                      onClick={() => handleChallenge(player.id)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
-                      disabled={multiplayer.challengeStatus !== "none"}
-                    >
-                      تحدي
-                    </button>
-                  )}
-                </div>
-              ))}
+              <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
+                {multiplayer.players.map((player) => (
+                  <div
+                    key={player.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  >
+                    <span className="font-semibold text-gray-800">{player.name}</span>
+                    {player.id !== multiplayer.playerId && (
+                      <button
+                        onClick={() => handleChallenge(player.id)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
+                        disabled={multiplayer.challengeStatus !== "none"}
+                      >
+                        تحدي
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -381,8 +430,12 @@ export function MobileMultiplayer() {
                 </button>
                 <button
                   onClick={() => {
+                    send({
+                      type: "reject_challenge",
+                      opponentId: multiplayer.opponentId,
+                    });
                     setChallengeStatus("none");
-                    setOpponentId("");
+                    setOpponentId(null);
                   }}
                   className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
@@ -512,6 +565,16 @@ export function MobileMultiplayer() {
       });
     };
 
+    const handleRejectRematch = () => {
+      const { setChallengeStatus, setOpponentId, setOpponentName, setMySecretCode, resetMultiplayer, setShowResults } = useNumberGame.getState();
+      setChallengeStatus("none");
+      setOpponentId(null);
+      setOpponentName("");
+      setMySecretCode([]);
+      setShowResults(false);
+      resetMultiplayer();
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center space-y-6 border border-gray-200">
@@ -530,10 +593,10 @@ export function MobileMultiplayer() {
               قبول
             </button>
             <button
-              onClick={handleHome}
+              onClick={handleRejectRematch}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors"
             >
-              رفض والعودة للقائمة
+              رفض والعودة للغرفة
             </button>
           </div>
         </div>
@@ -635,10 +698,10 @@ export function MobileMultiplayer() {
               طلب إعادة المبارة
             </button>
             <button
-              onClick={handleHome}
+              onClick={handleBackToRoom}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors"
             >
-              العودة للقائمة
+              العودة للغرفة
             </button>
           </div>
         </div>

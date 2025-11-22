@@ -2,24 +2,45 @@ import { useState, useEffect } from "react";
 import { Button } from "./button";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
-import { send } from "@/lib/websocket";
-import { Check, X, Users, Copy, Loader, LogOut, Zap } from "lucide-react";
+import { send, clearSession, disconnect } from "@/lib/websocket";
+import { Check, X, Users, Copy, Loader, LogOut, Zap, Settings } from "lucide-react";
 import { GameSettings } from "./GameSettings";
 
 export function MultiplayerLobby() {
-  const { multiplayer, setMode, setChallengeStatus, setOpponentId, setMySecretCode } = useNumberGame();
+  const { multiplayer, setMode, setChallengeStatus, setOpponentId, setOpponentName, setMySecretCode, resetMultiplayer } = useNumberGame();
   const [selectedOpponent, setSelectedOpponent] = useState<string | null>(null);
   const numDigits = multiplayer.settings.numDigits;
   const [secretCodeInput, setSecretCodeInput] = useState<string[]>(Array(numDigits).fill(""));
   const [secretFocusedIndex, setSecretFocusedIndex] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Call all hooks at the top, before any conditional rendering
   useEffect(() => {
     if (secretCodeInput.length !== numDigits) {
       setSecretCodeInput(Array(numDigits).fill(""));
     }
     setSecretFocusedIndex(0);
   }, [numDigits]);
+
+  const handleLeaveRoom = () => {
+    send({ type: "leave_room" });
+    clearSession();
+    disconnect();
+    resetMultiplayer();
+    setMode("menu");
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
+  };
+
+  const handleRejectChallenge = () => {
+    if (multiplayer.opponentId) {
+      send({ type: "reject_challenge", opponentId: multiplayer.opponentId });
+      setChallengeStatus("none");
+      setOpponentId(null);
+      setOpponentName("");
+    }
+  };
 
   const handleChallengePlayer = (opponentId: string) => {
     setSelectedOpponent(opponentId);
@@ -77,7 +98,7 @@ export function MultiplayerLobby() {
 
   const otherPlayers = multiplayer.players.filter((p) => p.id !== multiplayer.playerId);
 
-  // Show settings for any player when in lobby (they can all access it)
+  // Render GameSettings if showSettings is true and no challenge
   if (showSettings && multiplayer.challengeStatus === "none") {
     return (
       <GameSettings
@@ -93,7 +114,7 @@ export function MultiplayerLobby() {
     );
   }
 
-  // Show secret code input ONLY after challenge is accepted
+  // Render secret code input if challenge accepted and no secret code submitted yet
   if (multiplayer.challengeStatus === "accepted" && multiplayer.mySecretCode.length === 0) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50 p-4">
@@ -187,7 +208,7 @@ export function MultiplayerLobby() {
     );
   }
 
-  // Show loading while challenge is being sent or received response
+  // Render loading if challenge being sent
   if (multiplayer.challengeStatus === "sent") {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50">
@@ -202,15 +223,23 @@ export function MultiplayerLobby() {
     );
   }
 
-  // Don't show MultiplayerLobby if challenge is accepted and waiting for secret code
+  // Don't show lobby if secret code already submitted
   if (multiplayer.challengeStatus === "accepted" && multiplayer.mySecretCode.length > 0) {
     return null;
   }
 
+  // Main lobby view
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50">
-      <Card className="w-full max-w-3xl mx-4 bg-white border-2 border-gray-200 shadow-2xl rounded-3xl">
-        <CardHeader className="text-center pb-2 pt-8 border-b border-gray-200">
+    <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50 p-4">
+      <Card className="w-full max-w-3xl bg-white border-2 border-gray-200 shadow-2xl rounded-3xl max-h-[90vh] flex flex-col relative">
+        <button
+          onClick={() => setShowSettings(true)}
+          className="absolute top-4 right-4 p-2 hover:bg-blue-100 rounded-lg transition-colors z-10"
+        >
+          <Settings className="w-6 h-6 text-blue-600" />
+        </button>
+        
+        <CardHeader className="text-center pb-2 pt-8 border-b border-gray-200 flex-shrink-0">
           <div className="mb-6 flex justify-center">
             <div className="relative">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-500 rounded-3xl flex items-center justify-center shadow-lg">
@@ -222,100 +251,127 @@ export function MultiplayerLobby() {
             غرفة اللعب
           </CardTitle>
         </CardHeader>
-        
-        <CardContent className="space-y-4 p-6">
-          <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-4 rounded-xl border-2 border-blue-200">
-            <p className="text-center text-gray-700 text-sm mb-2">رقم الغرفة</p>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={multiplayer.roomId}
-                className="flex-1 px-4 py-3 bg-white border-2 border-blue-300 rounded-lg text-gray-800 font-mono font-bold text-center focus:outline-none"
-              />
-              <Button
-                onClick={() => {
-                  navigator.clipboard.writeText(multiplayer.roomId);
-                }}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-4 py-3 rounded-lg shadow-md flex items-center gap-2"
-              >
-                <Copy className="w-4 h-4" />
-                نسخ
-              </Button>
-            </div>
+
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-4 mx-6 mt-6 rounded-xl border-2 border-blue-200 flex-shrink-0">
+          <p className="text-center text-gray-700 text-sm mb-2">رقم الغرفة</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={multiplayer.roomId}
+              className="flex-1 px-4 py-3 bg-white border-2 border-blue-300 rounded-lg text-gray-800 font-mono font-bold text-center focus:outline-none"
+            />
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(multiplayer.roomId);
+              }}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-4 py-3 rounded-lg shadow-md flex items-center gap-2 flex-shrink-0"
+            >
+              <Copy className="w-4 h-4" />
+              نسخ
+            </Button>
           </div>
+        </div>
+        
+        <CardContent className="space-y-4 p-6 overflow-y-auto flex-1">
           {multiplayer.challengeStatus === "received" && (
-            <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-5 rounded-2xl border-2 border-yellow-300 shadow-lg animate-pulse">
+            <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-5 rounded-2xl border-2 border-yellow-300 shadow-lg animate-pulse flex-shrink-0">
               <div className="flex items-center justify-center mb-3">
                 <Zap className="w-8 h-8 text-yellow-600" />
               </div>
               <p className="text-yellow-800 text-center mb-4 font-semibold text-lg">
-                تلقيت تحدي! هل تقبل؟
+                {multiplayer.opponentName} طلب تحديك! هل تقبل؟
               </p>
-              <Button
-                onClick={handleAcceptChallenge}
-                className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white font-semibold py-6 rounded-xl shadow-lg flex items-center justify-center gap-2"
-              >
-                <Check className="w-5 h-5" />
-                قبول التحدي
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleAcceptChallenge}
+                  className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2"
+                >
+                  <Check className="w-5 h-5" />
+                  قبول
+                </Button>
+                <Button
+                  onClick={handleRejectChallenge}
+                  className="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2"
+                >
+                  <X className="w-5 h-5" />
+                  رفض
+                </Button>
+              </div>
             </div>
           )}
 
           {multiplayer.challengeStatus === "none" && (
             <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-5 rounded-2xl border-2 border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-gray-800 font-bold text-lg flex items-center">
-                  <Users className="w-5 h-5 ml-2" />
-                  اللاعبون ({multiplayer.players.length}/4)
-                </h3>
-                <button
-                  onClick={() => setShowSettings(true)}
-                  className="px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-sm font-semibold rounded-lg shadow-md transform hover:scale-105 transition-all"
-                >
-                  ⚙️ إعدادات
-                </button>
-              </div>
-              <div className="space-y-3">
-                {multiplayer.players.map((player) => (
-                  <div
-                    key={player.id}
-                    className={`p-4 rounded-xl flex items-center justify-between transition-all duration-200 ${
-                      player.id === multiplayer.playerId
-                        ? "bg-gradient-to-r from-blue-100 to-purple-100 border-2 border-blue-300 shadow-md"
-                        : "bg-gray-50 border border-gray-300 hover:bg-gray-100"
-                    }`}
-                  >
-                    <span className="text-gray-800 font-medium flex items-center">
-                      {player.id === multiplayer.playerId ? (
-                        <span className="w-5 h-5 ml-2 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs">👤</span>
-                      ) : (
-                        <span className="w-5 h-5 ml-2 bg-purple-600 text-white rounded-full flex items-center justify-center text-xs">👾</span>
+              <h3 className="text-gray-800 font-bold text-lg flex items-center mb-4">
+                <Users className="w-5 h-5 ml-2" />
+                اللاعبون ({multiplayer.players.length})
+              </h3>
+
+              {multiplayer.playersGaming.length > 0 && (
+                <div className="mb-4 space-y-2">
+                  {multiplayer.playersGaming.map((game, idx) => (
+                    <div key={idx} className="bg-gradient-to-r from-red-100 to-orange-100 p-3 rounded-lg border-2 border-red-300 flex items-center justify-center gap-3">
+                      <span className="text-gray-800 font-bold text-sm">{game.player1Name}</span>
+                      <span className="bg-red-500 text-white px-3 py-1 rounded-lg font-bold text-sm">VS</span>
+                      <span className="text-gray-800 font-bold text-sm">{game.player2Name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                {multiplayer.players.map((player) => {
+                  const isInGame = multiplayer.playersGaming.some(
+                    (game) => game.player1Id === player.id || game.player2Id === player.id
+                  );
+                  return (
+                    <div
+                      key={player.id}
+                      className={`p-4 rounded-xl flex items-center justify-between transition-all duration-200 ${
+                        player.id === multiplayer.playerId
+                          ? "bg-gradient-to-r from-blue-100 to-purple-100 border-2 border-blue-300 shadow-md"
+                          : isInGame
+                          ? "bg-gradient-to-r from-red-100 to-orange-100 border-2 border-red-300"
+                          : "bg-gray-50 border border-gray-300 hover:bg-gray-100"
+                      }`}
+                    >
+                      <span className="text-gray-800 font-medium flex items-center">
+                        {player.id === multiplayer.playerId ? (
+                          <span className="w-5 h-5 ml-2 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs">👤</span>
+                        ) : isInGame ? (
+                          <span className="w-5 h-5 ml-2 bg-red-600 text-white rounded-full flex items-center justify-center text-xs">🎮</span>
+                        ) : (
+                          <span className="w-5 h-5 ml-2 bg-purple-600 text-white rounded-full flex items-center justify-center text-xs">👾</span>
+                        )}
+                        {player.name}
+                        {player.id === multiplayer.playerId && (
+                          <span className="mr-2 text-blue-700 text-sm bg-blue-200 px-2 py-0.5 rounded-lg">(أنت)</span>
+                        )}
+                        {isInGame && (
+                          <span className="mr-2 text-orange-700 text-sm bg-orange-200 px-2 py-0.5 rounded-lg">في مباراة</span>
+                        )}
+                      </span>
+                      {player.id !== multiplayer.playerId && !isInGame && (
+                        <Button
+                          onClick={() => handleChallengePlayer(player.id)}
+                          disabled={selectedOpponent !== null}
+                          size="sm"
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md transform hover:scale-105 transition-all duration-200 flex items-center gap-1 flex-shrink-0"
+                        >
+                          <Zap className="w-4 h-4" />
+                          تحدي
+                        </Button>
                       )}
-                      {player.name} 
-                      {player.id === multiplayer.playerId && (
-                        <span className="mr-2 text-blue-700 text-sm bg-blue-200 px-2 py-0.5 rounded-lg">(أنت)</span>
-                      )}
-                    </span>
-                    {player.id !== multiplayer.playerId && (
-                      <Button
-                        onClick={() => handleChallengePlayer(player.id)}
-                        disabled={selectedOpponent !== null}
-                        size="sm"
-                        className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md transform hover:scale-105 transition-all duration-200 flex items-center gap-1"
-                      >
-                        <Zap className="w-4 h-4" />
-                        تحدي
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {otherPlayers.length === 0 && (
-            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-5 rounded-2xl border-2 border-blue-300">
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-5 rounded-2xl border-2 border-blue-300 flex-shrink-0">
               <div className="flex items-center justify-center mb-2">
                 <Loader className="w-8 h-8 text-blue-500 animate-spin" />
               </div>
@@ -324,16 +380,18 @@ export function MultiplayerLobby() {
               </p>
             </div>
           )}
+        </CardContent>
 
+        <div className="p-6 border-t border-gray-200 flex-shrink-0">
           <Button
-            onClick={() => setMode("menu")}
+            onClick={handleLeaveRoom}
             className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-semibold py-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2"
             size="lg"
           >
             <LogOut className="w-5 h-5" />
             مغادرة الغرفة
           </Button>
-        </CardContent>
+        </div>
       </Card>
     </div>
   );

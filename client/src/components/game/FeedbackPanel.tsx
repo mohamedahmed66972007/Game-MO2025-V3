@@ -1,14 +1,14 @@
 import { Text } from "@react-three/drei";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 
-function getFeedbackText(correctCount: number, correctPositionCount: number): string {
+function getFeedbackText(correctCount: number, correctPositionCount: number, numDigits: number): string {
   if (correctCount === 0) {
     return "ولا رقم صح";
   }
   
   const correctInWrongPosition = correctCount - correctPositionCount;
   
-  if (correctPositionCount === 4) {
+  if (correctPositionCount === numDigits) {
     return "كل الأرقام صحيحة!";
   }
   

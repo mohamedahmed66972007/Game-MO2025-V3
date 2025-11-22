@@ -5,8 +5,11 @@ import { send } from "@/lib/websocket";
 export function GameHUD() {
   const { mode, singleplayer, multiplayer, setTurnTimeLeft } = useNumberGame();
 
+  // Turn timer for multiplayer
   useEffect(() => {
-    if (mode !== "multiplayer" || !multiplayer.isMyTurn) return;
+    if (mode !== "multiplayer" || !multiplayer.isMyTurn) {
+      return;
+    }
 
     const interval = setInterval(() => {
       setTurnTimeLeft(Math.max(0, multiplayer.turnTimeLeft - 1));
@@ -17,7 +20,9 @@ export function GameHUD() {
 
   // Handle timeout when time reaches 0
   useEffect(() => {
-    if (mode !== "multiplayer" || !multiplayer.isMyTurn || multiplayer.turnTimeLeft > 0) return;
+    if (mode !== "multiplayer" || !multiplayer.isMyTurn || multiplayer.turnTimeLeft > 0) {
+      return;
+    }
 
     // Send timeout message to server
     send({
@@ -29,6 +34,7 @@ export function GameHUD() {
     setTurnTimeLeft(0);
   }, [mode, multiplayer.isMyTurn, multiplayer.turnTimeLeft, multiplayer.opponentId]);
 
+  // Render based on mode
   if (mode === "singleplayer") {
     return (
       <div className="fixed top-4 left-4 bg-black bg-opacity-70 text-white p-4 rounded-lg z-40">
