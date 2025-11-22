@@ -46,8 +46,9 @@ function checkGuess(secret: number[], guess: number[]): { correctCount: number; 
 
   const secretCopy = [...secret];
   const guessCopy = [...guess];
+  const length = Math.min(secret.length, guess.length);
 
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < length; i++) {
     if (guessCopy[i] === secretCopy[i]) {
       correctPositionCount++;
       secretCopy[i] = -1;
@@ -55,7 +56,7 @@ function checkGuess(secret: number[], guess: number[]): { correctCount: number; 
     }
   }
 
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < length; i++) {
     if (guessCopy[i] !== -2) {
       const index = secretCopy.indexOf(guessCopy[i]);
       if (index !== -1) {
@@ -171,8 +172,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const opponentAttempts = game.attempts.get(opponentPlayer.id)?.length ?? 0;
         
         // If this timeout was for the player who lost first, check if they've used all attempts
-        if (turnPlayer.id !== game.firstWinnerId && totalPlayerAttempts >= game.firstWinnerAttempts) {
-          // Opponent (loser) has used all attempts - finalize the game
+        if (turnPlayer.id !== game.firstWinnerId && totalPlayerAttempts > game.firstWinnerAttempts) {
+          // Opponent (loser) has used more attempts than winner - finalize the game
           const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
           const loserPlayer = game.player1.id === turnPlayer.id ? game.player1 : game.player2;
           
@@ -193,8 +194,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             opponentAttempts: game.firstWinnerAttempts,
           });
           return;
-        } else if (turnPlayer.id === game.firstWinnerId && opponentAttempts >= game.firstWinnerAttempts) {
-          // First winner's turn timed out but opponent already has enough attempts - finalize
+        } else if (turnPlayer.id === game.firstWinnerId && opponentAttempts > game.firstWinnerAttempts) {
+          // First winner's turn timed out but opponent already has more attempts - finalize
           const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
           const loserPlayer = game.player1.id === opponentPlayer.id ? game.player1 : game.player2;
           
@@ -264,7 +265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       case "join_room": {
         const room = rooms.get(message.roomId);
-        if (room && room.players.length < 4) {
+        if (room && room.players.length < 10) {
           const playerId = generatePlayerId();
           const player: Player = {
             id: playerId,
@@ -341,6 +342,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         break;
       }
 
+      case "reject_challenge": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room) return;
+
+        const opponent = room.players.find((p) => p.id === message.opponentId);
+        if (opponent) {
+          // Send rejection to the challenge sender
+          send(opponent.ws, {
+            type: "challenge_rejected",
+            opponentId: player.id,
+            opponentName: player.name,
+            message: "رفض الخصم التحدي",
+          });
+          // Clear challenge status for both players
+          send(ws, {
+            type: "challenge_cleared",
+          });
+        }
+        break;
+      }
+
       case "update_settings": {
         const player = players.get(ws);
         if (!player) return;
@@ -349,6 +374,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!room) return;
 
         room.settings = message.settings;
+
+        // Clear all active games when settings change (reset secret codes and attempts)
+        room.games.forEach((game) => {
+          game.secretCodes.clear();
+          game.attempts.clear();
+          game.firstWinnerId = null;
+          game.firstWinnerAttempts = 0;
+        });
 
         broadcastToRoom(room, {
           type: "settings_updated",
@@ -401,6 +434,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             firstPlayerId: firstPlayer,
           });
 
+          // Notify all other players in the room that these two are now in a game
+          broadcastToRoom(room, {
+            type: "players_gaming",
+            player1Id: player.id,
+            player1Name: player.name,
+            player2Id: opponent.id,
+            player2Name: opponent.name,
+          });
+
           // Start turn timeout for first player
           const turnPlayer = game.player1.id === firstPlayer ? game.player1 : game.player2;
           const opponentPlayer = game.player1.id === firstPlayer ? game.player2 : game.player1;
@@ -443,7 +485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           correctPositionCount,
         });
 
-        const won = correctPositionCount === 4;
+        const won = correctPositionCount === room.settings.numDigits;
         const playerAttempts = game.attempts.get(player.id)!.length;
         const opponentAttempts = game.attempts.get(opponent.id)?.length ?? 0;
 
@@ -564,9 +606,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           // Player did not win
           if (game.firstWinnerId && player.id !== game.firstWinnerId) {
-            // This is second player - check if exceeded attempts
+            // This is second player - check if exceeded or used all attempts
             if (playerAttempts >= game.firstWinnerAttempts) {
-              // Opponent has used all attempts without winning - first winner wins
+              // Opponent has used up their attempts without winning - first winner wins
               if (game.turnTimeoutHandle) {
                 clearTimeout(game.turnTimeoutHandle);
                 game.turnTimeoutHandle = undefined;
@@ -591,7 +633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 opponentAttempts: game.firstWinnerAttempts,
               });
             } else {
-              // Still has attempts left
+              // Still has attempts left (can still match or exceed the winner's attempts)
               game.currentTurn = opponent.id;
               game.turnStartTime = Date.now();
               setTurnTimeout(game, opponent, player);
@@ -615,6 +657,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         }
+        break;
+      }
+
+      case "leave_room": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room) return;
+
+        // Handle any active games involving this player
+        const gamesToDelete: string[] = [];
+        
+        room.games.forEach((game, gameKey) => {
+          const isPlayer1 = game.player1.id === player.id;
+          const isPlayer2 = game.player2.id === player.id;
+          
+          if (isPlayer1 || isPlayer2) {
+            const opponent = isPlayer1 ? game.player2 : game.player1;
+            
+            // Notify opponent that they won because opponent quit
+            send(opponent.ws, {
+              type: "game_result",
+              result: "won",
+              reason: "opponent_quit",
+              firstWinnerId: opponent.id,
+              firstWinnerAttempts: game.attempts.get(opponent.id)?.length || 0,
+              opponentAttempts: 999, // Mark as abandoned
+              opponentSecret: isPlayer1 
+                ? game.secretCodes.get(game.player2.id)
+                : game.secretCodes.get(game.player1.id),
+            });
+            
+            // Mark game for deletion
+            gamesToDelete.push(gameKey);
+          }
+        });
+        
+        // Delete all affected games
+        gamesToDelete.forEach(gameKey => room.games.delete(gameKey));
+
+        // Remove player from room
+        room.players = room.players.filter((p) => p.id !== player.id);
+        
+        if (room.players.length === 0) {
+          // Room is empty, delete it
+          rooms.delete(player.roomId);
+        } else {
+          // Notify remaining players about the update
+          broadcastToRoom(room, {
+            type: "players_updated",
+            players: room.players.map((p) => ({ id: p.id, name: p.name })),
+          });
+        }
+        players.delete(ws);
+        break;
+      }
+
+      case "opponent_quit": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room) return;
+
+        const opponent = room.players.find((p) => p.id !== player.id);
+        if (!opponent) return;
+
+        // Send opponent_quit message to opponent so they see they won
+        send(opponent.ws, {
+          type: "opponent_quit",
+          message: "انسحب الخصم من اللعبة",
+        });
         break;
       }
 
