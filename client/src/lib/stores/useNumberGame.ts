@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
+import { useChallenge } from "./useChallenge";
 
 export type GameMode = "menu" | "singleplayer" | "multiplayer";
 export type GamePhase = "playing" | "won" | "lost";
@@ -270,7 +271,20 @@ export const useNumberGame = create<NumberGameState>()(
 
     restartSingleplayer: () => {
       const { singleplayer } = get();
-      get().startSingleplayer(singleplayer.settings);
+      useChallenge.getState().resetChallenge();
+      const newSecretCode = generateSecretCode(singleplayer.settings.numDigits);
+      console.log("Secret code generated:", newSecretCode);
+      set({
+        singleplayer: {
+          secretCode: newSecretCode,
+          currentGuess: [],
+          attempts: [],
+          phase: "playing",
+          startTime: Date.now(),
+          endTime: null,
+          settings: singleplayer.settings,
+        },
+      });
     },
 
     setSingleplayerSettings: (settings) => set((state) => ({ singleplayer: { ...state.singleplayer, settings } })),

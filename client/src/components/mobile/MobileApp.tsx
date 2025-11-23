@@ -1,14 +1,18 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
 import { reconnectToSession, connectWebSocket } from "@/lib/websocket";
 import { MobileMenu } from "./MobileMenu";
 import { MobileSingleplayer } from "./MobileSingleplayer";
 import { MobileMultiplayer } from "./MobileMultiplayer";
+import { MobileChallenge } from "./MobileChallenge";
+import { useChallenge } from "@/lib/stores/useChallenge";
 
 export function MobileApp() {
-  const { mode, setMode, setPlayerName, setRoomId, setPlayerId, setIsConnecting, multiplayer } = useNumberGame();
+  const { mode, setMode, setPlayerName, setRoomId, setPlayerId, setIsConnecting, multiplayer, singleplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
+  const [showChallenge, setShowChallenge] = useState(false);
+  const { startChallenge, resetChallenge, phase: challengePhase, generateHint } = useChallenge();
 
   useEffect(() => {
     const successAudio = new Audio("/sounds/success.mp3");
@@ -52,10 +56,29 @@ export function MobileApp() {
     }
   }, []);
 
+  const handleExitChallenge = () => {
+    if (challengePhase === "won") {
+      generateHint(singleplayer.secretCode);
+    }
+    setShowChallenge(false);
+    resetChallenge();
+  };
+
+  if (showChallenge) {
+    return <MobileChallenge onExit={handleExitChallenge} />;
+  }
+
   return (
     <div dir="rtl" className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {mode === "menu" && <MobileMenu />}
-      {mode === "singleplayer" && <MobileSingleplayer />}
+      {mode === "singleplayer" && (
+        <MobileSingleplayer 
+          onStartChallenge={() => {
+            setShowChallenge(true);
+            startChallenge();
+          }}
+        />
+      )}
       {mode === "multiplayer" && <MobileMultiplayer />}
     </div>
   );

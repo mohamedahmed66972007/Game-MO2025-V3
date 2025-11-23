@@ -14,6 +14,9 @@ import { GameHUD } from "./components/ui/GameHUD";
 import { GameOverScreen } from "./components/ui/GameOverScreen";
 import { OpponentAttemptsDialog } from "./components/ui/OpponentAttemptsDialog";
 import { WaitingForOpponentScreen } from "./components/ui/WaitingForOpponentScreen";
+import { ChallengeRoom } from "./components/game/ChallengeRoom";
+import { ChallengeResultScreen } from "./components/ui/ChallengeResultScreen";
+import { useChallenge } from "./lib/stores/useChallenge";
 import "@fontsource/inter";
 
 function App() {
@@ -21,6 +24,8 @@ function App() {
   const { mode, singleplayer, multiplayer, setMode, isConnecting, setIsConnecting, setPlayerName, setRoomId, setPlayerId } = useNumberGame();
   const { setSuccessSound } = useAudio();
   const [isPointerLocked, setIsPointerLocked] = useState(false);
+  const [showChallengeRoom, setShowChallengeRoom] = useState(false);
+  const { startChallenge, phase: challengePhase, resetChallenge, generateHint } = useChallenge();
 
   useEffect(() => {
     const successAudio = new Audio("/sounds/success.mp3");
@@ -89,12 +94,38 @@ function App() {
 
       {mode === "singleplayer" && (
         <>
-          {singleplayer.secretCode.length > 0 && (
+          {singleplayer.secretCode.length > 0 && !showChallengeRoom && (
             <>
-              <GameScene />
+              <GameScene onEnterChallenge={() => {
+                setShowChallengeRoom(true);
+                startChallenge();
+              }} />
               <GameHUD />
               {singleplayer.phase === "won" && <WinScreen />}
               {singleplayer.phase === "lost" && <LoseScreen />}
+            </>
+          )}
+          {showChallengeRoom && (
+            <>
+              <ChallengeRoom onExit={() => {
+                if (challengePhase === "won") {
+                  generateHint(singleplayer.secretCode);
+                }
+                setShowChallengeRoom(false);
+                resetChallenge();
+              }} />
+              {(challengePhase === "won" || challengePhase === "lost") && (
+                <ChallengeResultScreen
+                  won={challengePhase === "won"}
+                  onClose={() => {
+                    if (challengePhase === "won") {
+                      generateHint(singleplayer.secretCode);
+                    }
+                    setShowChallengeRoom(false);
+                    resetChallenge();
+                  }}
+                />
+              )}
             </>
           )}
         </>

@@ -80,7 +80,13 @@ export function FirstPersonControls() {
       isLocked.current = false;
     };
 
-    const handleCanvasClick = async () => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        document.exitPointerLock?.();
+      }
+    };
+
+    const requestPointerLock = async () => {
       try {
         await canvas.requestPointerLock?.();
       } catch (err) {
@@ -91,13 +97,16 @@ export function FirstPersonControls() {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('pointerlockchange', handlePointerLockChange);
     document.addEventListener('pointerlockerror', handlePointerLockError);
-    canvas.addEventListener('click', handleCanvasClick);
+    document.addEventListener('keydown', handleKeyDown);
+
+    // طلب pointer lock تلقائياً
+    requestPointerLock();
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('pointerlockchange', handlePointerLockChange);
       document.removeEventListener('pointerlockerror', handlePointerLockError);
-      canvas.removeEventListener('click', handleCanvasClick);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [camera, gl]);
 

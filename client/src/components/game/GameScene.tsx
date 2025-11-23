@@ -10,6 +10,7 @@ import { AttemptsHistory } from "./AttemptsHistory";
 import { CurrentGuessDisplay } from "./CurrentGuessDisplay";
 import { Crosshair } from "../ui/Crosshair";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
+import { ChallengeDoor } from "./ChallengeDoor";
 
 function BackWallStatus() {
   return null;
@@ -57,7 +58,6 @@ function PendingWinStatus() {
         anchorY="middle"
         fontWeight="bold"
         maxWidth={5.8}
-        anchorZ={0.5}
         lineHeight={1.8}
       >
         {pendingWinMessage}
@@ -66,7 +66,9 @@ function PendingWinStatus() {
   );
 }
 
-function Scene({ onLockChange, isPointerLocked = false }: { onLockChange?: (locked: boolean) => void; isPointerLocked?: boolean }) {
+function Scene({ onLockChange, isPointerLocked = false, onEnterChallenge }: { onLockChange?: (locked: boolean) => void; isPointerLocked?: boolean; onEnterChallenge?: () => void }) {
+  const mode = useNumberGame((state) => state.mode);
+
   useEffect(() => {
     const handlePointerLockChange = () => {
       const isLocked = document.pointerLockElement !== null;
@@ -172,6 +174,10 @@ function Scene({ onLockChange, isPointerLocked = false }: { onLockChange?: (lock
       <CurrentGuessDisplay />
       <BackWallStatus />
       
+      {mode === "singleplayer" && onEnterChallenge && (
+        <ChallengeDoor onEnterChallenge={onEnterChallenge} />
+      )}
+      
       <FirstPersonControls />
     </>
   );
@@ -184,7 +190,7 @@ const keyMap = [
   { name: Controls.right, keys: ["ArrowRight", "KeyD"] },
 ];
 
-export function GameScene() {
+export function GameScene({ onEnterChallenge }: { onEnterChallenge?: () => void }) {
   const [isLocked, setIsLocked] = useState(false);
   const pendingWin = useNumberGame((state) => state.multiplayer.pendingWin);
   const pendingWinMessage = useNumberGame((state) => state.multiplayer.pendingWinMessage);
@@ -206,7 +212,7 @@ export function GameScene() {
             antialias: true,
           }}
         >
-          <Scene onLockChange={setIsLocked} isPointerLocked={isLocked} />
+          <Scene onLockChange={setIsLocked} isPointerLocked={isLocked} onEnterChallenge={onEnterChallenge} />
         </Canvas>
       </KeyboardControls>
       {!isLocked && (
