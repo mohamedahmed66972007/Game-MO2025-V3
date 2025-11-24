@@ -12,6 +12,9 @@ function generateRoomId() {
 function generatePlayerId() {
   return Math.random().toString(36).substring(2, 15);
 }
+function generateSecretCode(numDigits) {
+  return Array.from({ length: numDigits }, () => Math.floor(Math.random() * 10));
+}
 function checkGuess(secret, guess) {
   let correctCount = 0;
   let correctPositionCount = 0;
@@ -64,12 +67,63 @@ async function registerRoutes(app2) {
         const room = rooms.get(player.roomId);
         if (room) {
           room.players = room.players.filter((p) => p.id !== player.id);
-          if (room.players.length === 0) {
-            rooms.delete(player.roomId);
+          if (room.game && room.game.status === "finished") {
+            console.log(`Player ${player.name} disconnected from finished game - auto logout`);
+            if (room.players.length === 0 && room.disconnectedPlayers.size === 0) {
+              if (room.game?.rematchState.countdownHandle) {
+                clearInterval(room.game.rematchState.countdownHandle);
+              }
+              rooms.delete(player.roomId);
+              console.log(`Room ${player.roomId} deleted (all players left finished game)`);
+            }
           } else {
+            const disconnectTime = Date.now();
+            player.disconnectTime = disconnectTime;
+            const timeoutHandle = setTimeout(() => {
+              const disconnected = room.disconnectedPlayers.get(player.id);
+              if (disconnected) {
+                room.disconnectedPlayers.delete(player.id);
+                if (room.game && room.game.status === "playing") {
+                  const playerData = room.game.players.get(player.id);
+                  if (playerData && !playerData.finished) {
+                    playerData.finished = true;
+                    playerData.endTime = Date.now();
+                    broadcastToRoom(room, {
+                      type: "player_timeout",
+                      playerId: player.id,
+                      playerName: player.name
+                    });
+                    checkGameEnd(room);
+                  }
+                }
+              }
+              const isRoomEmpty = room.players.length === 0 && room.disconnectedPlayers.size === 0;
+              if (isRoomEmpty) {
+                if (room.game?.rematchState.countdownHandle) {
+                  clearInterval(room.game.rematchState.countdownHandle);
+                }
+                rooms.delete(player.roomId);
+              }
+            }, 5 * 60 * 1e3);
+            room.disconnectedPlayers.set(player.id, { player, disconnectTime, timeoutHandle });
+          }
+          broadcastToRoom(room, {
+            type: "player_disconnected",
+            playerId: player.id,
+            playerName: player.name
+          });
+          if (room.players.length > 0) {
+            if (room.hostId === player.id && room.players.length > 0) {
+              room.hostId = room.players[0].id;
+              broadcastToRoom(room, {
+                type: "host_changed",
+                newHostId: room.hostId
+              });
+            }
             broadcastToRoom(room, {
               type: "players_updated",
-              players: room.players.map((p) => ({ id: p.id, name: p.name }))
+              players: room.players.map((p) => ({ id: p.id, name: p.name })),
+              hostId: room.hostId
             });
           }
         }
@@ -77,98 +131,78 @@ async function registerRoutes(app2) {
       }
     });
   });
-  function setTurnTimeout(game, turnPlayer, opponentPlayer) {
-    if (game.turnTimeoutHandle) {
-      clearTimeout(game.turnTimeoutHandle);
+  function checkGameEnd(room) {
+    if (!room.game || room.game.status !== "playing") return;
+    const allGamePlayers = Array.from(room.game.players.values());
+    const activePlayers = allGamePlayers.filter((p) => !p.finished);
+    const allPlayersFinished = allGamePlayers.every((p) => p.finished);
+    if (activePlayers.length === 1) {
+      const lastPlayer = activePlayers[0];
+      lastPlayer.won = true;
+      lastPlayer.finished = true;
+      lastPlayer.endTime = Date.now();
+      room.game.status = "finished";
+      room.game.endTime = Date.now();
+      const results = calculateGameResults(room);
+      room.players.forEach((player) => {
+        const playerData = room.game.players.get(player.id);
+        if (playerData && playerData.finished) {
+          send(player.ws, {
+            type: "game_results",
+            winners: results.winners,
+            losers: results.losers,
+            stillPlaying: results.stillPlaying,
+            sharedSecret: room.game.sharedSecret,
+            reason: "last_player_standing"
+          });
+        }
+      });
+    } else if (allPlayersFinished && room.game) {
+      room.game.status = "finished";
+      room.game.endTime = Date.now();
+      const results = calculateGameResults(room);
+      broadcastToRoom(room, {
+        type: "game_results",
+        winners: results.winners,
+        losers: results.losers,
+        stillPlaying: results.stillPlaying,
+        sharedSecret: room.game.sharedSecret
+      });
     }
-    game.turnTimeoutHandle = setTimeout(() => {
-      if (!game.attempts.has(turnPlayer.id)) {
-        game.attempts.set(turnPlayer.id, []);
-      }
-      const playerAttempts = game.attempts.get(turnPlayer.id);
-      const emptyAttempt = {
-        guess: [],
-        correctCount: 0,
-        correctPositionCount: 0
+  }
+  function calculateGameResults(room) {
+    if (!room.game) return { winners: [], losers: [], stillPlaying: [] };
+    const winners = [];
+    const losers = [];
+    const stillPlaying = [];
+    room.game.players.forEach((playerData) => {
+      const endTime = playerData.endTime || Date.now();
+      const playerInfo = {
+        playerId: playerData.playerId,
+        playerName: playerData.playerName,
+        attempts: playerData.attempts.length,
+        duration: endTime - playerData.startTime,
+        attemptsDetails: playerData.attempts
       };
-      playerAttempts.push(emptyAttempt);
-      const totalPlayerAttempts = playerAttempts.length;
-      send(turnPlayer.ws, {
-        type: "guess_result",
-        playerId: turnPlayer.id,
-        guess: [],
-        correctCount: 0,
-        correctPositionCount: 0,
-        won: false,
-        nextTurn: opponentPlayer.id
-      });
-      send(opponentPlayer.ws, {
-        type: "guess_result",
-        playerId: turnPlayer.id,
-        guess: [],
-        correctCount: 0,
-        correctPositionCount: 0,
-        won: false,
-        nextTurn: opponentPlayer.id
-      });
-      if (game.turnTimeoutHandle) {
-        clearTimeout(game.turnTimeoutHandle);
-        game.turnTimeoutHandle = void 0;
-      }
-      if (game.firstWinnerId) {
-        const opponentAttempts = game.attempts.get(opponentPlayer.id)?.length ?? 0;
-        if (turnPlayer.id !== game.firstWinnerId && totalPlayerAttempts > game.firstWinnerAttempts) {
-          const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
-          const loserPlayer = game.player1.id === turnPlayer.id ? game.player1 : game.player2;
-          send(firstWinnerPlayer.ws, {
-            type: "game_result",
-            result: "won",
-            message: "\u0644\u0642\u062F \u0641\u0632\u062A",
-            opponentSecret: game.secretCodes.get(turnPlayer.id),
-            yourAttempts: game.firstWinnerAttempts,
-            opponentAttempts: totalPlayerAttempts
-          });
-          send(loserPlayer.ws, {
-            type: "game_result",
-            result: "lost",
-            message: "\u0644\u0642\u062F \u062E\u0633\u0631\u062A",
-            opponentSecret: game.secretCodes.get(firstWinnerPlayer.id),
-            yourAttempts: totalPlayerAttempts,
-            opponentAttempts: game.firstWinnerAttempts
-          });
-          return;
-        } else if (turnPlayer.id === game.firstWinnerId && opponentAttempts > game.firstWinnerAttempts) {
-          const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
-          const loserPlayer = game.player1.id === opponentPlayer.id ? game.player1 : game.player2;
-          send(firstWinnerPlayer.ws, {
-            type: "game_result",
-            result: "won",
-            message: "\u0644\u0642\u062F \u0641\u0632\u062A",
-            opponentSecret: game.secretCodes.get(opponentPlayer.id),
-            yourAttempts: game.firstWinnerAttempts,
-            opponentAttempts
-          });
-          send(loserPlayer.ws, {
-            type: "game_result",
-            result: "lost",
-            message: "\u0644\u0642\u062F \u062E\u0633\u0631\u062A",
-            opponentSecret: game.secretCodes.get(firstWinnerPlayer.id),
-            yourAttempts: opponentAttempts,
-            opponentAttempts: game.firstWinnerAttempts
-          });
-          return;
-        }
-        if (totalPlayerAttempts < game.firstWinnerAttempts) {
-          game.currentTurn = opponentPlayer.id;
-          game.turnStartTime = Date.now();
-          setTurnTimeout(game, opponentPlayer, turnPlayer);
-        }
+      if (playerData.won) {
+        winners.push(playerInfo);
+      } else if (playerData.finished) {
+        losers.push(playerInfo);
       } else {
-        game.currentTurn = opponentPlayer.id;
-        game.turnStartTime = Date.now();
-        setTurnTimeout(game, opponentPlayer, turnPlayer);
+        stillPlaying.push(playerInfo);
       }
-    }, 6e4);
+    });
+    winners.sort((a, b) => {
+      if (a.attempts !== b.attempts) {
+        return a.attempts - b.attempts;
+      }
+      return a.duration - b.duration;
+    });
+    losers.sort((a, b) => b.duration - a.duration);
+    winners.forEach((winner, index) => {
+      winner.rank = index + 1;
+    });
+    return { winners, losers, stillPlaying };
   }
   function handleMessage(ws, message) {
     switch (message.type) {
@@ -183,8 +217,10 @@ async function registerRoutes(app2) {
         };
         const room = {
           id: roomId,
+          hostId: playerId,
           players: [player],
-          games: /* @__PURE__ */ new Map(),
+          disconnectedPlayers: /* @__PURE__ */ new Map(),
+          game: null,
           settings: { numDigits: 4, maxAttempts: 20 }
         };
         rooms.set(roomId, room);
@@ -192,13 +228,22 @@ async function registerRoutes(app2) {
         send(ws, {
           type: "room_created",
           roomId,
-          playerId
+          playerId,
+          hostId: playerId
         });
         break;
       }
       case "join_room": {
         const room = rooms.get(message.roomId);
         if (room && room.players.length < 10) {
+          if (room.game && room.game.status === "playing") {
+            send(ws, { type: "error", message: "Game already in progress" });
+            return;
+          }
+          if (room.game && room.game.status === "finished") {
+            send(ws, { type: "error", message: "This game has finished. Please create a new room" });
+            return;
+          }
           const playerId = generatePlayerId();
           const player = {
             id: playerId,
@@ -206,12 +251,16 @@ async function registerRoutes(app2) {
             ws,
             roomId: room.id
           };
+          if (!room.disconnectedPlayers) {
+            room.disconnectedPlayers = /* @__PURE__ */ new Map();
+          }
           room.players.push(player);
           players.set(ws, player);
           send(ws, {
             type: "room_joined",
             roomId: room.id,
             playerId,
+            hostId: room.hostId,
             players: room.players.map((p) => ({ id: p.id, name: p.name }))
           });
           send(ws, {
@@ -220,64 +269,11 @@ async function registerRoutes(app2) {
           });
           broadcastToRoom(room, {
             type: "players_updated",
-            players: room.players.map((p) => ({ id: p.id, name: p.name }))
+            players: room.players.map((p) => ({ id: p.id, name: p.name })),
+            hostId: room.hostId
           });
         } else {
           send(ws, { type: "error", message: "Room not found or full" });
-        }
-        break;
-      }
-      case "challenge_player": {
-        const player = players.get(ws);
-        if (!player) return;
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (opponent) {
-          send(opponent.ws, {
-            type: "challenge_received",
-            fromPlayerId: player.id,
-            fromPlayerName: player.name
-          });
-        }
-        break;
-      }
-      case "accept_challenge": {
-        const player = players.get(ws);
-        if (!player) return;
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (opponent) {
-          send(opponent.ws, {
-            type: "challenge_accepted",
-            opponentId: player.id,
-            opponentName: player.name
-          });
-          send(ws, {
-            type: "challenge_accepted",
-            opponentId: opponent.id,
-            opponentName: opponent.name
-          });
-        }
-        break;
-      }
-      case "reject_challenge": {
-        const player = players.get(ws);
-        if (!player) return;
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (opponent) {
-          send(opponent.ws, {
-            type: "challenge_rejected",
-            opponentId: player.id,
-            opponentName: player.name,
-            message: "\u0631\u0641\u0636 \u0627\u0644\u062E\u0635\u0645 \u0627\u0644\u062A\u062D\u062F\u064A"
-          });
-          send(ws, {
-            type: "challenge_cleared"
-          });
         }
         break;
       }
@@ -286,286 +282,140 @@ async function registerRoutes(app2) {
         if (!player) return;
         const room = rooms.get(player.roomId);
         if (!room) return;
+        if (room.hostId !== player.id) {
+          send(ws, { type: "error", message: "Only host can update settings" });
+          return;
+        }
+        if (room.game && room.game.status === "playing") {
+          send(ws, { type: "error", message: "Cannot update settings during game" });
+          return;
+        }
         room.settings = message.settings;
-        room.games.forEach((game) => {
-          game.secretCodes.clear();
-          game.attempts.clear();
-          game.firstWinnerId = null;
-          game.firstWinnerAttempts = 0;
-        });
         broadcastToRoom(room, {
           type: "settings_updated",
           settings: message.settings
         });
         break;
       }
-      case "set_secret_code": {
+      case "start_game": {
         const player = players.get(ws);
         if (!player) return;
         const room = rooms.get(player.roomId);
         if (!room) return;
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (!opponent) return;
-        const gameKey = [player.id, opponent.id].sort().join("-");
-        let game = room.games.get(gameKey);
-        if (!game) {
-          game = {
-            player1: player,
-            player2: opponent,
-            secretCodes: /* @__PURE__ */ new Map(),
-            attempts: /* @__PURE__ */ new Map(),
-            currentTurn: player.id,
-            turnStartTime: Date.now(),
-            firstWinnerId: null,
-            firstWinnerAttempts: 0
-          };
-          room.games.set(gameKey, game);
+        if (room.hostId !== player.id) {
+          send(ws, { type: "error", message: "Only host can start game" });
+          return;
         }
-        game.secretCodes.set(player.id, message.code);
-        if (game.secretCodes.size === 2) {
-          const firstPlayer = Math.random() < 0.5 ? player.id : opponent.id;
-          game.currentTurn = firstPlayer;
-          game.turnStartTime = Date.now();
-          send(player.ws, {
-            type: "game_started",
-            firstPlayerId: firstPlayer
-          });
-          send(opponent.ws, {
-            type: "game_started",
-            firstPlayerId: firstPlayer
-          });
-          broadcastToRoom(room, {
-            type: "players_gaming",
-            player1Id: player.id,
-            player1Name: player.name,
-            player2Id: opponent.id,
-            player2Name: opponent.name
-          });
-          const turnPlayer = game.player1.id === firstPlayer ? game.player1 : game.player2;
-          const opponentPlayer = game.player1.id === firstPlayer ? game.player2 : game.player1;
-          setTurnTimeout(game, turnPlayer, opponentPlayer);
+        if (room.players.length < 2) {
+          send(ws, { type: "error", message: "Need at least 2 players to start" });
+          return;
         }
+        const sharedSecret = generateSecretCode(room.settings.numDigits);
+        const game = {
+          sharedSecret,
+          status: "playing",
+          players: /* @__PURE__ */ new Map(),
+          startTime: Date.now(),
+          endTime: null,
+          rematchState: {
+            requested: false,
+            votes: /* @__PURE__ */ new Map(),
+            countdown: null
+          }
+        };
+        room.players.forEach((p) => {
+          game.players.set(p.id, {
+            playerId: p.id,
+            playerName: p.name,
+            attempts: [],
+            startTime: Date.now(),
+            endTime: null,
+            won: false,
+            finished: false
+          });
+        });
+        room.game = game;
+        broadcastToRoom(room, {
+          type: "game_started",
+          sharedSecret,
+          // All players get the same secret
+          settings: room.settings
+        });
         break;
       }
       case "submit_guess": {
         const player = players.get(ws);
         if (!player) return;
         const room = rooms.get(player.roomId);
-        if (!room) return;
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (!opponent) return;
-        const gameKey = [player.id, opponent.id].sort().join("-");
-        const game = room.games.get(gameKey);
-        if (!game) return;
-        if (game.currentTurn !== player.id) {
-          send(ws, { type: "error", message: "Not your turn" });
+        if (!room || !room.game) return;
+        const playerData = room.game.players.get(player.id);
+        if (!playerData) return;
+        if (playerData.finished) {
+          send(ws, { type: "error", message: "You have already finished" });
           return;
         }
-        const opponentSecret = game.secretCodes.get(opponent.id);
-        if (!opponentSecret) return;
-        const { correctCount, correctPositionCount } = checkGuess(opponentSecret, message.guess);
-        if (!game.attempts.has(player.id)) {
-          game.attempts.set(player.id, []);
-        }
-        game.attempts.get(player.id).push({
-          guess: message.guess,
-          correctCount,
-          correctPositionCount
-        });
-        const won = correctPositionCount === room.settings.numDigits;
-        const playerAttempts = game.attempts.get(player.id).length;
-        const opponentAttempts = game.attempts.get(opponent.id)?.length ?? 0;
-        if (game.turnTimeoutHandle) {
-          clearTimeout(game.turnTimeoutHandle);
-          game.turnTimeoutHandle = void 0;
-        }
-        send(player.ws, {
-          type: "guess_result",
-          playerId: player.id,
-          guess: message.guess,
-          correctCount,
-          correctPositionCount,
-          won,
-          nextTurn: opponent.id,
-          opponentSecret: won ? opponentSecret : void 0
-        });
-        send(opponent.ws, {
-          type: "guess_result",
-          playerId: player.id,
-          guess: message.guess,
-          correctCount,
-          correctPositionCount,
-          won,
-          nextTurn: opponent.id,
-          opponentSecret: won ? game.secretCodes.get(player.id) : void 0
-        });
-        if (won) {
-          if (!game.firstWinnerId) {
-            game.firstWinnerId = player.id;
-            game.firstWinnerAttempts = playerAttempts;
-            send(player.ws, {
-              type: "first_winner_pending",
-              won: true,
-              message: "\u0644\u0642\u062F \u062E\u0645\u0646\u062A \u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0633\u0631\u064A \u0628\u0634\u0643\u0644 \u0635\u062D\u064A\u062D \u0648\u0644\u0643\u0646 \u0644\u0646 \u062A\u0641\u0648\u0632 \u062D\u062A\u0649 \u064A\u0623\u062E\u0630 \u062E\u0635\u0645\u0643 \u0641\u0631\u0635\u062A\u0647 \u0627\u0644\u0623\u062E\u064A\u0631\u0647",
-              playerAttempts,
-              opponentAttempts,
-              opponentSecret
-            });
-            send(opponent.ws, {
-              type: "opponent_won_first",
-              message: "\u0627\u0644\u062E\u0635\u0645 \u0641\u0627\u0632 \u2014 \u0648\u0647\u0630\u0647 \u0622\u062E\u0631 \u0645\u062D\u0627\u0648\u0644\u0629 \u0644\u0643",
-              opponentAttempts: playerAttempts,
-              yourAttempts: opponentAttempts,
-              turnsLeft: playerAttempts - opponentAttempts
-            });
-            const turnsLeft = game.firstWinnerAttempts - opponentAttempts;
-            if (turnsLeft > 0) {
-              game.currentTurn = opponent.id;
-              game.turnStartTime = Date.now();
-              setTurnTimeout(game, opponent, player);
-            } else {
-              if (game.turnTimeoutHandle) {
-                clearTimeout(game.turnTimeoutHandle);
-                game.turnTimeoutHandle = void 0;
-              }
-              const firstWinnerPlayer = game.player1.id === player.id ? game.player1 : game.player2;
-              const loserPlayer = game.player1.id === player.id ? game.player2 : game.player1;
-              send(firstWinnerPlayer.ws, {
-                type: "game_result",
-                result: "won",
-                message: "\u0644\u0642\u062F \u0641\u0632\u062A",
-                opponentSecret: game.secretCodes.get(opponent.id),
-                yourAttempts: playerAttempts,
-                opponentAttempts
-              });
-              send(loserPlayer.ws, {
-                type: "game_result",
-                result: "lost",
-                message: "\u0644\u0642\u062F \u062E\u0633\u0631\u062A",
-                opponentSecret: game.secretCodes.get(player.id),
-                yourAttempts: opponentAttempts,
-                opponentAttempts: playerAttempts
-              });
-            }
-          } else if (player.id !== game.firstWinnerId) {
-            if (game.turnTimeoutHandle) {
-              clearTimeout(game.turnTimeoutHandle);
-              game.turnTimeoutHandle = void 0;
-            }
-            const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
-            const secondWinnerPlayer = game.player1.id === player.id ? game.player1 : game.player2;
-            send(firstWinnerPlayer.ws, {
-              type: "game_result",
-              result: "tie",
-              message: "\u062A\u0639\u0627\u062F\u0644",
-              opponentSecret: game.secretCodes.get(player.id),
-              yourAttempts: game.firstWinnerAttempts,
-              opponentAttempts: playerAttempts
-            });
-            send(secondWinnerPlayer.ws, {
-              type: "game_result",
-              result: "tie",
-              message: "\u062A\u0639\u0627\u062F\u0644",
-              opponentSecret: game.secretCodes.get(game.firstWinnerId),
-              yourAttempts: playerAttempts,
-              opponentAttempts: game.firstWinnerAttempts
-            });
-          }
-        } else {
-          if (game.firstWinnerId && player.id !== game.firstWinnerId) {
-            if (playerAttempts >= game.firstWinnerAttempts) {
-              if (game.turnTimeoutHandle) {
-                clearTimeout(game.turnTimeoutHandle);
-                game.turnTimeoutHandle = void 0;
-              }
-              const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
-              const loserPlayer = game.player1.id === player.id ? game.player1 : game.player2;
-              send(firstWinnerPlayer.ws, {
-                type: "game_result",
-                result: "won",
-                message: "\u0644\u0642\u062F \u0641\u0632\u062A",
-                opponentSecret: game.secretCodes.get(player.id),
-                yourAttempts: game.firstWinnerAttempts,
-                opponentAttempts: playerAttempts
-              });
-              send(loserPlayer.ws, {
-                type: "game_result",
-                result: "lost",
-                message: "\u0644\u0642\u062F \u062E\u0633\u0631\u062A",
-                opponentSecret: game.secretCodes.get(firstWinnerPlayer.id),
-                yourAttempts: playerAttempts,
-                opponentAttempts: game.firstWinnerAttempts
-              });
-            } else {
-              game.currentTurn = opponent.id;
-              game.turnStartTime = Date.now();
-              setTurnTimeout(game, opponent, player);
-            }
-          } else {
-            game.currentTurn = opponent.id;
-            game.turnStartTime = Date.now();
-            setTurnTimeout(game, opponent, player);
-            send(player.ws, {
-              type: "opponent_status_update",
-              opponentWon: false,
-              message: "\u0627\u0644\u062E\u0635\u0645 \u0644\u0645 \u064A\u0646\u062A\u0647 \u0628\u0639\u062F \u0645\u0646 \u0645\u062D\u0627\u0648\u0644\u0627\u062A\u0647"
-            });
-            send(opponent.ws, {
-              type: "opponent_status_update",
-              opponentWon: false,
-              message: "\u0627\u0644\u062E\u0635\u0645 \u0644\u0645 \u064A\u0646\u062A\u0647 \u0628\u0639\u062F \u0645\u0646 \u0645\u062D\u0627\u0648\u0644\u0627\u062A\u0647"
-            });
-          }
-        }
-        break;
-      }
-      case "leave_room": {
-        const player = players.get(ws);
-        if (!player) return;
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-        const gamesToDelete = [];
-        room.games.forEach((game, gameKey) => {
-          const isPlayer1 = game.player1.id === player.id;
-          const isPlayer2 = game.player2.id === player.id;
-          if (isPlayer1 || isPlayer2) {
-            const opponent = isPlayer1 ? game.player2 : game.player1;
-            send(opponent.ws, {
-              type: "game_result",
-              result: "won",
-              reason: "opponent_quit",
-              firstWinnerId: opponent.id,
-              firstWinnerAttempts: game.attempts.get(opponent.id)?.length || 0,
-              opponentAttempts: 999,
-              // Mark as abandoned
-              opponentSecret: isPlayer1 ? game.secretCodes.get(game.player2.id) : game.secretCodes.get(game.player1.id)
-            });
-            gamesToDelete.push(gameKey);
-          }
-        });
-        gamesToDelete.forEach((gameKey) => room.games.delete(gameKey));
-        room.players = room.players.filter((p) => p.id !== player.id);
-        if (room.players.length === 0) {
-          rooms.delete(player.roomId);
-        } else {
-          broadcastToRoom(room, {
-            type: "players_updated",
-            players: room.players.map((p) => ({ id: p.id, name: p.name }))
+        if (playerData.attempts.length >= room.settings.maxAttempts) {
+          playerData.finished = true;
+          playerData.endTime = Date.now();
+          send(ws, {
+            type: "max_attempts_reached",
+            message: "\u0644\u0642\u062F \u0627\u0633\u062A\u0646\u0641\u0630\u062A \u062C\u0645\u064A\u0639 \u0645\u062D\u0627\u0648\u0644\u0627\u062A\u0643"
           });
+          const timeoutHandle = setTimeout(() => {
+            console.log(`Timeout reached for loser ${player.name} in room ${player.roomId}`);
+            checkGameEnd(room);
+          }, 5 * 60 * 1e3);
+          playerData.timeoutHandle = timeoutHandle;
+          checkGameEnd(room);
+          return;
         }
-        players.delete(ws);
+        const { correctCount, correctPositionCount } = checkGuess(room.game.sharedSecret, message.guess);
+        const attempt = {
+          guess: message.guess,
+          correctCount,
+          correctPositionCount,
+          timestamp: Date.now()
+        };
+        playerData.attempts.push(attempt);
+        const won = correctPositionCount === room.settings.numDigits;
+        if (won) {
+          playerData.won = true;
+          playerData.finished = true;
+          playerData.endTime = Date.now();
+        }
+        send(ws, {
+          type: "guess_result",
+          guess: message.guess,
+          correctCount,
+          correctPositionCount,
+          won,
+          attemptNumber: playerData.attempts.length
+        });
+        broadcastToRoom(room, {
+          type: "player_attempt",
+          playerId: player.id,
+          playerName: player.name,
+          attemptNumber: playerData.attempts.length,
+          won
+        }, ws);
+        if (won) {
+          checkGameEnd(room);
+        }
         break;
       }
-      case "opponent_quit": {
+      case "request_attempt_details": {
         const player = players.get(ws);
         if (!player) return;
         const room = rooms.get(player.roomId);
-        if (!room) return;
-        const opponent = room.players.find((p) => p.id !== player.id);
-        if (!opponent) return;
-        send(opponent.ws, {
-          type: "opponent_quit",
-          message: "\u0627\u0646\u0633\u062D\u0628 \u0627\u0644\u062E\u0635\u0645 \u0645\u0646 \u0627\u0644\u0644\u0639\u0628\u0629"
+        if (!room || !room.game) return;
+        const targetPlayerData = room.game.players.get(message.targetPlayerId);
+        if (!targetPlayerData) return;
+        send(ws, {
+          type: "player_details",
+          playerId: targetPlayerData.playerId,
+          playerName: targetPlayerData.playerName,
+          attempts: targetPlayerData.attempts,
+          duration: targetPlayerData.endTime ? targetPlayerData.endTime - targetPlayerData.startTime : 0
         });
         break;
       }
@@ -573,31 +423,190 @@ async function registerRoutes(app2) {
         const player = players.get(ws);
         if (!player) return;
         const room = rooms.get(player.roomId);
-        if (!room) return;
-        const opponent = room.players.find((p) => p.id !== player.id);
-        if (!opponent) return;
-        send(opponent.ws, {
+        if (!room || !room.game) return;
+        if (room.hostId !== player.id) {
+          send(ws, { type: "error", message: "Only host can request rematch" });
+          return;
+        }
+        if (room.game.status !== "finished") {
+          send(ws, { type: "error", message: "Game is not finished yet" });
+          return;
+        }
+        room.game.rematchState.requested = true;
+        room.game.rematchState.votes.clear();
+        room.game.rematchState.countdown = 10;
+        room.game.rematchState.votes.set(player.id, true);
+        broadcastToRoom(room, {
           type: "rematch_requested",
-          fromPlayerId: player.id,
-          fromPlayerName: player.name
+          countdown: 10
+        });
+        const countdownHandle = setInterval(() => {
+          if (!room.game || !room.game.rematchState.countdown) {
+            clearInterval(countdownHandle);
+            return;
+          }
+          room.game.rematchState.countdown--;
+          if (room.game.rematchState.countdown <= 0) {
+            clearInterval(countdownHandle);
+            const acceptedPlayers = Array.from(room.game.rematchState.votes.entries()).filter(([_, accepted]) => accepted).map(([playerId, _]) => playerId);
+            if (acceptedPlayers.length >= 2) {
+              const rejectedPlayers = room.players.filter(
+                (p) => !acceptedPlayers.includes(p.id) && p.id !== room.hostId
+              );
+              rejectedPlayers.forEach((p) => {
+                send(p.ws, {
+                  type: "kicked_from_room",
+                  message: "\u0644\u0645 \u062A\u0642\u0628\u0644 \u0625\u0639\u0627\u062F\u0629 \u0627\u0644\u0645\u0628\u0627\u0631\u0627\u0629"
+                });
+              });
+              room.players = room.players.filter(
+                (p) => acceptedPlayers.includes(p.id) || p.id === room.hostId
+              );
+              room.game = null;
+              broadcastToRoom(room, {
+                type: "rematch_starting",
+                players: room.players.map((p) => ({ id: p.id, name: p.name }))
+              });
+            } else {
+              broadcastToRoom(room, {
+                type: "rematch_cancelled",
+                message: "\u0644\u0645 \u064A\u0643\u0646 \u0647\u0646\u0627\u0643 \u0644\u0627\u0639\u0628\u064A\u0646 \u0643\u0627\u0641\u064A\u064A\u0646"
+              });
+              room.game.rematchState.requested = false;
+            }
+          } else {
+            broadcastToRoom(room, {
+              type: "rematch_countdown",
+              countdown: room.game.rematchState.countdown,
+              votes: Array.from(room.game.rematchState.votes.entries()).map(([playerId, accepted]) => ({
+                playerId,
+                accepted
+              }))
+            });
+          }
+        }, 1e3);
+        room.game.rematchState.countdownHandle = countdownHandle;
+        break;
+      }
+      case "rematch_vote": {
+        const player = players.get(ws);
+        if (!player) return;
+        const room = rooms.get(player.roomId);
+        if (!room || !room.game) return;
+        if (!room.game.rematchState.requested) {
+          send(ws, { type: "error", message: "No rematch requested" });
+          return;
+        }
+        room.game.rematchState.votes.set(player.id, message.accepted);
+        broadcastToRoom(room, {
+          type: "rematch_vote_update",
+          playerId: player.id,
+          accepted: message.accepted,
+          votes: Array.from(room.game.rematchState.votes.entries()).map(([playerId, accepted]) => ({
+            playerId,
+            accepted
+          }))
         });
         break;
       }
-      case "accept_rematch": {
+      case "reconnect": {
+        const room = rooms.get(message.roomId);
+        if (!room) {
+          send(ws, { type: "error", message: "Room not found" });
+          return;
+        }
+        const disconnected = room.disconnectedPlayers?.get(message.playerId);
+        if (!disconnected) {
+          send(ws, { type: "error", message: "Player session not found or expired" });
+          return;
+        }
+        clearTimeout(disconnected.timeoutHandle);
+        room.disconnectedPlayers.delete(message.playerId);
+        const reconnectedPlayer = {
+          id: message.playerId,
+          name: message.playerName,
+          ws,
+          roomId: room.id
+        };
+        room.players.push(reconnectedPlayer);
+        players.set(ws, reconnectedPlayer);
+        console.log(`Player ${message.playerName} reconnected to room ${room.id}`);
+        send(ws, {
+          type: "room_rejoined",
+          roomId: room.id,
+          playerId: message.playerId,
+          hostId: room.hostId,
+          players: room.players.map((p) => ({ id: p.id, name: p.name }))
+        });
+        if (room.game) {
+          send(ws, {
+            type: "game_state",
+            sharedSecret: room.game.sharedSecret,
+            status: room.game.status,
+            settings: room.settings,
+            gameStartTime: room.game.startTime
+          });
+          const playerData = room.game.players.get(message.playerId);
+          if (playerData) {
+            send(ws, {
+              type: "player_game_state",
+              attempts: playerData.attempts,
+              finished: playerData.finished,
+              won: playerData.won
+            });
+          }
+        }
+        broadcastToRoom(room, {
+          type: "player_reconnected",
+          playerId: message.playerId,
+          playerName: message.playerName
+        }, ws);
+        broadcastToRoom(room, {
+          type: "players_updated",
+          players: room.players.map((p) => ({ id: p.id, name: p.name })),
+          hostId: room.hostId
+        });
+        break;
+      }
+      case "leave_room": {
         const player = players.get(ws);
         if (!player) return;
         const room = rooms.get(player.roomId);
         if (!room) return;
-        const opponent = room.players.find((p) => p.id !== player.id);
-        if (!opponent) return;
-        send(player.ws, {
-          type: "rematch_accepted"
-        });
-        send(opponent.ws, {
-          type: "rematch_accepted"
-        });
-        const gameKey = [player.id, opponent.id].sort().join("-");
-        room.games.delete(gameKey);
+        if (room.game && room.game.status === "playing") {
+          const playerData = room.game.players.get(player.id);
+          if (playerData && !playerData.finished) {
+            playerData.finished = true;
+            playerData.endTime = Date.now();
+            broadcastToRoom(room, {
+              type: "player_quit",
+              playerId: player.id,
+              playerName: player.name
+            }, ws);
+            checkGameEnd(room);
+          }
+        }
+        room.players = room.players.filter((p) => p.id !== player.id);
+        if (room.players.length === 0) {
+          if (room.game?.rematchState.countdownHandle) {
+            clearInterval(room.game.rematchState.countdownHandle);
+          }
+          rooms.delete(player.roomId);
+        } else {
+          if (room.hostId === player.id && room.players.length > 0) {
+            room.hostId = room.players[0].id;
+            broadcastToRoom(room, {
+              type: "host_changed",
+              newHostId: room.hostId
+            });
+          }
+          broadcastToRoom(room, {
+            type: "players_updated",
+            players: room.players.map((p) => ({ id: p.id, name: p.name })),
+            hostId: room.hostId
+          });
+        }
+        players.delete(ws);
         break;
       }
     }
@@ -612,32 +621,6 @@ async function registerRoutes(app2) {
       if (player.ws !== exclude) {
         send(player.ws, message);
       }
-    });
-  }
-  function finalizeGame(game, firstWinner, secondPlayer, firstWinnerAttempts, secondPlayerAttempts) {
-    let result;
-    if (firstWinnerAttempts < secondPlayerAttempts) {
-      result = "won";
-    } else if (firstWinnerAttempts === secondPlayerAttempts) {
-      result = "won";
-    } else {
-      result = "lost";
-    }
-    send(firstWinner.ws, {
-      type: "game_result",
-      result,
-      firstWinnerId: game.firstWinnerId,
-      firstWinnerAttempts,
-      opponentAttempts: secondPlayerAttempts,
-      opponentSecret: secondPlayer.id === game.player2.id ? game.secretCodes.get(game.player2.id) : game.secretCodes.get(game.player1.id)
-    });
-    send(secondPlayer.ws, {
-      type: "game_result",
-      result: result === "won" ? "lost" : result === "lost" ? "won" : "tie",
-      firstWinnerId: game.firstWinnerId,
-      firstWinnerAttempts,
-      opponentAttempts: firstWinnerAttempts,
-      opponentSecret: firstWinner.id === game.player2.id ? game.secretCodes.get(game.player2.id) : game.secretCodes.get(game.player1.id)
     });
   }
   return httpServer;

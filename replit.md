@@ -9,6 +9,82 @@ The application features:
 - **Challenge mini-game**: Pattern-matching memory game with audio-visual elements
 - **Mobile responsive**: Separate mobile UI for touch-based interactions
 - **Arabic language support**: UI text in Arabic (right-to-left layout)
+- **Live timer**: Real-time elapsed time counter during gameplay (updates every 100ms)
+- **5-minute game timer**: Automatic game timeout ensures matches don't run indefinitely
+- **Reconnection system**: Players can reconnect within 5 minutes and resume their game with all data preserved
+
+# Recent Changes
+
+## November 24, 2025
+
+**UI Redesign & Features:**
+- **Rank numbers in results**: Winners now display #1, #2, #3 etc. with golden badges
+- **Auto-approval for rematch requester**: Player who requests rematch is instantly marked as approved (no voting prompt)
+- **New rematch voting UI**: Floating card displays:
+  - Question first: "هل تريد إعادة المباراة؟"
+  - Two voting buttons: ✓ (green) and ✗ (red) - only shown to players who haven't voted
+  - Player cards below showing votes: green cards with checkmarks for approved, red cards with X for rejected
+  - Cards show "في الانتظار..." for players who haven't voted yet
+  - Responsive design for mobile and desktop (2 columns on desktop, 1 on mobile)
+- **Results screen redesign**: Fully responsive with md/mobile breakpoints
+  - Consistent spacing and typography across all device sizes
+  - Winner cards with rank numbers displayed prominently
+  - Better visual hierarchy and spacing
+  - Confetti animation preserved during victory
+- **Fixed max attempts detection**: Player is immediately marked as loser when reaching max attempts without winning
+  - Previously: Had to send another guess to trigger loss
+  - Now: Loss is triggered immediately on the last valid guess
+- **Fixed session reconnection timeout**: Reconnection now works only within 30 seconds instead of 30 minutes
+  - If you leave a game and return within 30 seconds → automatically reconnect to the same room
+  - If you return after 30 seconds → new session, starts fresh with menu
+- **Instant rematch start**: New game starts immediately when 2 players accept (no wait for 10-second countdown)
+  - Rematch requester is automatically marked as approved (no voting buttons shown)
+  - When second player votes, game launches instantly
+  - Other players are kicked immediately if they reject
+
+**Previous Session - Multiplayer Game Fixes:**
+- Immediate results display, real-time updates, 5-minute timer
+- Automatic room cleanup when empty
+- Session persistence fixes
+
+**Replit Environment Setup:**
+- Installed all npm dependencies (612 packages)
+- Created .gitignore file with Node.js, TypeScript, and Replit exclusions
+- Configured workflow "Start application" running `npm run dev` on port 5000
+- Verified frontend configuration:
+  - Vite dev server: 0.0.0.0:5000 with allowedHosts: true (Replit-compatible)
+  - Express backend: serves both API and static files on same port
+  - WebSocket endpoint: /game for real-time multiplayer
+- Configured deployment settings:
+  - Build: `npm run build` (Vite + esbuild bundle)
+  - Run: `node dist/index.js` (production server)
+  - Deployment target: autoscale (stateless web app)
+- Application verified working: Main menu displays correctly in Arabic
+
+## November 23, 2025
+
+**Reconnection System with 5-Minute Timeout:**
+- Players who disconnect can rejoin within 5 minutes with all game data preserved
+  - Attempts, current score, game state all restored
+  - If player doesn't reconnect within 5 minutes → kicked from room
+- Server tracks disconnected players separately:
+  - Active players in `room.players`
+  - Disconnected players in `room.disconnectedPlayers` with timeout tracking
+  - Automatic cleanup of abandoned rooms after all timeouts expire
+- New WebSocket messages:
+  - Client sends: `reconnect` message with playerId, playerName, roomId
+  - Server sends: `room_rejoined`, `game_state`, `player_game_state`
+  - Broadcast: `player_disconnected`, `player_reconnected`, `player_timeout`
+- Client-side:
+  - Session stored in sessionStorage (30-minute expiry)
+  - `reconnectWithRetry()` function connects and sends reconnect message
+  - Game data restored from server response
+
+**Previous Session Changes:**
+- Added live timer with 100ms updates in mobile multiplayer interface
+- Fixed mousedown listener bug in NumberPanel.tsx preventing HMR errors
+- Implemented spectator mode for finished players
+- Results screen shows only for finished/watching players
 
 # User Preferences
 
@@ -52,8 +128,9 @@ Preferred communication style: Simple, everyday language.
 
 **Client-Server Communication:**
 - WebSocket connection for real-time multiplayer
-- Session persistence via sessionStorage for reconnection
-- Message types: challenge_player, set_secret_code, make_guess, turn_timeout, request_rematch
+- Session persistence via sessionStorage for reconnection (30-min expiry)
+- Message types: create_room, join_room, reconnect, start_game, submit_guess, leave_room, etc.
+- Automatic data restoration on reconnect
 
 ## Backend Architecture
 
@@ -72,17 +149,26 @@ Preferred communication style: Simple, everyday language.
 
 **Game Logic:**
 - Room-based multiplayer system with unique room IDs
-- Turn-based gameplay with 60-second turn timer
+- Independent simultaneous guessing (no turns/timers)
+- Auto-generated shared secret code
 - Secret code validation with correctness/position feedback
-- Player matching and challenge system
-- Automatic timeout handling and game state synchronization
+- Host controls for settings and game start
+- Automatic winner/loser determination
+- Spectator mode for finished players
+- **Reconnection system**:
+  - Disconnected players stored with 5-minute timeout
+  - Game data preserved in `room.game.players` Map
+  - Automatic cleanup and player timeout after 5 minutes
+  - Reconnected players restore full game state
 
 **WebSocket Message Flow:**
 1. Player creates/joins room → Server assigns room and player ID
-2. Challenge initiation → Server notifies opponent
-3. Secret code exchange → Both players set codes before game starts
-4. Turn-based guessing → Server validates and broadcasts results
-5. Game completion → Winner determination and rematch handling
+2. Host starts game → Server generates shared secret code
+3. All players guess simultaneously → Server validates and broadcasts results
+4. **Player disconnects** → Added to disconnectedPlayers (5-min timeout)
+5. **Player reconnects** → Checks disconnectedPlayers, clears timeout, restores game state
+6. Players finish → Spectator mode enabled
+7. Game completion → Results display with rankings
 
 ## Data Storage
 
@@ -98,9 +184,12 @@ Preferred communication style: Simple, everyday language.
 
 **Session Management:**
 - WebSocket connections tracked per player
-- Room state maintained in server memory (Map structures)
+- Room state maintained in server memory (Map structures):
+  - `room.players`: Active connected players
+  - `room.disconnectedPlayers`: Disconnected players with timeout tracking
 - Client-side session persistence for reconnection after refresh
 - 30-minute session timeout for inactive games
+- 5-minute timeout for disconnected players in active games
 
 ## External Dependencies
 
@@ -146,3 +235,54 @@ Preferred communication style: Simple, everyday language.
 - Development: `tsx server/index.ts` (direct TypeScript execution)
 - Production: Vite build + esbuild bundle → Node.js execution
 - Database: `drizzle-kit push` for schema synchronization
+
+# Mobile vs Desktop Interfaces
+
+**Desktop (3D Mode):**
+- First-person 3D environment with interactive number buttons
+- Pointer lock for FPS-style mouse controls
+- Full spatial audio and 3D effects
+
+**Mobile (2D Mode - Auto-detected at 768px):**
+- Touch-optimized grid layout for number pad
+- Game interface matches desktop gameplay exactly
+- Lobby and results screens differ slightly for mobile constraints
+- Swipe-friendly buttons with large touch targets
+
+# Reconnection Behavior
+
+**When Player Disconnects:**
+1. Server marks player as disconnected (doesn't delete immediately)
+2. Remaining players notified with `player_disconnected` message
+3. Timeout starts (5 minutes)
+4. All game data preserved (attempts, state, start time)
+
+**When Player Reconnects Within 5 Minutes:**
+1. Client sends `reconnect` message with playerId, playerName, roomId
+2. Server validates session exists and hasn't timed out
+3. Clears the timeout, removes from disconnectedPlayers
+4. Restores player to active players list
+5. Sends player their complete game state (attempts, game status, etc.)
+6. Other players notified with `player_reconnected` message
+
+**When 5-Minute Timeout Expires:**
+1. Player is marked as finished in game
+2. All players notified with `player_timeout` message
+3. Game end checked (may trigger winner if last player)
+4. Player data removed from disconnectedPlayers
+5. Room deleted if empty
+
+# Known Limitations & Future Enhancements
+
+**Current Limitations:**
+- Authentication system designed but not fully implemented
+- Database integration optional (works without DATABASE_URL)
+- Single-player challenge mini-game available but not integrated into main flow
+
+**Future Enhancements:**
+- User accounts and persistent statistics
+- Leaderboards and ranking system
+- Custom room settings UI for non-host players
+- Audio/visual preferences
+- Game replay system
+- Auto-reconnect with exponential backoff

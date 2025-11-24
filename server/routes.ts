@@ -8,25 +8,61 @@ interface Player {
   name: string;
   ws: WebSocket;
   roomId: string;
+  disconnectTime?: number;
+  timeoutHandle?: NodeJS.Timeout;
+}
+
+interface PlayerAttempt {
+  guess: number[];
+  correctCount: number;
+  correctPositionCount: number;
+  timestamp: number;
+}
+
+interface PlayerGameData {
+  playerId: string;
+  playerName: string;
+  attempts: PlayerAttempt[];
+  startTime: number;
+  endTime: number | null;
+  won: boolean;
+  finished: boolean;
+}
+
+interface RematchVote {
+  playerId: string;
+  accepted: boolean;
+}
+
+interface GameSession {
+  sharedSecret: number[];
+  status: "waiting" | "playing" | "finished";
+  players: Map<string, PlayerGameData>;
+  startTime: number;
+  endTime: number | null;
+  gameTimerHandle?: NodeJS.Timeout; // 5-minute game timer
+  lastResults?: {
+    winners: any[];
+    losers: any[];
+    stillPlaying: any[];
+    reason: string;
+  }; // Store latest results for reconnecting players
+  rematchState: {
+    requested: boolean;
+    votes: Map<string, boolean>; // playerId -> accepted
+    countdown: number | null;
+    countdownHandle?: NodeJS.Timeout;
+  };
 }
 
 interface Room {
   id: string;
+  hostId: string;
   players: Player[];
-  games: Map<string, GameSession>;
+  disconnectedPlayers: Map<string, { player: Player; disconnectTime: number; timeoutHandle: NodeJS.Timeout }>;
+  game: GameSession | null;
   settings: { numDigits: number; maxAttempts: number };
-}
-
-interface GameSession {
-  player1: Player;
-  player2: Player;
-  secretCodes: Map<string, number[]>;
-  attempts: Map<string, any[]>;
-  currentTurn: string;
-  turnStartTime: number;
-  firstWinnerId: string | null;
-  firstWinnerAttempts: number;
-  turnTimeoutHandle?: NodeJS.Timeout;
+  roomTimeoutHandle?: NodeJS.Timeout;
 }
 
 const rooms = new Map<string, Room>();
@@ -38,6 +74,10 @@ function generateRoomId(): string {
 
 function generatePlayerId(): string {
   return Math.random().toString(36).substring(2, 15);
+}
+
+function generateSecretCode(numDigits: number): number[] {
+  return Array.from({ length: numDigits }, () => Math.floor(Math.random() * 10));
 }
 
 function checkGuess(secret: number[], guess: number[]): { correctCount: number; correctPositionCount: number } {
@@ -102,14 +142,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (player) {
         const room = rooms.get(player.roomId);
         if (room) {
+          // Remove from active players
           room.players = room.players.filter((p) => p.id !== player.id);
           
-          if (room.players.length === 0) {
-            rooms.delete(player.roomId);
+          // If game is finished, delete the player immediately (auto logout from results screen)
+          if (room.game && room.game.status === "finished") {
+            // Just remove the player, don't add to disconnected list
+            console.log(`Player ${player.name} disconnected from finished game - auto logout`);
+            
+            // Delete room if it's completely empty
+            if (room.players.length === 0 && room.disconnectedPlayers.size === 0) {
+              if (room.game?.rematchState.countdownHandle) {
+                clearInterval(room.game.rematchState.countdownHandle);
+              }
+              rooms.delete(player.roomId);
+              console.log(`Room ${player.roomId} deleted (all players left finished game)`);
+            }
           } else {
+            // If game is active, keep the disconnected player for 5 minutes
+            const disconnectTime = Date.now();
+            player.disconnectTime = disconnectTime;
+            
+            // Add to disconnected players with 5-minute timeout
+            const timeoutHandle = setTimeout(() => {
+              const disconnected = room.disconnectedPlayers.get(player.id);
+              if (disconnected) {
+                room.disconnectedPlayers.delete(player.id);
+                
+                // If player is in active game, mark them as quit
+                if (room.game && room.game.status === "playing") {
+                  const playerData = room.game.players.get(player.id);
+                  if (playerData && !playerData.finished) {
+                    playerData.finished = true;
+                    playerData.endTime = Date.now();
+                    
+                    // Notify others player timed out
+                    broadcastToRoom(room, {
+                      type: "player_timeout",
+                      playerId: player.id,
+                      playerName: player.name,
+                    });
+                    
+                    checkGameEnd(room);
+                  }
+                }
+              }
+              
+              // Check if room should be deleted after timeout
+              checkAndDeleteRoomIfNeeded(room);
+            }, 5 * 60 * 1000); // 5 minutes
+            
+            room.disconnectedPlayers.set(player.id, { player, disconnectTime, timeoutHandle });
+          }
+          
+          // Notify others that player disconnected
+          broadcastToRoom(room, {
+            type: "player_disconnected",
+            playerId: player.id,
+            playerName: player.name,
+          });
+          
+          // Check if room should be deleted (1 player left or empty)
+          if (!checkAndDeleteRoomIfNeeded(room)) {
+            // Room still has enough players
+            // If host left, assign new host
+            if (room.hostId === player.id && room.players.length > 0) {
+              room.hostId = room.players[0].id;
+              broadcastToRoom(room, {
+                type: "host_changed",
+                newHostId: room.hostId,
+              });
+            }
+            
             broadcastToRoom(room, {
               type: "players_updated",
               players: room.players.map((p) => ({ id: p.id, name: p.name })),
+              hostId: room.hostId,
             });
           }
         }
@@ -118,119 +226,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  function setTurnTimeout(game: GameSession, turnPlayer: Player, opponentPlayer: Player) {
-    // Clear existing timeout if any
-    if (game.turnTimeoutHandle) {
-      clearTimeout(game.turnTimeoutHandle);
-    }
-
-    // Set a new timeout for 60 seconds
-    game.turnTimeoutHandle = setTimeout(() => {
-      // Add empty attempt for current player (timeout counts as empty guess)
-      if (!game.attempts.has(turnPlayer.id)) {
-        game.attempts.set(turnPlayer.id, []);
+  // Check if room should be deleted (only 1 player or empty)
+  function checkAndDeleteRoomIfNeeded(room: Room): boolean {
+    const totalPlayers = room.players.length + room.disconnectedPlayers.size;
+    
+    // Delete room if only 1 player left (can't play multiplayer alone)
+    // OR if room is completely empty
+    if (totalPlayers <= 1) {
+      // Kick the last remaining player if any
+      if (room.players.length === 1) {
+        const lastPlayer = room.players[0];
+        send(lastPlayer.ws, {
+          type: "room_deleted",
+          message: "جميع اللاعبين غادروا الغرفة",
+        });
+        console.log(`Kicking last player ${lastPlayer.name} from room ${room.id}`);
       }
       
-      const playerAttempts = game.attempts.get(turnPlayer.id)!;
-      const emptyAttempt = {
-        guess: [],
-        correctCount: 0,
-        correctPositionCount: 0,
+      // Clean up all timers
+      if (room.game?.rematchState.countdownHandle) {
+        clearInterval(room.game.rematchState.countdownHandle);
+      }
+      if (room.game?.gameTimerHandle) {
+        clearTimeout(room.game.gameTimerHandle);
+      }
+      
+      // Clear all disconnected player timeouts
+      room.disconnectedPlayers.forEach((disconnected) => {
+        clearTimeout(disconnected.timeoutHandle);
+      });
+      
+      rooms.delete(room.id);
+      console.log(`Room ${room.id} deleted (insufficient players: ${totalPlayers})`);
+      return true;
+    }
+    
+    return false;
+  }
+
+  // Send current game results to ALL finished players
+  function sendResultsToAllFinishedPlayers(room: Room, reason: string = "player_finished") {
+    if (!room.game) return;
+    
+    const results = calculateGameResults(room);
+    
+    // Store results for reconnecting players
+    room.game.lastResults = {
+      winners: results.winners,
+      losers: results.losers,
+      stillPlaying: results.stillPlaying,
+      reason: reason,
+    };
+    
+    // Send updated results to ALL connected players who have finished
+    room.players.forEach((player) => {
+      const playerData = room.game!.players.get(player.id);
+      if (playerData && playerData.finished) {
+        send(player.ws, {
+          type: "game_results",
+          winners: results.winners,
+          losers: results.losers,
+          stillPlaying: results.stillPlaying,
+          sharedSecret: room.game!.sharedSecret,
+          reason: reason,
+        });
+      }
+    });
+  }
+
+  function checkGameEnd(room: Room) {
+    if (!room.game || room.game.status !== "playing") return;
+    
+    const allGamePlayers = Array.from(room.game.players.values());
+    const allPlayersFinished = allGamePlayers.every(p => p.finished);
+    
+    // Only end game when ALL players have finished (won, lost, or timed out)
+    // Do NOT auto-win the last remaining player - they must play until they finish naturally
+    if (allPlayersFinished && room.game) {
+      room.game.status = "finished";
+      room.game.endTime = Date.now();
+      
+      // Clear the game timer since game is ending
+      if (room.game.gameTimerHandle) {
+        clearTimeout(room.game.gameTimerHandle);
+        room.game.gameTimerHandle = undefined;
+      }
+      
+      // Send final results to ALL finished players (everyone at this point)
+      sendResultsToAllFinishedPlayers(room, "all_finished");
+    }
+  }
+
+  function calculateGameResults(room: Room) {
+    if (!room.game) return { winners: [], losers: [], stillPlaying: [] };
+    
+    const winners: any[] = [];
+    const losers: any[] = [];
+    const stillPlaying: any[] = [];
+    
+    room.game.players.forEach((playerData) => {
+      const endTime = playerData.endTime || Date.now();
+      const playerInfo = {
+        playerId: playerData.playerId,
+        playerName: playerData.playerName,
+        attempts: playerData.attempts.length,
+        duration: endTime - playerData.startTime,
+        attemptsDetails: playerData.attempts,
       };
-      playerAttempts.push(emptyAttempt);
-      const totalPlayerAttempts = playerAttempts.length;
-
-      // Send empty attempt to both players
-      send(turnPlayer.ws, {
-        type: "guess_result",
-        playerId: turnPlayer.id,
-        guess: [],
-        correctCount: 0,
-        correctPositionCount: 0,
-        won: false,
-        nextTurn: opponentPlayer.id,
-      });
-
-      send(opponentPlayer.ws, {
-        type: "guess_result",
-        playerId: turnPlayer.id,
-        guess: [],
-        correctCount: 0,
-        correctPositionCount: 0,
-        won: false,
-        nextTurn: opponentPlayer.id,
-      });
-
-      // Clear timeout handle
-      if (game.turnTimeoutHandle) {
-        clearTimeout(game.turnTimeoutHandle);
-        game.turnTimeoutHandle = undefined;
-      }
-
-      // Check if first winner scenario is active
-      if (game.firstWinnerId) {
-        const opponentAttempts = game.attempts.get(opponentPlayer.id)?.length ?? 0;
-        
-        // If this timeout was for the player who lost first, check if they've used all attempts
-        if (turnPlayer.id !== game.firstWinnerId && totalPlayerAttempts > game.firstWinnerAttempts) {
-          // Opponent (loser) has used more attempts than winner - finalize the game
-          const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
-          const loserPlayer = game.player1.id === turnPlayer.id ? game.player1 : game.player2;
-          
-          send(firstWinnerPlayer.ws, {
-            type: "game_result",
-            result: "won",
-            message: "لقد فزت",
-            opponentSecret: game.secretCodes.get(turnPlayer.id),
-            yourAttempts: game.firstWinnerAttempts,
-            opponentAttempts: totalPlayerAttempts,
-          });
-          send(loserPlayer.ws, {
-            type: "game_result",
-            result: "lost",
-            message: "لقد خسرت",
-            opponentSecret: game.secretCodes.get(firstWinnerPlayer.id),
-            yourAttempts: totalPlayerAttempts,
-            opponentAttempts: game.firstWinnerAttempts,
-          });
-          return;
-        } else if (turnPlayer.id === game.firstWinnerId && opponentAttempts > game.firstWinnerAttempts) {
-          // First winner's turn timed out but opponent already has more attempts - finalize
-          const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
-          const loserPlayer = game.player1.id === opponentPlayer.id ? game.player1 : game.player2;
-          
-          send(firstWinnerPlayer.ws, {
-            type: "game_result",
-            result: "won",
-            message: "لقد فزت",
-            opponentSecret: game.secretCodes.get(opponentPlayer.id),
-            yourAttempts: game.firstWinnerAttempts,
-            opponentAttempts: opponentAttempts,
-          });
-          send(loserPlayer.ws, {
-            type: "game_result",
-            result: "lost",
-            message: "لقد خسرت",
-            opponentSecret: game.secretCodes.get(firstWinnerPlayer.id),
-            yourAttempts: opponentAttempts,
-            opponentAttempts: game.firstWinnerAttempts,
-          });
-          return;
-        }
-        
-        // Game still ongoing - continue turn
-        if (totalPlayerAttempts < game.firstWinnerAttempts) {
-          game.currentTurn = opponentPlayer.id;
-          game.turnStartTime = Date.now();
-          setTurnTimeout(game, opponentPlayer, turnPlayer);
-        }
+      
+      if (playerData.won) {
+        winners.push(playerInfo);
+      } else if (playerData.finished) {
+        losers.push(playerInfo);
       } else {
-        // No first winner yet - switch turn normally
-        game.currentTurn = opponentPlayer.id;
-        game.turnStartTime = Date.now();
-        setTurnTimeout(game, opponentPlayer, turnPlayer);
+        stillPlaying.push(playerInfo);
       }
-    }, 60000); // 60 seconds
+    });
+    
+    // Sort winners: first by attempts (ascending), then by duration (ascending)
+    winners.sort((a, b) => {
+      if (a.attempts !== b.attempts) {
+        return a.attempts - b.attempts;
+      }
+      return a.duration - b.duration;
+    });
+    
+    // Sort losers by duration (ascending) - those who lasted longer are ranked better among losers
+    losers.sort((a, b) => b.duration - a.duration);
+    
+    // Assign ranks to winners
+    winners.forEach((winner, index) => {
+      winner.rank = index + 1;
+    });
+    
+    return { winners, losers, stillPlaying };
   }
 
   function handleMessage(ws: WebSocket, message: any) {
@@ -247,8 +376,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const room: Room = {
           id: roomId,
+          hostId: playerId,
           players: [player],
-          games: new Map(),
+          disconnectedPlayers: new Map(),
+          game: null,
           settings: { numDigits: 4, maxAttempts: 20 },
         };
 
@@ -259,13 +390,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: "room_created",
           roomId,
           playerId,
+          hostId: playerId,
         });
         break;
       }
 
       case "join_room": {
         const room = rooms.get(message.roomId);
+        
+        // Room doesn't exist
+        if (!room) {
+          send(ws, { type: "error", message: "الغرفة غير موجودة - لربما تم حذفها" });
+          return;
+        }
+        
+        // Check if room is full
+        if (room.players.length >= 10) {
+          send(ws, { type: "error", message: "الغرفة ممتلئة" });
+          return;
+        }
+        
+        // Don't allow joining if game is in progress
+        if (room.game && room.game.status === "playing") {
+          send(ws, { type: "error", message: "اللعبة جاري الآن - لا يمكن الانضمام" });
+          return;
+        }
+        
+        // Don't allow joining if game is finished (results screen)
+        if (room.game && room.game.status === "finished") {
+          send(ws, { type: "error", message: "انتهت اللعبة - يرجى إنشاء غرفة جديدة" });
+          return;
+        }
+        
+        // Proceed with join only if conditions are met
         if (room && room.players.length < 10) {
+          
           const playerId = generatePlayerId();
           const player: Player = {
             id: playerId,
@@ -274,6 +433,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             roomId: room.id,
           };
 
+          if (!room.disconnectedPlayers) {
+            room.disconnectedPlayers = new Map();
+          }
+
           room.players.push(player);
           players.set(ws, player);
 
@@ -281,6 +444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: "room_joined",
             roomId: room.id,
             playerId,
+            hostId: room.hostId,
             players: room.players.map((p) => ({ id: p.id, name: p.name })),
           });
 
@@ -292,76 +456,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           broadcastToRoom(room, {
             type: "players_updated",
             players: room.players.map((p) => ({ id: p.id, name: p.name })),
+            hostId: room.hostId,
           });
         } else {
           send(ws, { type: "error", message: "Room not found or full" });
-        }
-        break;
-      }
-
-      case "challenge_player": {
-        const player = players.get(ws);
-        if (!player) return;
-
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (opponent) {
-          send(opponent.ws, {
-            type: "challenge_received",
-            fromPlayerId: player.id,
-            fromPlayerName: player.name,
-          });
-        }
-        break;
-      }
-
-      case "accept_challenge": {
-        const player = players.get(ws);
-        if (!player) return;
-
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (opponent) {
-          // Send to the challenge sender (opponent)
-          send(opponent.ws, {
-            type: "challenge_accepted",
-            opponentId: player.id,
-            opponentName: player.name,
-          });
-          // Send to the challenge receiver (current player)
-          send(ws, {
-            type: "challenge_accepted",
-            opponentId: opponent.id,
-            opponentName: opponent.name,
-          });
-        }
-        break;
-      }
-
-      case "reject_challenge": {
-        const player = players.get(ws);
-        if (!player) return;
-
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (opponent) {
-          // Send rejection to the challenge sender
-          send(opponent.ws, {
-            type: "challenge_rejected",
-            opponentId: player.id,
-            opponentName: player.name,
-            message: "رفض الخصم التحدي",
-          });
-          // Clear challenge status for both players
-          send(ws, {
-            type: "challenge_cleared",
-          });
         }
         break;
       }
@@ -373,15 +471,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const room = rooms.get(player.roomId);
         if (!room) return;
 
-        room.settings = message.settings;
+        // Only host can update settings
+        if (room.hostId !== player.id) {
+          send(ws, { type: "error", message: "Only host can update settings" });
+          return;
+        }
 
-        // Clear all active games when settings change (reset secret codes and attempts)
-        room.games.forEach((game) => {
-          game.secretCodes.clear();
-          game.attempts.clear();
-          game.firstWinnerId = null;
-          game.firstWinnerAttempts = 0;
-        });
+        // Can't update during active game
+        if (room.game && room.game.status === "playing") {
+          send(ws, { type: "error", message: "Cannot update settings during game" });
+          return;
+        }
+
+        room.settings = message.settings;
 
         broadcastToRoom(room, {
           type: "settings_updated",
@@ -390,64 +492,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
         break;
       }
 
-      case "set_secret_code": {
+      case "start_game": {
         const player = players.get(ws);
         if (!player) return;
 
         const room = rooms.get(player.roomId);
         if (!room) return;
 
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (!opponent) return;
-
-        const gameKey = [player.id, opponent.id].sort().join("-");
-        let game = room.games.get(gameKey);
-
-        if (!game) {
-          game = {
-            player1: player,
-            player2: opponent,
-            secretCodes: new Map(),
-            attempts: new Map(),
-            currentTurn: player.id,
-            turnStartTime: Date.now(),
-            firstWinnerId: null,
-            firstWinnerAttempts: 0,
-          };
-          room.games.set(gameKey, game);
+        // Only host can start game
+        if (room.hostId !== player.id) {
+          send(ws, { type: "error", message: "Only host can start game" });
+          return;
         }
 
-        game.secretCodes.set(player.id, message.code);
-
-        if (game.secretCodes.size === 2) {
-          const firstPlayer = Math.random() < 0.5 ? player.id : opponent.id;
-          game.currentTurn = firstPlayer;
-          game.turnStartTime = Date.now();
-
-          send(player.ws, {
-            type: "game_started",
-            firstPlayerId: firstPlayer,
-          });
-
-          send(opponent.ws, {
-            type: "game_started",
-            firstPlayerId: firstPlayer,
-          });
-
-          // Notify all other players in the room that these two are now in a game
-          broadcastToRoom(room, {
-            type: "players_gaming",
-            player1Id: player.id,
-            player1Name: player.name,
-            player2Id: opponent.id,
-            player2Name: opponent.name,
-          });
-
-          // Start turn timeout for first player
-          const turnPlayer = game.player1.id === firstPlayer ? game.player1 : game.player2;
-          const opponentPlayer = game.player1.id === firstPlayer ? game.player2 : game.player1;
-          setTurnTimeout(game, turnPlayer, opponentPlayer);
+        // Need at least 2 players
+        if (room.players.length < 2) {
+          send(ws, { type: "error", message: "Need at least 2 players to start" });
+          return;
         }
+
+        // Generate shared secret
+        const sharedSecret = generateSecretCode(room.settings.numDigits);
+        
+        // Initialize game session
+        const game: GameSession = {
+          sharedSecret,
+          status: "playing",
+          players: new Map(),
+          startTime: Date.now(),
+          endTime: null,
+          rematchState: {
+            requested: false,
+            votes: new Map(),
+            countdown: null,
+          },
+        };
+
+        // Initialize player data
+        room.players.forEach((p) => {
+          game.players.set(p.id, {
+            playerId: p.id,
+            playerName: p.name,
+            attempts: [],
+            startTime: Date.now(),
+            endTime: null,
+            won: false,
+            finished: false,
+          });
+        });
+
+        // Start 5-minute game timer
+        const gameTimerHandle = setTimeout(() => {
+          console.log(`5-minute timer expired for room ${room.id}`);
+          if (room.game && room.game.status === "playing") {
+            // Mark all unfinished players as losers
+            room.game.players.forEach((playerData) => {
+              if (!playerData.finished) {
+                playerData.finished = true;
+                playerData.endTime = Date.now();
+                playerData.won = false;
+              }
+            });
+            
+            // End the game first
+            room.game.status = "finished";
+            room.game.endTime = Date.now();
+            
+            // Clear the timer handle
+            room.game.gameTimerHandle = undefined;
+            
+            // Send final results to ALL finished players (everyone at this point)
+            sendResultsToAllFinishedPlayers(room, "time_expired");
+          }
+        }, 5 * 60 * 1000); // 5 minutes
+
+        game.gameTimerHandle = gameTimerHandle;
+        room.game = game;
+
+        // Broadcast game start to all players
+        broadcastToRoom(room, {
+          type: "game_started",
+          sharedSecret, // All players get the same secret
+          settings: room.settings,
+        });
         break;
       }
 
@@ -456,207 +583,421 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!player) return;
 
         const room = rooms.get(player.roomId);
-        if (!room) return;
+        if (!room || !room.game) return;
 
-        const opponent = room.players.find((p) => p.id === message.opponentId);
-        if (!opponent) return;
+        const playerData = room.game.players.get(player.id);
+        if (!playerData) return;
 
-        const gameKey = [player.id, opponent.id].sort().join("-");
-        const game = room.games.get(gameKey);
-        if (!game) return;
-
-        if (game.currentTurn !== player.id) {
-          send(ws, { type: "error", message: "Not your turn" });
+        // Check if player already finished
+        if (playerData.finished) {
+          send(ws, { type: "error", message: "You have already finished" });
           return;
         }
 
-        const opponentSecret = game.secretCodes.get(opponent.id);
-        if (!opponentSecret) return;
-
-        const { correctCount, correctPositionCount } = checkGuess(opponentSecret, message.guess);
-
-        if (!game.attempts.has(player.id)) {
-          game.attempts.set(player.id, []);
+        // Check if max attempts already reached (shouldn't happen but safety check)
+        if (playerData.attempts.length >= room.settings.maxAttempts) {
+          send(ws, { type: "error", message: "لقد استنفذت جميع محاولاتك بالفعل" });
+          return;
         }
 
-        game.attempts.get(player.id)!.push({
+        const { correctCount, correctPositionCount } = checkGuess(room.game.sharedSecret, message.guess);
+        
+        const attempt: PlayerAttempt = {
           guess: message.guess,
           correctCount,
           correctPositionCount,
-        });
+          timestamp: Date.now(),
+        };
+
+        playerData.attempts.push(attempt);
 
         const won = correctPositionCount === room.settings.numDigits;
-        const playerAttempts = game.attempts.get(player.id)!.length;
-        const opponentAttempts = game.attempts.get(opponent.id)?.length ?? 0;
-
-        // Clear current turn timeout before switching
-        if (game.turnTimeoutHandle) {
-          clearTimeout(game.turnTimeoutHandle);
-          game.turnTimeoutHandle = undefined;
+        const isLastAttempt = playerData.attempts.length >= room.settings.maxAttempts;
+        
+        // Mark as finished if won OR if this was the last attempt and didn't win
+        if (won) {
+          playerData.won = true;
+          playerData.finished = true;
+          playerData.endTime = Date.now();
+        } else if (isLastAttempt) {
+          // Out of attempts and didn't win - mark as loser
+          playerData.won = false;
+          playerData.finished = true;
+          playerData.endTime = Date.now();
         }
 
-        send(player.ws, {
+        // Send result to the player
+        send(ws, {
           type: "guess_result",
-          playerId: player.id,
           guess: message.guess,
           correctCount,
           correctPositionCount,
           won,
-          nextTurn: opponent.id,
-          opponentSecret: won ? opponentSecret : undefined,
+          attemptNumber: playerData.attempts.length,
+          isLastAttempt,
         });
 
-        send(opponent.ws, {
-          type: "guess_result",
+        // Broadcast to others that this player made an attempt
+        broadcastToRoom(room, {
+          type: "player_attempt",
           playerId: player.id,
-          guess: message.guess,
-          correctCount,
-          correctPositionCount,
+          playerName: player.name,
+          attemptNumber: playerData.attempts.length,
           won,
-          nextTurn: opponent.id,
-          opponentSecret: won ? game.secretCodes.get(player.id) : undefined,
-        });
+        }, ws);
 
-        if (won) {
-          // Player won - check if this is the first winner
-          if (!game.firstWinnerId) {
-            // This is the first winner - mark them but don't finalize yet
-            game.firstWinnerId = player.id;
-            game.firstWinnerAttempts = playerAttempts;
-            
-            // Send pending win message to winner
-            send(player.ws, {
-              type: "first_winner_pending",
-              won: true,
-              message: "لقد خمنت الرقم السري بشكل صحيح ولكن لن تفوز حتى يأخذ خصمك فرصته الأخيره",
-              playerAttempts,
-              opponentAttempts,
-              opponentSecret: opponentSecret,
-            });
-            
-            // Notify opponent that first player won - update their status
-            send(opponent.ws, {
-              type: "opponent_won_first",
-              message: "الخصم فاز — وهذه آخر محاولة لك",
-              opponentAttempts: playerAttempts,
-              yourAttempts: opponentAttempts,
-              turnsLeft: playerAttempts - opponentAttempts,
-            });
-            
-            // Continue game - opponent gets their remaining turns
-            const turnsLeft = game.firstWinnerAttempts - opponentAttempts;
-            if (turnsLeft > 0) {
-              game.currentTurn = opponent.id;
-              game.turnStartTime = Date.now();
-              setTurnTimeout(game, opponent, player);
-            } else {
-              // Opponent has no turns left - first winner wins
-              if (game.turnTimeoutHandle) {
-                clearTimeout(game.turnTimeoutHandle);
-                game.turnTimeoutHandle = undefined;
-              }
-              const firstWinnerPlayer = game.player1.id === player.id ? game.player1 : game.player2;
-              const loserPlayer = game.player1.id === player.id ? game.player2 : game.player1;
-              
-              send(firstWinnerPlayer.ws, {
-                type: "game_result",
-                result: "won",
-                message: "لقد فزت",
-                opponentSecret: game.secretCodes.get(opponent.id),
-                yourAttempts: playerAttempts,
-                opponentAttempts,
-              });
-              send(loserPlayer.ws, {
-                type: "game_result",
-                result: "lost",
-                message: "لقد خسرت",
-                opponentSecret: game.secretCodes.get(player.id),
-                yourAttempts: opponentAttempts,
-                opponentAttempts: playerAttempts,
-              });
-            }
-          } else if (player.id !== game.firstWinnerId) {
-            // Second player also won - it's a tie
-            if (game.turnTimeoutHandle) {
-              clearTimeout(game.turnTimeoutHandle);
-              game.turnTimeoutHandle = undefined;
-            }
-            
-            const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
-            const secondWinnerPlayer = game.player1.id === player.id ? game.player1 : game.player2;
-            
-            // Both won - send tie result to both
-            send(firstWinnerPlayer.ws, {
-              type: "game_result",
-              result: "tie",
-              message: "تعادل",
-              opponentSecret: game.secretCodes.get(player.id),
-              yourAttempts: game.firstWinnerAttempts,
-              opponentAttempts: playerAttempts,
-            });
-            send(secondWinnerPlayer.ws, {
-              type: "game_result", 
-              result: "tie",
-              message: "تعادل",
-              opponentSecret: game.secretCodes.get(game.firstWinnerId),
-              yourAttempts: playerAttempts,
-              opponentAttempts: game.firstWinnerAttempts,
+        // If player just finished (won or ran out of attempts), send updated results
+        if (playerData.finished) {
+          if (isLastAttempt && !won) {
+            // Notify player they're out of attempts
+            send(ws, {
+              type: "max_attempts_reached",
+              message: "لقد استنفذت جميع محاولاتك",
             });
           }
-        } else {
-          // Player did not win
-          if (game.firstWinnerId && player.id !== game.firstWinnerId) {
-            // This is second player - check if exceeded or used all attempts
-            if (playerAttempts >= game.firstWinnerAttempts) {
-              // Opponent has used up their attempts without winning - first winner wins
-              if (game.turnTimeoutHandle) {
-                clearTimeout(game.turnTimeoutHandle);
-                game.turnTimeoutHandle = undefined;
-              }
-              const firstWinnerPlayer = game.player1.id === game.firstWinnerId ? game.player1 : game.player2;
-              const loserPlayer = game.player1.id === player.id ? game.player1 : game.player2;
+          
+          sendResultsToAllFinishedPlayers(room, "player_finished");
+          // Check if all players finished for final cleanup
+          checkGameEnd(room);
+        }
+        break;
+      }
+
+      case "request_attempt_details": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room || !room.game) return;
+
+        const targetPlayerData = room.game.players.get(message.targetPlayerId);
+        if (!targetPlayerData) return;
+
+        send(ws, {
+          type: "player_details",
+          playerId: targetPlayerData.playerId,
+          playerName: targetPlayerData.playerName,
+          attempts: targetPlayerData.attempts,
+          duration: targetPlayerData.endTime ? targetPlayerData.endTime - targetPlayerData.startTime : 0,
+        });
+        break;
+      }
+
+      case "request_rematch": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room || !room.game) return;
+
+        // Game must be finished
+        if (room.game.status !== "finished") {
+          send(ws, { type: "error", message: "Game is not finished yet" });
+          return;
+        }
+
+        // Check if rematch already requested
+        if (room.game.rematchState.requested) {
+          send(ws, { type: "error", message: "Rematch already requested" });
+          return;
+        }
+
+        // Initialize rematch state
+        room.game.rematchState.requested = true;
+        room.game.rematchState.votes.clear();
+        room.game.rematchState.countdown = 10;
+        
+        // Player who requested automatically votes yes
+        room.game.rematchState.votes.set(player.id, true);
+
+        // Broadcast rematch request with current votes
+        broadcastToRoom(room, {
+          type: "rematch_requested",
+          countdown: 10,
+          requestedBy: player.name,
+          votes: Array.from(room.game.rematchState.votes.entries()).map(([playerId, accepted]) => ({
+            playerId,
+            accepted,
+          })),
+        });
+
+        // Start countdown
+        const countdownHandle = setInterval(() => {
+          if (!room.game || !room.game.rematchState.countdown) {
+            clearInterval(countdownHandle);
+            return;
+          }
+
+          room.game.rematchState.countdown--;
+
+          if (room.game.rematchState.countdown <= 0) {
+            clearInterval(countdownHandle);
+            
+            // Process rematch
+            const acceptedPlayers = Array.from(room.game.rematchState.votes.entries())
+              .filter(([_, accepted]) => accepted)
+              .map(([playerId, _]) => playerId);
+            
+            // Need at least 2 players who accepted
+            if (acceptedPlayers.length >= 2) {
+              // Remove players who didn't accept
+              const rejectedPlayers = room.players.filter(
+                p => !acceptedPlayers.includes(p.id) && p.id !== room.hostId
+              );
               
-              send(firstWinnerPlayer.ws, {
-                type: "game_result",
-                result: "won",
-                message: "لقد فزت",
-                opponentSecret: game.secretCodes.get(player.id),
-                yourAttempts: game.firstWinnerAttempts,
-                opponentAttempts: playerAttempts,
+              rejectedPlayers.forEach(p => {
+                send(p.ws, {
+                  type: "kicked_from_room",
+                  message: "لم تقبل إعادة المباراة",
+                });
               });
-              send(loserPlayer.ws, {
-                type: "game_result",
-                result: "lost",
-                message: "لقد خسرت",
-                opponentSecret: game.secretCodes.get(firstWinnerPlayer.id),
-                yourAttempts: playerAttempts,
-                opponentAttempts: game.firstWinnerAttempts,
+              
+              room.players = room.players.filter(p => 
+                acceptedPlayers.includes(p.id) || p.id === room.hostId
+              );
+              
+              // Reset game
+              room.game = null;
+              
+              broadcastToRoom(room, {
+                type: "rematch_starting",
+                players: room.players.map((p) => ({ id: p.id, name: p.name })),
               });
             } else {
-              // Still has attempts left (can still match or exceed the winner's attempts)
-              game.currentTurn = opponent.id;
-              game.turnStartTime = Date.now();
-              setTurnTimeout(game, opponent, player);
+              broadcastToRoom(room, {
+                type: "rematch_cancelled",
+                message: "لم يكن هناك لاعبين كافيين",
+              });
+              room.game.rematchState.requested = false;
             }
           } else {
-            // Normal turn - no first winner yet
-            game.currentTurn = opponent.id;
-            game.turnStartTime = Date.now();
-            setTurnTimeout(game, opponent, player);
-            
-            // Send status update to both players about opponent status
-            send(player.ws, {
-              type: "opponent_status_update",
-              opponentWon: false,
-              message: "الخصم لم ينته بعد من محاولاته",
-            });
-            send(opponent.ws, {
-              type: "opponent_status_update",
-              opponentWon: false,
-              message: "الخصم لم ينته بعد من محاولاته",
+            broadcastToRoom(room, {
+              type: "rematch_countdown",
+              countdown: room.game.rematchState.countdown,
+              votes: Array.from(room.game.rematchState.votes.entries()).map(([playerId, accepted]) => ({
+                playerId,
+                accepted,
+              })),
             });
           }
+        }, 1000);
+
+        room.game.rematchState.countdownHandle = countdownHandle;
+        break;
+      }
+
+      case "rematch_vote": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room || !room.game) return;
+
+        if (!room.game.rematchState.requested) {
+          send(ws, { type: "error", message: "No rematch requested" });
+          return;
         }
+
+        room.game.rematchState.votes.set(player.id, message.accepted);
+
+        // Broadcast updated votes
+        broadcastToRoom(room, {
+          type: "rematch_vote_update",
+          playerId: player.id,
+          accepted: message.accepted,
+          votes: Array.from(room.game.rematchState.votes.entries()).map(([playerId, accepted]) => ({
+            playerId,
+            accepted,
+          })),
+        });
+
+        // Check if we have at least 2 acceptances - if so, start immediately
+        const acceptedPlayers = Array.from(room.game.rematchState.votes.entries())
+          .filter(([_, accepted]) => accepted)
+          .map(([playerId, _]) => playerId);
+
+        if (acceptedPlayers.length >= 2) {
+          // Clear the countdown timer
+          if (room.game.rematchState.countdownHandle) {
+            clearInterval(room.game.rematchState.countdownHandle);
+          }
+
+          // Remove players who didn't accept
+          const rejectedPlayers = room.players.filter(
+            p => !acceptedPlayers.includes(p.id) && p.id !== room.hostId
+          );
+          
+          rejectedPlayers.forEach(p => {
+            send(p.ws, {
+              type: "kicked_from_room",
+              message: "لم تقبل إعادة المباراة",
+            });
+          });
+          
+          room.players = room.players.filter(p => 
+            acceptedPlayers.includes(p.id) || p.id === room.hostId
+          );
+          
+          // Remove players from disconnected as well
+          rejectedPlayers.forEach(p => {
+            room.disconnectedPlayers?.delete(p.id);
+          });
+          
+          // Reset game
+          room.game = null;
+          
+          // Notify accepted players that rematch is starting
+          broadcastToRoom(room, {
+            type: "rematch_starting",
+            players: room.players.map((p) => ({ id: p.id, name: p.name })),
+          });
+          
+          // Start new game automatically
+          const sharedSecret = generateSecretCode(room.settings.numDigits);
+          const game: GameSession = {
+            sharedSecret,
+            status: "playing",
+            startTime: Date.now(),
+            endTime: null,
+            players: new Map(),
+            lastResults: undefined,
+            gameTimerHandle: undefined,
+            rematchState: {
+              requested: false,
+              votes: new Map(),
+              countdown: null,
+            },
+          };
+
+          // Initialize player data
+          room.players.forEach((p) => {
+            game.players.set(p.id, {
+              playerId: p.id,
+              playerName: p.name,
+              attempts: [],
+              startTime: Date.now(),
+              endTime: null,
+              won: false,
+              finished: false,
+            });
+          });
+
+          // Start 5-minute game timer
+          const gameTimerHandle = setTimeout(() => {
+            console.log(`5-minute timer expired for room ${room.id}`);
+            if (room.game && room.game.status === "playing") {
+              room.game.players.forEach((playerData) => {
+                if (!playerData.finished) {
+                  playerData.finished = true;
+                  playerData.endTime = Date.now();
+                  playerData.won = false;
+                }
+              });
+              
+              room.game.status = "finished";
+              room.game.endTime = Date.now();
+              room.game.gameTimerHandle = undefined;
+              
+              sendResultsToAllFinishedPlayers(room, "time_expired");
+            }
+          }, 5 * 60 * 1000);
+
+          game.gameTimerHandle = gameTimerHandle;
+          room.game = game;
+
+          // Broadcast game start
+          broadcastToRoom(room, {
+            type: "game_started",
+            sharedSecret,
+            settings: room.settings,
+          });
+        }
+        break;
+      }
+
+      case "reconnect": {
+        const room = rooms.get(message.roomId);
+        if (!room) {
+          send(ws, { type: "error", message: "Room not found" });
+          return;
+        }
+        
+        const disconnected = room.disconnectedPlayers?.get(message.playerId);
+        if (!disconnected) {
+          send(ws, { type: "error", message: "Player session not found or expired" });
+          return;
+        }
+        
+        // Clear the timeout since player reconnected
+        clearTimeout(disconnected.timeoutHandle);
+        room.disconnectedPlayers.delete(message.playerId);
+        
+        // Restore player to active
+        const reconnectedPlayer: Player = {
+          id: message.playerId,
+          name: message.playerName,
+          ws,
+          roomId: room.id,
+        };
+        
+        room.players.push(reconnectedPlayer);
+        players.set(ws, reconnectedPlayer);
+        
+        console.log(`Player ${message.playerName} reconnected to room ${room.id}`);
+        
+        send(ws, {
+          type: "room_rejoined",
+          roomId: room.id,
+          playerId: message.playerId,
+          hostId: room.hostId,
+          players: room.players.map((p) => ({ id: p.id, name: p.name })),
+        });
+        
+        if (room.game) {
+          send(ws, {
+            type: "game_state",
+            sharedSecret: room.game.sharedSecret,
+            status: room.game.status,
+            settings: room.settings,
+            gameStartTime: room.game.startTime,
+          });
+          
+          // Send current game data for this player
+          const playerData = room.game.players.get(message.playerId);
+          if (playerData) {
+            send(ws, {
+              type: "player_game_state",
+              attempts: playerData.attempts,
+              finished: playerData.finished,
+              won: playerData.won,
+            });
+            
+            // If player has finished, send them latest results
+            if (playerData.finished && room.game.lastResults) {
+              send(ws, {
+                type: "game_results",
+                winners: room.game.lastResults.winners,
+                losers: room.game.lastResults.losers,
+                stillPlaying: room.game.lastResults.stillPlaying,
+                sharedSecret: room.game.sharedSecret,
+                reason: room.game.lastResults.reason,
+              });
+            }
+          }
+        }
+        
+        // Notify others of reconnection
+        broadcastToRoom(room, {
+          type: "player_reconnected",
+          playerId: message.playerId,
+          playerName: message.playerName,
+        }, ws);
+        
+        broadcastToRoom(room, {
+          type: "players_updated",
+          players: room.players.map((p) => ({ id: p.id, name: p.name })),
+          hostId: room.hostId,
+        });
         break;
       }
 
@@ -667,111 +1008,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const room = rooms.get(player.roomId);
         if (!room) return;
 
-        // Handle any active games involving this player
-        const gamesToDelete: string[] = [];
-        
-        room.games.forEach((game, gameKey) => {
-          const isPlayer1 = game.player1.id === player.id;
-          const isPlayer2 = game.player2.id === player.id;
-          
-          if (isPlayer1 || isPlayer2) {
-            const opponent = isPlayer1 ? game.player2 : game.player1;
+        // Handle cleanup (same as disconnect)
+        if (room.game && room.game.status === "playing") {
+          const playerData = room.game.players.get(player.id);
+          if (playerData && !playerData.finished) {
+            playerData.finished = true;
+            playerData.endTime = Date.now();
             
-            // Notify opponent that they won because opponent quit
-            send(opponent.ws, {
-              type: "game_result",
-              result: "won",
-              reason: "opponent_quit",
-              firstWinnerId: opponent.id,
-              firstWinnerAttempts: game.attempts.get(opponent.id)?.length || 0,
-              opponentAttempts: 999, // Mark as abandoned
-              opponentSecret: isPlayer1 
-                ? game.secretCodes.get(game.player2.id)
-                : game.secretCodes.get(game.player1.id),
-            });
+            broadcastToRoom(room, {
+              type: "player_quit",
+              playerId: player.id,
+              playerName: player.name,
+            }, ws);
             
-            // Mark game for deletion
-            gamesToDelete.push(gameKey);
+            checkGameEnd(room);
           }
-        });
+        }
         
-        // Delete all affected games
-        gamesToDelete.forEach(gameKey => room.games.delete(gameKey));
-
-        // Remove player from room
         room.players = room.players.filter((p) => p.id !== player.id);
         
-        if (room.players.length === 0) {
-          // Room is empty, delete it
-          rooms.delete(player.roomId);
-        } else {
-          // Notify remaining players about the update
+        // Check if room should be deleted
+        if (!checkAndDeleteRoomIfNeeded(room)) {
+          // Room still has enough players
+          if (room.hostId === player.id && room.players.length > 0) {
+            room.hostId = room.players[0].id;
+            broadcastToRoom(room, {
+              type: "host_changed",
+              newHostId: room.hostId,
+            });
+          }
+          
           broadcastToRoom(room, {
             type: "players_updated",
             players: room.players.map((p) => ({ id: p.id, name: p.name })),
+            hostId: room.hostId,
           });
         }
+        
         players.delete(ws);
-        break;
-      }
-
-      case "opponent_quit": {
-        const player = players.get(ws);
-        if (!player) return;
-
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-
-        const opponent = room.players.find((p) => p.id !== player.id);
-        if (!opponent) return;
-
-        // Send opponent_quit message to opponent so they see they won
-        send(opponent.ws, {
-          type: "opponent_quit",
-          message: "انسحب الخصم من اللعبة",
-        });
-        break;
-      }
-
-      case "request_rematch": {
-        const player = players.get(ws);
-        if (!player) return;
-
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-
-        const opponent = room.players.find((p) => p.id !== player.id);
-        if (!opponent) return;
-
-        send(opponent.ws, {
-          type: "rematch_requested",
-          fromPlayerId: player.id,
-          fromPlayerName: player.name,
-        });
-        break;
-      }
-
-      case "accept_rematch": {
-        const player = players.get(ws);
-        if (!player) return;
-
-        const room = rooms.get(player.roomId);
-        if (!room) return;
-
-        const opponent = room.players.find((p) => p.id !== player.id);
-        if (!opponent) return;
-
-        send(player.ws, {
-          type: "rematch_accepted",
-        });
-
-        send(opponent.ws, {
-          type: "rematch_accepted",
-        });
-
-        const gameKey = [player.id, opponent.id].sort().join("-");
-        room.games.delete(gameKey);
-
         break;
       }
     }
@@ -788,47 +1062,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (player.ws !== exclude) {
         send(player.ws, message);
       }
-    });
-  }
-
-  function finalizeGame(
-    game: GameSession,
-    firstWinner: Player,
-    secondPlayer: Player,
-    firstWinnerAttempts: number,
-    secondPlayerAttempts: number
-  ) {
-    // Compare attempts to determine actual winner
-    let result: "won" | "lost" | "tie";
-
-    if (firstWinnerAttempts < secondPlayerAttempts) {
-      // First winner has fewer attempts, they win
-      result = "won";
-    } else if (firstWinnerAttempts === secondPlayerAttempts) {
-      // Same attempts: first winner still wins because they guessed correctly first
-      // Only tie if second player never guessed correctly (abandoned game)
-      result = "won";
-    } else {
-      // Second player has fewer attempts, first winner loses
-      result = "lost";
-    }
-
-    send(firstWinner.ws, {
-      type: "game_result",
-      result,
-      firstWinnerId: game.firstWinnerId,
-      firstWinnerAttempts: firstWinnerAttempts,
-      opponentAttempts: secondPlayerAttempts,
-      opponentSecret: secondPlayer.id === game.player2.id ? game.secretCodes.get(game.player2.id) : game.secretCodes.get(game.player1.id),
-    });
-
-    send(secondPlayer.ws, {
-      type: "game_result",
-      result: result === "won" ? "lost" : (result === "lost" ? "won" : "tie"),
-      firstWinnerId: game.firstWinnerId,
-      firstWinnerAttempts: firstWinnerAttempts,
-      opponentAttempts: firstWinnerAttempts,
-      opponentSecret: firstWinner.id === game.player2.id ? game.secretCodes.get(game.player2.id) : game.secretCodes.get(game.player1.id),
     });
   }
 
