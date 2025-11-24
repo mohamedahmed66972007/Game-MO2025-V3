@@ -643,6 +643,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           playerId: player.id,
           playerName: player.name,
           attemptNumber: playerData.attempts.length,
+          guess: message.guess,
+          correctCount,
+          correctPositionCount,
           won,
         }, ws);
 
@@ -783,6 +786,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }, 1000);
 
         room.game.rematchState.countdownHandle = countdownHandle;
+        break;
+      }
+
+      case "request_rematch_state": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room || !room.game) return;
+
+        // If there's an active rematch request, send it to the player
+        if (room.game.rematchState && room.game.rematchState.requested && room.game.rematchState.countdown !== null) {
+          send(ws, {
+            type: "rematch_requested",
+            countdown: room.game.rematchState.countdown,
+            votes: Array.from(room.game.rematchState.votes.entries()).map(([playerId, accepted]) => ({
+              playerId,
+              accepted,
+            })),
+          });
+        }
         break;
       }
 
