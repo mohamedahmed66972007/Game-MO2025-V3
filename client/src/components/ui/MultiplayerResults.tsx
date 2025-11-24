@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
-import { send, clearSession, disconnect } from "@/lib/websocket";
-import { Trophy, Medal, XCircle, RefreshCw, Home, Eye, Crown } from "lucide-react";
+import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
+import { Trophy, Medal, XCircle, RefreshCw, Home, Eye, Crown, LogOut } from "lucide-react";
 import { Button } from "./button";
 import Confetti from "react-confetti";
 
@@ -9,6 +9,15 @@ export function MultiplayerResults() {
   const { multiplayer, setMode, resetMultiplayer, setShowResults, setGameStatus } = useNumberGame();
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(true);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  // Update time every 100ms for live duration display
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
 
   const isWinner = multiplayer.winners.some(w => w.playerId === multiplayer.playerId);
   const isLoser = multiplayer.losers.some(l => l.playerId === multiplayer.playerId);
@@ -22,6 +31,10 @@ export function MultiplayerResults() {
   const handleBackToLobby = () => {
     // Return to lobby without leaving the room
     console.log("🔙 Back to lobby clicked - showResults:", multiplayer.showResults, "gameStatus:", multiplayer.gameStatus);
+    
+    // Request current rematch state when returning to lobby
+    send({ type: "request_rematch_state" });
+    
     setShowResults(false);
     setGameStatus("waiting");
     console.log("✅ State updated - showResults: false, gameStatus: waiting");
@@ -30,12 +43,17 @@ export function MultiplayerResults() {
   const handleBackToMenu = () => {
     send({ type: "leave_room" });
     clearSession();
+    clearPersistentRoom();
     disconnect();
     resetMultiplayer();
     setMode("menu");
     setTimeout(() => {
       window.location.reload();
     }, 300);
+  };
+
+  const handleLeaveRoom = () => {
+    handleBackToMenu();
   };
 
   const getRankIcon = (rank: number) => {
@@ -55,10 +73,20 @@ export function MultiplayerResults() {
     return `${seconds}s`;
   };
 
-  // Get player details
+  // Get player details (including those still playing)
   const playerDetails = selectedPlayer 
-    ? [...multiplayer.winners, ...multiplayer.losers].find(p => p.playerId === selectedPlayer)
+    ? [...multiplayer.winners, ...multiplayer.losers, ...(multiplayer.stillPlaying || [])].find(p => p.playerId === selectedPlayer)
     : null;
+
+  // Calculate live duration for players still playing
+  const getLiveDuration = (player: typeof multiplayer.winners[0]) => {
+    if (multiplayer.stillPlaying.some(p => p.playerId === player.playerId)) {
+      // Player is still playing - calculate live duration
+      return currentTime - multiplayer.startTime;
+    }
+    // Player finished - use recorded duration
+    return player.duration;
+  };
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50 p-4 overflow-y-auto">
@@ -228,30 +256,42 @@ export function MultiplayerResults() {
 
         {/* Still Playing List */}
         {multiplayer.stillPlaying.length > 0 && (
-          <div className="p-6 border-b border-gray-200">
-            <h3 className="text-xl font-bold text-blue-700 mb-4 flex items-center">
+          <div className="p-4 md:p-6 border-b border-gray-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50">
+            <h3 className="text-lg md:text-xl font-bold text-blue-700 mb-4 flex items-center">
               <span className="text-2xl ml-2">🎮</span>
               اللاعبون المتبقيون ({multiplayer.stillPlaying.length})
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {multiplayer.stillPlaying.map((player) => (
                 <div
                   key={player.playerId}
-                  className="bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-300 rounded-xl p-4 flex items-center gap-3"
+                  className="bg-white border-2 border-blue-300 hover:border-blue-500 hover:shadow-md transition-all rounded-xl p-3 md:p-4 flex items-center justify-between"
                 >
-                  <span className="text-2xl animate-pulse">⏳</span>
-                  <div>
-                    <p className="font-bold text-gray-800 flex items-center gap-2">
-                      {player.playerName}
-                      {player.playerId === multiplayer.playerId && (
-                        <span className="text-xs bg-blue-200 text-blue-700 px-2 py-0.5 rounded-lg">(أنت)</span>
-                      )}
-                      {player.playerId === multiplayer.hostId && (
-                        <Crown className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                      )}
-                    </p>
-                    <p className="text-sm text-gray-600">في مبارة...</p>
+                  <div className="flex items-center gap-3 flex-1">
+                    <span className="text-2xl animate-pulse">⏳</span>
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-800 text-sm md:text-base flex items-center gap-2">
+                        {player.playerName}
+                        {player.playerId === multiplayer.playerId && (
+                          <span className="text-xs bg-blue-200 text-blue-700 px-2 py-0.5 rounded-lg">(أنت)</span>
+                        )}
+                        {player.playerId === multiplayer.hostId && (
+                          <Crown className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                        )}
+                      </p>
+                      <p className="text-xs md:text-sm text-gray-600">
+                        {player.attempts} محاولات • {formatDuration(getLiveDuration(player))}
+                      </p>
+                    </div>
                   </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setSelectedPlayer(player.playerId)}
+                    className="bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center gap-1 text-xs md:text-sm ml-3"
+                  >
+                    <Eye className="w-3 md:w-4 h-3 md:h-4" />
+                    مشاهدة 👀
+                  </Button>
                 </div>
               ))}
             </div>
@@ -260,7 +300,7 @@ export function MultiplayerResults() {
 
         {/* Action Buttons */}
         <div className="p-4 md:p-6 space-y-3">
-          {(isWinner || isLoser) && !multiplayer.rematchState.requested && (
+          {(isWinner || isLoser) && !multiplayer.rematchState.requested && multiplayer.stillPlaying.length === 0 && (
             <Button
               onClick={handleRequestRematch}
               className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3 md:py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm md:text-base"
@@ -270,7 +310,7 @@ export function MultiplayerResults() {
             </Button>
           )}
 
-          {multiplayer.roomId && (
+          {multiplayer.roomId && multiplayer.stillPlaying.length === 0 && (
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -302,11 +342,11 @@ export function MultiplayerResults() {
           )}
 
           <Button
-            onClick={handleBackToMenu}
-            className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-bold py-3 md:py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm md:text-base"
+            onClick={handleLeaveRoom}
+            className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-3 md:py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm md:text-base"
           >
-            <Home className="w-4 md:w-5 h-4 md:h-5" />
-            العودة للقائمة
+            <LogOut className="w-4 md:w-5 h-4 md:h-5" />
+            الخروج من الغرفة
           </Button>
         </div>
       </div>
@@ -422,7 +462,9 @@ export function MultiplayerResults() {
               <div className="bg-blue-50 p-4 rounded-xl">
                 <p className="text-sm text-gray-600 mb-1">النتيجة</p>
                 <p className="text-xl font-bold text-blue-600">
-                  {playerDetails.rank ? `#${playerDetails.rank} - فائز` : 'خاسر'}
+                  {multiplayer.stillPlaying.some(p => p.playerId === playerDetails.playerId) 
+                    ? '--' 
+                    : playerDetails.rank ? `#${playerDetails.rank} - فائز` : 'خاسر'}
                 </p>
               </div>
 
@@ -433,37 +475,44 @@ export function MultiplayerResults() {
                 </div>
                 <div className="bg-green-50 p-4 rounded-xl">
                   <p className="text-sm text-gray-600 mb-1">الوقت</p>
-                  <p className="text-2xl font-bold text-green-600">{formatDuration(playerDetails.duration)}</p>
+                  <p className="text-2xl font-bold text-green-600">{formatDuration(getLiveDuration(playerDetails))}</p>
                 </div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded-xl" dir="rtl">
                 <h3 className="font-bold text-gray-800 mb-3">سجل المحاولات</h3>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {playerDetails.attemptsDetails.map((attempt, idx) => (
-                    <div key={idx} className="bg-white p-3 rounded-lg border border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-gray-700">المحاولة {idx + 1}</span>
-                        {attempt.correctPositionCount === multiplayer.settings.numDigits && (
-                          <span className="text-green-600 font-bold">✓ فوز</span>
-                        )}
+                  {playerDetails.attemptsDetails && playerDetails.attemptsDetails.length > 0 ? (
+                    playerDetails.attemptsDetails.map((attempt, idx) => (
+                      <div key={idx} className="bg-white p-3 rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-gray-700">المحاولة {idx + 1}</span>
+                          {attempt.correctPositionCount === multiplayer.settings.numDigits && (
+                            <span className="text-green-600 font-bold">✓ فوز</span>
+                          )}
+                        </div>
+                        <div className="flex gap-2 mb-2" dir="ltr">
+                          {attempt.guess.map((digit, digitIdx) => (
+                            <div
+                              key={digitIdx}
+                              className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-sm font-bold text-blue-700"
+                            >
+                              {digit}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-4 text-xs text-gray-600">
+                          <span>✓ صحيح: {attempt.correctCount}</span>
+                          <span>📍 موقع صحيح: {attempt.correctPositionCount}</span>
+                        </div>
                       </div>
-                      <div className="flex gap-2 mb-2" dir="ltr">
-                        {attempt.guess.map((digit, digitIdx) => (
-                          <div
-                            key={digitIdx}
-                            className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-sm font-bold text-blue-700"
-                          >
-                            {digit}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-4 text-xs text-gray-600">
-                        <span>✓ صحيح: {attempt.correctCount}</span>
-                        <span>📍 موقع صحيح: {attempt.correctPositionCount}</span>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <p className="text-sm">لا توجد محاولات بعد</p>
+                      <p className="text-xs mt-1">اللاعب لسا بيلعب 🎮</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>

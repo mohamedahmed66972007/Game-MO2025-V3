@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "./button";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
-import { send, clearSession, disconnect } from "@/lib/websocket";
+import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
 import { Users, Copy, LogOut, Settings, Crown, Play } from "lucide-react";
 import { GameSettings } from "./GameSettings";
 
@@ -13,6 +13,7 @@ export function MultiplayerLobby() {
   const handleLeaveRoom = () => {
     send({ type: "leave_room" });
     clearSession();
+    clearPersistentRoom();
     disconnect();
     resetMultiplayer();
     setMode("menu");

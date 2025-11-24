@@ -3,6 +3,7 @@ import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useChallenge } from "@/lib/stores/useChallenge";
+import { useChallenges } from "@/lib/stores/useChallenges";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 
 export function ChallengeDoor({ onEnterChallenge }: { onEnterChallenge: () => void }) {
@@ -10,26 +11,26 @@ export function ChallengeDoor({ onEnterChallenge }: { onEnterChallenge: () => vo
   const hintBoxRef = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
   const [isHovering, setIsHovering] = useState(false);
-  const challengeCompleted = useChallenge((state) => state.challengeCompleted);
-  const hint = useChallenge((state) => state.hint);
-  const { generateHint } = useChallenge();
+  const hint = useChallenges((state) => state.hint);
+  const hasWon = useChallenges((state) => state.hasWonAnyChallenge());
+  const { generateHint } = useChallenges();
   const { singleplayer } = useNumberGame();
   const raycasterRef = useRef(new THREE.Raycaster());
 
   useEffect(() => {
-    if (challengeCompleted && !hint && singleplayer.secretCode) {
+    if (hasWon && !hint && singleplayer.secretCode) {
       console.log("🚪 Door: Generating hint, secretCode:", singleplayer.secretCode);
       generateHint(singleplayer.secretCode);
     }
-  }, [challengeCompleted, hint, generateHint, singleplayer.secretCode]);
+  }, [hasWon, hint, generateHint, singleplayer.secretCode]);
 
   useEffect(() => {
-    console.log("🚪 Door state - challengeCompleted:", challengeCompleted, "hint:", hint);
-  }, [challengeCompleted, hint]);
+    console.log("🚪 Door state - hasWonChallenge:", hasWon, "hint:", hint);
+  }, [hasWon, hint]);
 
   useEffect(() => {
     const handlePointerDown = () => {
-      if (challengeCompleted) return;
+      if (hasWon) return;
       
       raycasterRef.current.setFromCamera(new THREE.Vector2(0, 0), camera);
       raycasterRef.current.far = Infinity;
@@ -51,7 +52,7 @@ export function ChallengeDoor({ onEnterChallenge }: { onEnterChallenge: () => vo
 
     window.addEventListener('pointerdown', handlePointerDown);
     return () => window.removeEventListener('pointerdown', handlePointerDown);
-  }, [onEnterChallenge, camera, challengeCompleted]);
+  }, [onEnterChallenge, camera, hasWon]);
 
   useFrame((state) => {
     if (!buttonRef.current && !hintBoxRef.current) return;
@@ -74,7 +75,7 @@ export function ChallengeDoor({ onEnterChallenge }: { onEnterChallenge: () => vo
     }
 
     if (buttonRef.current) {
-      const targetScale = isHovering && !challengeCompleted ? 1.1 : 1.0;
+      const targetScale = isHovering && !hasWon ? 1.1 : 1.0;
       buttonRef.current.scale.lerp(
         new THREE.Vector3(targetScale, targetScale, targetScale),
         0.15
@@ -121,7 +122,7 @@ export function ChallengeDoor({ onEnterChallenge }: { onEnterChallenge: () => vo
         </mesh>
 
         {/* النص */}
-        {challengeCompleted ? (
+        {hasWon ? (
           <>
             <Text
               position={[0, 0.35, 0.15]}
@@ -169,13 +170,13 @@ export function ChallengeDoor({ onEnterChallenge }: { onEnterChallenge: () => vo
       >
         <boxGeometry args={[2.0, 2.0, 0.15]} />
         <meshStandardMaterial
-          color={challengeCompleted ? "#999999" : isHovering ? "#8b5cf6" : "#6366f1"}
+          color={hasWon ? "#999999" : isHovering ? "#8b5cf6" : "#6366f1"}
           transparent
           opacity={0.85}
           metalness={0.6}
           roughness={0.2}
-          emissive={challengeCompleted ? "#999999" : isHovering ? "#8b5cf6" : "#4f46e5"}
-          emissiveIntensity={challengeCompleted ? 0.3 : isHovering ? 0.8 : 0.5}
+          emissive={hasWon ? "#999999" : isHovering ? "#8b5cf6" : "#4f46e5"}
+          emissiveIntensity={hasWon ? 0.3 : isHovering ? 0.8 : 0.5}
         />
       </mesh>
 

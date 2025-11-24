@@ -20,6 +20,14 @@ const saveSessionToStorage = (playerName: string, playerId: string, roomId: stri
     } : null,
   }));
   localStorage.setItem("lastPlayerName", playerName);
+  // Save room for persistent reconnection (for 24 hours)
+  localStorage.setItem("lastRoomSession", JSON.stringify({
+    playerName,
+    playerId,
+    roomId,
+    timestamp: Date.now(),
+    startTime: store.multiplayer.startTime,
+  }));
 };
 
 export const getLastPlayerName = () => {
@@ -84,6 +92,29 @@ export const send = (message: any) => {
 
 export const clearSession = () => {
   sessionStorage.removeItem("multiplayerSession");
+};
+
+export const clearPersistentRoom = () => {
+  localStorage.removeItem("lastRoomSession");
+};
+
+export const getLastRoomSession = () => {
+  const session = localStorage.getItem("lastRoomSession");
+  if (session) {
+    try {
+      const parsed = JSON.parse(session);
+      // Valid for 24 hours
+      if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+        return parsed;
+      } else {
+        localStorage.removeItem("lastRoomSession");
+        return null;
+      }
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
 };
 
 export const disconnect = () => {
@@ -182,12 +213,30 @@ const handleMessage = (message: any) => {
       break;
 
     case "game_started":
-      store.setGameStatus("playing");
-      store.setSharedSecret(message.sharedSecret);
-      store.setMultiplayerPhase("playing");
-      store.setMultiplayerStartTime();
+      // Clear previous game data and start fresh
+      useNumberGame.setState((state) => ({
+        multiplayer: {
+          ...state.multiplayer,
+          gameStatus: "playing",
+          sharedSecret: message.sharedSecret,
+          phase: "playing",
+          startTime: Date.now(),
+          endTime: null,
+          attempts: [],
+          currentGuess: [],
+          showResults: false,
+          winners: [],
+          losers: [],
+          stillPlaying: [],
+          rematchState: {
+            requested: false,
+            countdown: null,
+            votes: [],
+          },
+        },
+      }));
       saveSessionToStorage(store.multiplayer.playerName, store.multiplayer.playerId, store.multiplayer.roomId);
-      console.log("Game started with shared secret, startTime:", Date.now(), "phase:", store.multiplayer.phase);
+      console.log("Game started with shared secret, startTime:", Date.now(), "phase: playing");
       break;
 
     case "room_rejoined":
@@ -268,7 +317,15 @@ const handleMessage = (message: any) => {
     case "player_attempt":
       // Another player made an attempt - update spectators
       console.log(`Player ${message.playerName} made attempt #${message.attemptNumber}${message.won ? ' and won!' : ''}`);
-      // Spectators can see other players' attempts
+      // Update the still playing player's attempts
+      if (message.guess && message.correctCount !== undefined && message.correctPositionCount !== undefined) {
+        const attempt = {
+          guess: message.guess,
+          correctCount: message.correctCount,
+          correctPositionCount: message.correctPositionCount,
+        };
+        store.updateStillPlayingAttempt(message.playerId, attempt);
+      }
       break;
 
     case "player_quit":

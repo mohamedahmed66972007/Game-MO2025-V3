@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNumberGame } from "./lib/stores/useNumberGame";
 import { useAudio } from "./lib/stores/useAudio";
-import { send, reconnectToSession, connectWebSocket, reconnectWithRetry } from "./lib/websocket";
+import { send, reconnectToSession, connectWebSocket, reconnectWithRetry, getLastRoomSession } from "./lib/websocket";
 import { useIsMobile } from "./hooks/use-is-mobile";
 import { MobileApp } from "./components/mobile/MobileApp";
 import { GameScene } from "./components/game/GameScene";
@@ -11,17 +11,19 @@ import { LoseScreen } from "./components/ui/LoseScreen";
 import { MultiplayerLobby } from "./components/ui/MultiplayerLobby";
 import { MultiplayerResults } from "./components/ui/MultiplayerResults";
 import { GameHUD } from "./components/ui/GameHUD";
-import { ChallengeRoom } from "./components/game/ChallengeRoom";
-import { ChallengeResultScreen } from "./components/ui/ChallengeResultScreen";
-import { useChallenge } from "./lib/stores/useChallenge";
+import { ChallengesHub } from "./components/game/ChallengesHub";
+import { useChallenges } from "./lib/stores/useChallenges";
+import { DesktopSingleplayer } from "./components/desktop/DesktopSingleplayer";
+import { MultiplayerGame2D } from "./components/desktop/MultiplayerGame2D";
 import "@fontsource/inter";
 
 function App() {
   const isMobile = useIsMobile();
   const { mode, singleplayer, multiplayer, connectionError, setMode, isConnecting, setIsConnecting, setPlayerName, setRoomId, setPlayerId, setConnectionError, resetMultiplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
-  const [showChallengeRoom, setShowChallengeRoom] = useState(false);
-  const { startChallenge, phase: challengePhase, resetChallenge, generateHint } = useChallenge();
+  const [showChallengesHub, setShowChallengesHub] = useState(false);
+  const challenges = useChallenges();
+  const { hasWonAnyChallenge, resetToMenu: resetChallengesHub, generateHint: generateChallengeHint } = challenges;
 
   useEffect(() => {
     const successAudio = new Audio("/sounds/success.mp3");
@@ -56,7 +58,7 @@ function App() {
               multiplayer: {
                 ...state.multiplayer,
                 attempts: session.gameState.attempts,
-                startTime: session.gameState.startTime || 0,
+                startTime: session.gameState.startTime || Date.now(),
               },
             }));
           }
@@ -77,8 +79,64 @@ function App() {
           }
         }, 3000);
       } else {
-        // Game is finished, clear the session
-        sessionStorage.removeItem("multiplayerSession");
+        // Game is finished, try to reconnect to last room if available
+        const lastRoom = getLastRoomSession();
+        if (lastRoom && lastRoom.roomId && lastRoom.playerId) {
+          console.log("Game finished but reconnecting to last room:", lastRoom);
+          setPlayerName(lastRoom.playerName);
+          setMode("multiplayer");
+          setIsConnecting(true);
+          
+          // Restore startTime if available (preserve elapsed time)
+          useNumberGame.setState((state) => ({
+            multiplayer: {
+              ...state.multiplayer,
+              gameStatus: "waiting",
+              startTime: lastRoom.startTime || 0,
+            },
+          }));
+          
+          const ws = reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
+          
+          setTimeout(() => {
+            if (useNumberGame.getState().isConnecting) {
+              console.error("Connection timeout - redirecting to menu");
+              setIsConnecting(false);
+              setMode("menu");
+            }
+          }, 3000);
+        } else {
+          // No active game and no last room, clear the session
+          sessionStorage.removeItem("multiplayerSession");
+        }
+      }
+    } else {
+      // Check if there's a last room to rejoin
+      const lastRoom = getLastRoomSession();
+      if (lastRoom && lastRoom.roomId && lastRoom.playerId && !multiplayer.roomId) {
+        console.log("Auto-reconnecting to last room:", lastRoom);
+        setPlayerName(lastRoom.playerName);
+        setMode("multiplayer");
+        setIsConnecting(true);
+        
+        // Restore startTime if available (preserve elapsed time)
+        useNumberGame.setState((state) => ({
+          multiplayer: {
+            ...state.multiplayer,
+            gameStatus: "waiting",
+            startTime: lastRoom.startTime || 0,
+          },
+        }));
+        
+        const ws = reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
+        
+        setTimeout(() => {
+          if (useNumberGame.getState().isConnecting) {
+            console.error("Connection timeout - redirecting to menu");
+            setIsConnecting(false);
+            setMode("menu");
+          }
+        }, 3000);
       }
     }
   }, []);
@@ -95,39 +153,17 @@ function App() {
 
       {mode === "singleplayer" && (
         <>
-          {singleplayer.secretCode.length > 0 && !showChallengeRoom && (
-            <>
-              <GameScene onEnterChallenge={() => {
-                setShowChallengeRoom(true);
-                startChallenge();
-              }} />
-              <GameHUD />
-              {singleplayer.phase === "won" && <WinScreen />}
-              {singleplayer.phase === "lost" && <LoseScreen />}
-            </>
+          {!showChallengesHub && singleplayer.secretCode.length > 0 && (
+            <DesktopSingleplayer onStartChallenge={() => setShowChallengesHub(true)} />
           )}
-          {showChallengeRoom && (
-            <>
-              <ChallengeRoom onExit={() => {
-                if (challengePhase === "won") {
-                  generateHint(singleplayer.secretCode);
-                }
-                setShowChallengeRoom(false);
-                resetChallenge();
-              }} />
-              {(challengePhase === "won" || challengePhase === "lost") && (
-                <ChallengeResultScreen
-                  won={challengePhase === "won"}
-                  onClose={() => {
-                    if (challengePhase === "won") {
-                      generateHint(singleplayer.secretCode);
-                    }
-                    setShowChallengeRoom(false);
-                    resetChallenge();
-                  }}
-                />
-              )}
-            </>
+          {showChallengesHub && (
+            <ChallengesHub onExit={() => {
+              if (hasWonAnyChallenge()) {
+                generateChallengeHint(singleplayer.secretCode);
+              }
+              setShowChallengesHub(false);
+              resetChallengesHub();
+            }} />
           )}
         </>
       )}
@@ -176,11 +212,7 @@ function App() {
           
           {/* Show game */}
           {isMultiplayerGameActive && !multiplayer.showResults && (
-            <>
-              <GameScene />
-              <GameHUD />
-              <HomeButton />
-            </>
+            <MultiplayerGame2D />
           )}
           
           {/* Show results */}

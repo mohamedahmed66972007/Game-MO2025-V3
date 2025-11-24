@@ -5,14 +5,15 @@ import { reconnectToSession, connectWebSocket, reconnectWithRetry } from "@/lib/
 import { MobileMenu } from "./MobileMenu";
 import { MobileSingleplayer } from "./MobileSingleplayer";
 import { MobileMultiplayer } from "./MobileMultiplayer";
-import { MobileChallenge } from "./MobileChallenge";
-import { useChallenge } from "@/lib/stores/useChallenge";
+import { ChallengesHub } from "../game/ChallengesHub";
+import { useChallenges } from "@/lib/stores/useChallenges";
 
 export function MobileApp() {
   const { mode, setMode, setPlayerName, setRoomId, setPlayerId, setIsConnecting, multiplayer, singleplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
-  const [showChallenge, setShowChallenge] = useState(false);
-  const { startChallenge, resetChallenge, phase: challengePhase, generateHint } = useChallenge();
+  const [showChallengesHub, setShowChallengesHub] = useState(false);
+  const challenges = useChallenges();
+  const { hasWonAnyChallenge, resetChallengesHub, generateHint } = challenges;
 
   useEffect(() => {
     const successAudio = new Audio("/sounds/success.mp3");
@@ -60,16 +61,16 @@ export function MobileApp() {
     }
   }, []);
 
-  const handleExitChallenge = () => {
-    if (challengePhase === "won") {
+  const handleExitChallengesHub = () => {
+    if (hasWonAnyChallenge()) {
       generateHint(singleplayer.secretCode);
     }
-    setShowChallenge(false);
-    resetChallenge();
+    setShowChallengesHub(false);
+    resetChallengesHub();
   };
 
-  if (showChallenge) {
-    return <MobileChallenge onExit={handleExitChallenge} />;
+  if (showChallengesHub) {
+    return <ChallengesHub onExit={handleExitChallengesHub} />;
   }
 
   return (
@@ -78,8 +79,7 @@ export function MobileApp() {
       {mode === "singleplayer" && (
         <MobileSingleplayer 
           onStartChallenge={() => {
-            setShowChallenge(true);
-            startChallenge();
+            setShowChallengesHub(true);
           }}
         />
       )}

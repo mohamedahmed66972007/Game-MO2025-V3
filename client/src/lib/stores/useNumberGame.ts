@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import { useChallenge } from "./useChallenge";
+import { useChallenges } from "./useChallenges";
 
 export type GameMode = "menu" | "singleplayer" | "multiplayer";
 export type GamePhase = "playing" | "won" | "lost";
@@ -111,6 +111,7 @@ interface NumberGameState {
   resetMultiplayer: () => void;
   resetMultiplayerGame: () => void;
   setMultiplayerSettings: (settings: GameSettings) => void;
+  updateStillPlayingAttempt: (playerId: string, attempt: Attempt) => void;
 }
 
 const generateSecretCode = (numDigits: number = 4): number[] => {
@@ -267,7 +268,10 @@ export const useNumberGame = create<NumberGameState>()(
 
     restartSingleplayer: () => {
       const { singleplayer } = get();
-      useChallenge.getState().resetChallenge();
+      const challengesStore = useChallenges.getState();
+      if (challengesStore.resetChallengesHub) {
+        challengesStore.resetChallengesHub();
+      }
       const newSecretCode = generateSecretCode(singleplayer.settings.numDigits);
       console.log("Secret code generated:", newSecretCode);
       set({
@@ -449,5 +453,25 @@ export const useNumberGame = create<NumberGameState>()(
       })),
 
     setMultiplayerSettings: (settings) => set((state) => ({ multiplayer: { ...state.multiplayer, settings } })),
+
+    updateStillPlayingAttempt: (playerId, attempt) => {
+      const { multiplayer } = get();
+      const updatedStillPlaying = multiplayer.stillPlaying.map(player => {
+        if (player.playerId === playerId) {
+          return {
+            ...player,
+            attempts: player.attempts + 1,
+            attemptsDetails: [...(player.attemptsDetails || []), attempt],
+          };
+        }
+        return player;
+      });
+      set({
+        multiplayer: {
+          ...multiplayer,
+          stillPlaying: updatedStillPlaying,
+        },
+      });
+    },
   }))
 );
