@@ -17,53 +17,7 @@ function BackWallStatus() {
 }
 
 function PendingWinStatus() {
-  const pendingWin = useNumberGame((state) => state.multiplayer.pendingWin);
-  const pendingWinMessage = useNumberGame((state) => state.multiplayer.pendingWinMessage);
-  const mode = useNumberGame((state) => state.mode);
-  const [opacity, setOpacity] = useState(1);
-
-  useEffect(() => {
-    if (!pendingWin) return;
-    const interval = setInterval(() => {
-      setOpacity((prev) => prev === 1 ? 0.3 : 1);
-    }, 600);
-    return () => clearInterval(interval);
-  }, [pendingWin]);
-
-  if (mode !== "multiplayer" || !pendingWin) return null;
-
-  return (
-    <group position={[0, 1, -7]}>
-      {/* Glowing rounded box background */}
-      <RoundedBox
-        args={[6.5, 3.5, 0.15]}
-        radius={0.4}
-        smoothness={6}
-      >
-        <meshStandardMaterial 
-          color="#10b981"
-          emissive="#10b981"
-          emissiveIntensity={opacity * 0.5}
-          metalness={0.3}
-          roughness={0.3}
-        />
-      </RoundedBox>
-      
-      {/* Text on top */}
-      <Text
-        position={[0, 0, 0.1]}
-        fontSize={0.55}
-        color="#ffffff"
-        anchorX="center"
-        anchorY="middle"
-        fontWeight="bold"
-        maxWidth={5.8}
-        lineHeight={1.8}
-      >
-        {pendingWinMessage}
-      </Text>
-    </group>
-  );
+  return null;
 }
 
 function Scene({ onLockChange, isPointerLocked = false, onEnterChallenge }: { onLockChange?: (locked: boolean) => void; isPointerLocked?: boolean; onEnterChallenge?: () => void }) {
@@ -192,11 +146,6 @@ const keyMap = [
 
 export function GameScene({ onEnterChallenge }: { onEnterChallenge?: () => void }) {
   const [isLocked, setIsLocked] = useState(false);
-  const pendingWin = useNumberGame((state) => state.multiplayer.pendingWin);
-  const pendingWinMessage = useNumberGame((state) => state.multiplayer.pendingWinMessage);
-  const opponentWonFirst = useNumberGame((state) => state.multiplayer.opponentWonFirst);
-  const mode = useNumberGame((state) => state.mode);
-  const [showOpponentWonAlert, setShowOpponentWonAlert] = useState(true);
 
   return (
     <>
@@ -211,6 +160,21 @@ export function GameScene({ onEnterChallenge }: { onEnterChallenge?: () => void 
           gl={{
             antialias: true,
           }}
+          onCreated={({ gl }) => {
+            const canvas = gl.domElement;
+            
+            const handleClick = () => {
+              if (!document.pointerLockElement) {
+                canvas.requestPointerLock();
+              }
+            };
+            
+            canvas.addEventListener('click', handleClick);
+            
+            return () => {
+              canvas.removeEventListener('click', handleClick);
+            };
+          }}
         >
           <Scene onLockChange={setIsLocked} isPointerLocked={isLocked} onEnterChallenge={onEnterChallenge} />
         </Canvas>
@@ -220,34 +184,6 @@ export function GameScene({ onEnterChallenge }: { onEnterChallenge?: () => void 
           <div className="text-white text-sm bg-black bg-opacity-50 p-4 rounded">
             <p className="mb-2">اضغط على الشاشة لقفل المؤشر</p>
           </div>
-        </div>
-      )}
-      
-      {mode === "multiplayer" && pendingWin && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 pointer-events-auto z-50">
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-8 shadow-2xl border-2 border-green-300 w-96 mx-4 animate-pulse">
-            <h3 className="text-2xl font-bold text-green-700 mb-3 text-center">🎉 انتظر الخصم</h3>
-            <p className="text-gray-800 font-semibold text-center text-lg">{pendingWinMessage}</p>
-          </div>
-        </div>
-      )}
-
-      {mode === "multiplayer" && opponentWonFirst && !pendingWin && showOpponentWonAlert && (
-        <div className="fixed top-20 right-6 bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-6 shadow-2xl border-2 border-orange-300 max-w-sm animate-pulse z-50">
-          <div className="flex items-start justify-between mb-3">
-            <div className="text-4xl">⚠️</div>
-            <button
-              onClick={() => setShowOpponentWonAlert(false)}
-              className="p-1 hover:bg-red-100 rounded-lg transition-colors"
-            >
-              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <h3 className="text-xl font-bold text-red-700 mb-2">تحذير!</h3>
-          <p className="text-gray-800 font-semibold mb-2 text-sm">لقد خمن الخصم الرقم السري الصحيح</p>
-          <p className="text-sm text-red-600 font-bold">متبق لديك فرصة واحدة لتفوز</p>
         </div>
       )}
       

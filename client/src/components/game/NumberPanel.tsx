@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useFrame, ThreeEvent, useThree } from "@react-three/fiber";
 import { Text, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -68,11 +68,12 @@ const NumberButton = ({ position, digit, onClick, isPointerLocked }: NumberButto
 
     const handleMouseDown = (e: MouseEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       onClick(digit);
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("keydown", handleKeyDown, { passive: false });
+    window.addEventListener("mousedown", handleMouseDown, { passive: false });
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("mousedown", handleMouseDown);
@@ -316,9 +317,11 @@ const ConfirmButton = ({ position, onClick, enabled, isPointerLocked }: ConfirmB
           }
         }}
         onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-          if (!isPointerLocked && enabled) {
+          if (!isPointerLocked) {
             e.stopPropagation();
-            setHovered(true);
+            if (enabled) {
+              setHovered(true);
+            }
           }
         }}
         onPointerOut={(e: ThreeEvent<PointerEvent>) => {
@@ -385,40 +388,42 @@ export function NumberPanel({ isPointerLocked = false }: NumberPanelProps) {
     prevPhaseRef.current = currentPhase;
   }, [mode, singleplayer.phase, multiplayer.phase, playSuccess, wonSoundPlayed]);
 
-  const handleDigitClick = (digit: number) => {
+  const handleDigitClick = useCallback((digit: number) => {
     if (mode === "singleplayer") {
-      playDigit(digit);
-      addDigitToGuess(digit);
-    } else if (mode === "multiplayer") {
-      if (!multiplayer.isMyTurn) {
-        toast.warning("يرجى انتظار دورك", { duration: 5000 });
-        return;
-      }
-      if (multiplayer.turnTimeLeft > 0) {
+      if (singleplayer.phase === "playing") {
         playDigit(digit);
-        addMultiplayerDigit(digit);
+        addDigitToGuess(digit);
       }
-    }
-  };
-
-  const handleDeleteClick = () => {
-    if (mode === "singleplayer") {
-      playDelete();
-      deleteLastDigit();
     } else if (mode === "multiplayer") {
-      if (!multiplayer.isMyTurn) {
-        toast.warning("يرجى انتظار دورك", { duration: 5000 });
+      if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") {
+        toast.warning("اللعبة غير نشطة", { duration: 3000 });
         return;
       }
-      if (multiplayer.turnTimeLeft > 0) {
-        playDelete();
-        deleteMultiplayerDigit();
-      }
+      playDigit(digit);
+      addMultiplayerDigit(digit);
     }
-  };
+  }, [mode, playDigit, addDigitToGuess, addMultiplayerDigit, multiplayer.gameStatus, multiplayer.phase, singleplayer.phase]);
 
-  const handleConfirmClick = () => {
+  const handleDeleteClick = useCallback(() => {
     if (mode === "singleplayer") {
+      if (singleplayer.phase === "playing") {
+        playDelete();
+        deleteLastDigit();
+      }
+    } else if (mode === "multiplayer") {
+      if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") {
+        return;
+      }
+      playDelete();
+      deleteMultiplayerDigit();
+    }
+  }, [mode, playDelete, deleteLastDigit, deleteMultiplayerDigit, multiplayer.gameStatus, multiplayer.phase, singleplayer.phase]);
+
+  const handleConfirmClick = useCallback(() => {
+    if (mode === "singleplayer") {
+      if (singleplayer.phase !== "playing") {
+        return;
+      }
       const currentGuess = singleplayer.currentGuess;
       if (currentGuess.length === numDigits) {
         playConfirm();
@@ -427,48 +432,31 @@ export function NumberPanel({ isPointerLocked = false }: NumberPanelProps) {
         playError();
       }
     } else if (mode === "multiplayer") {
-      if (!multiplayer.isMyTurn) {
-        toast.warning("يرجى انتظار دورك", { duration: 5000 });
+      if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") {
+        toast.warning("اللعبة غير نشطة", { duration: 3000 });
         return;
       }
-      if (multiplayer.turnTimeLeft > 0) {
-        const currentGuess = multiplayer.currentGuess;
-        if (currentGuess.length === numDigits) {
-          playConfirm();
-          // CRITICAL: Save guess BEFORE calling submitMultiplayerGuess (which clears it)
-          const guessToSend = [...currentGuess];
-          submitMultiplayerGuess();
-          send({
-            type: "submit_guess",
-            opponentId: multiplayer.opponentId,
-            guess: guessToSend,
-          });
-        } else {
-          playError();
-        }
+      const currentGuess = multiplayer.currentGuess;
+      if (currentGuess.length === numDigits) {
+        playConfirm();
+        const guessToSend = [...currentGuess];
+        submitMultiplayerGuess();
+        send({
+          type: "submit_guess",
+          guess: guessToSend,
+        });
+      } else {
+        playError();
       }
     }
-  };
+  }, [mode, singleplayer.currentGuess, singleplayer.phase, multiplayer.gameStatus, multiplayer.phase, multiplayer.currentGuess, numDigits, playConfirm, playError, submitGuess, submitMultiplayerGuess]);
 
   // Keyboard input listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check if game is active
       const isGameActive = mode === "singleplayer" || 
-                          (mode === "multiplayer" && multiplayer.isMyTurn && multiplayer.turnTimeLeft > 0);
-      
-      // For multiplayer, show warning if not player's turn
-      if (mode === "multiplayer" && !multiplayer.isMyTurn) {
-        if ((e.key >= "0" && e.key <= "9") || 
-            e.key === "Backspace" || 
-            e.key === "Delete" ||
-            e.key === "Enter" || 
-            e.code === "Space") {
-          e.preventDefault();
-          toast.warning("يرجى انتظار دورك", { duration: 5000 });
-          return;
-        }
-      }
+                          (mode === "multiplayer" && multiplayer.gameStatus === "playing");
       
       if (!isGameActive) return;
       
@@ -491,10 +479,10 @@ export function NumberPanel({ isPointerLocked = false }: NumberPanelProps) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, singleplayer, multiplayer, handleDigitClick, handleDeleteClick, handleConfirmClick]);
+  }, [mode, multiplayer.gameStatus, handleDigitClick, handleDeleteClick, handleConfirmClick]);
 
   const currentGuess = mode === "singleplayer" ? singleplayer.currentGuess : multiplayer.currentGuess;
-  const canConfirm = currentGuess.length === numDigits && (mode === "singleplayer" || multiplayer.turnTimeLeft > 0);
+  const canConfirm = currentGuess.length === numDigits && (mode === "singleplayer" || multiplayer.gameStatus === "playing");
 
   return (
     <group position={[0, 3.5, -12.3]}>

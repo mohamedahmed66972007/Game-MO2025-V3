@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNumberGame } from "./lib/stores/useNumberGame";
 import { useAudio } from "./lib/stores/useAudio";
-import { send, reconnectToSession, connectWebSocket } from "./lib/websocket";
+import { send, reconnectToSession, connectWebSocket, reconnectWithRetry } from "./lib/websocket";
 import { useIsMobile } from "./hooks/use-is-mobile";
 import { MobileApp } from "./components/mobile/MobileApp";
 import { GameScene } from "./components/game/GameScene";
@@ -9,11 +9,8 @@ import { Menu } from "./components/ui/Menu";
 import { WinScreen } from "./components/ui/WinScreen";
 import { LoseScreen } from "./components/ui/LoseScreen";
 import { MultiplayerLobby } from "./components/ui/MultiplayerLobby";
-import { SecretCodeSetup } from "./components/ui/SecretCodeSetup";
+import { MultiplayerResults } from "./components/ui/MultiplayerResults";
 import { GameHUD } from "./components/ui/GameHUD";
-import { GameOverScreen } from "./components/ui/GameOverScreen";
-import { OpponentAttemptsDialog } from "./components/ui/OpponentAttemptsDialog";
-import { WaitingForOpponentScreen } from "./components/ui/WaitingForOpponentScreen";
 import { ChallengeRoom } from "./components/game/ChallengeRoom";
 import { ChallengeResultScreen } from "./components/ui/ChallengeResultScreen";
 import { useChallenge } from "./lib/stores/useChallenge";
@@ -21,9 +18,8 @@ import "@fontsource/inter";
 
 function App() {
   const isMobile = useIsMobile();
-  const { mode, singleplayer, multiplayer, setMode, isConnecting, setIsConnecting, setPlayerName, setRoomId, setPlayerId } = useNumberGame();
+  const { mode, singleplayer, multiplayer, connectionError, setMode, isConnecting, setIsConnecting, setPlayerName, setRoomId, setPlayerId, setConnectionError, resetMultiplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
-  const [isPointerLocked, setIsPointerLocked] = useState(false);
   const [showChallengeRoom, setShowChallengeRoom] = useState(false);
   const { startChallenge, phase: challengePhase, resetChallenge, generateHint } = useChallenge();
 
@@ -35,37 +31,55 @@ function App() {
 
   useEffect(() => {
     const session = reconnectToSession();
-    if (session && !multiplayer.roomId) {
-      setPlayerName(session.playerName);
-      setRoomId(session.roomId);
-      setPlayerId(session.playerId);
+    if (session && session.roomId && session.playerId && !multiplayer.roomId) {
+      // Only auto-reconnect if game is actively playing (not finished/results shown)
+      const isGameActive = session.gameState && session.gameState.gameStatus === "playing";
       
-      // Restore game state if it was active
-      if (session.gameState) {
-        const store = useNumberGame.getState();
-        store.setOpponentId(session.gameState.opponentId);
-        store.setOpponentName(session.gameState.opponentName);
-        store.setMySecretCode(session.gameState.mySecretCode);
-        store.setChallengeStatus(session.gameState.challengeStatus);
+      if (isGameActive) {
+        console.log("Reconnecting to active session:", session);
+        setPlayerName(session.playerName);
         
-        // Restore active game state if player was in game
-        if (session.gameState.playersGaming && session.gameState.playersGaming.length > 0) {
-          store.setPlayersGaming(session.gameState.playersGaming);
-          store.setIsMyTurn(session.gameState.isMyTurn);
-          useNumberGame.setState((state) => ({
-            multiplayer: {
-              ...state.multiplayer,
-              attempts: session.gameState.attempts || [],
-              opponentAttempts: session.gameState.opponentAttempts || [],
-              turnTimeLeft: session.gameState.turnTimeLeft || 60,
-            },
-          }));
+        // Restore game state if it was active
+        if (session.gameState) {
+          const store = useNumberGame.getState();
+          if (session.gameState.gameStatus) {
+            store.setGameStatus(session.gameState.gameStatus);
+          }
+          if (session.gameState.sharedSecret) {
+            store.setSharedSecret(session.gameState.sharedSecret);
+          }
+          if (session.gameState.settings) {
+            store.setMultiplayerSettings(session.gameState.settings);
+          }
+          if (session.gameState.attempts) {
+            useNumberGame.setState((state) => ({
+              multiplayer: {
+                ...state.multiplayer,
+                attempts: session.gameState.attempts,
+                startTime: session.gameState.startTime || 0,
+              },
+            }));
+          }
         }
+        
+        setMode("multiplayer");
+        setIsConnecting(true);
+        
+        // Attempt reconnection with retry
+        const ws = reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+        
+        // Add timeout to prevent infinite loading (network issues only)
+        setTimeout(() => {
+          if (useNumberGame.getState().isConnecting) {
+            console.error("Connection timeout - redirecting to menu");
+            setIsConnecting(false);
+            setMode("menu");
+          }
+        }, 3000);
+      } else {
+        // Game is finished, clear the session
+        sessionStorage.removeItem("multiplayerSession");
       }
-      
-      setMode("multiplayer");
-      setIsConnecting(true);
-      connectWebSocket(session.playerName, session.roomId);
     }
   }, []);
 
@@ -73,20 +87,7 @@ function App() {
     return <MobileApp />;
   }
 
-  const numDigits = multiplayer.settings.numDigits;
-  const hasMySecretCode = multiplayer.mySecretCode.length === numDigits && numDigits > 0;
-
-  const isMultiplayerGameActive =
-    multiplayer.opponentId &&
-    multiplayer.challengeStatus === "accepted" &&
-    hasMySecretCode &&
-    multiplayer.playersGaming.length > 0; // Game has actually started on server
-
-  const isWaitingForOpponent =
-    multiplayer.opponentId &&
-    multiplayer.challengeStatus === "accepted" &&
-    hasMySecretCode &&
-    multiplayer.playersGaming.length === 0; // Waiting for opponent to set secret code
+  const isMultiplayerGameActive = multiplayer.gameStatus === "playing" && multiplayer.sharedSecret.length > 0;
 
   return (
     <div dir="rtl" style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
@@ -133,8 +134,30 @@ function App() {
 
       {mode === "multiplayer" && (
         <>
+          {/* Show connection error */}
+          {connectionError && (
+            <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 z-50">
+              <div className="text-center relative max-w-md mx-4">
+                <div className="inline-flex items-center justify-center mb-4">
+                  <div className="text-6xl">❌</div>
+                </div>
+                <p className="text-gray-800 text-xl font-semibold mb-4">{connectionError}</p>
+                <button
+                  onClick={() => {
+                    setConnectionError(null);
+                    resetMultiplayer();
+                    setMode("menu");
+                  }}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold transition-colors"
+                >
+                  العودة للقائمة الرئيسية
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Show loading screen while connecting */}
-          {isConnecting && (
+          {isConnecting && !connectionError && (
             <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50">
               <div className="text-center relative">
                 <div className="inline-flex items-center justify-center mb-4">
@@ -146,97 +169,135 @@ function App() {
             </div>
           )}
 
-          {/* Show lobby once connected */}
-          {!isConnecting && multiplayer.roomId && !multiplayer.opponentId && <MultiplayerLobby />}
-          
-          {/* Show lobby while waiting for challenge acceptance */}
-          {!isConnecting && multiplayer.roomId && multiplayer.opponentId && multiplayer.challengeStatus !== "accepted" && (
+          {/* Show lobby when not in game */}
+          {!isConnecting && multiplayer.roomId && multiplayer.gameStatus === "waiting" && !multiplayer.showResults && (
             <MultiplayerLobby />
           )}
           
-          {/* Show secret code setup or game after challenge accepted */}
-          {multiplayer.opponentId && multiplayer.challengeStatus === "accepted" && (
+          {/* Show game */}
+          {isMultiplayerGameActive && !multiplayer.showResults && (
             <>
-              {/* Show secret code setup only when player hasn't entered code */}
-              {!hasMySecretCode && <SecretCodeSetup />}
-              
-              {/* Show waiting screen while opponent enters their secret code */}
-              {isWaitingForOpponent && <WaitingForOpponentScreen />}
-              
-              {/* Show game or results */}
-              {isMultiplayerGameActive && (
-                <>
-                  {!multiplayer.showResults && (
-                    <>
-                      <GameScene />
-                      <GameHUD />
-                      <HomeButton />
-                    </>
-                  )}
-                  {multiplayer.showResults && multiplayer.gameResult === "won" && <WinScreen />}
-                  {multiplayer.showResults && multiplayer.gameResult === "tie" && <WinScreen />}
-                  {multiplayer.showResults && multiplayer.gameResult === "lost" && <LoseScreen />}
-                </>
-              )}
+              <GameScene />
+              <GameHUD />
+              <HomeButton />
             </>
           )}
+          
+          {/* Show results */}
+          {multiplayer.showResults && <MultiplayerResults />}
 
-          {multiplayer.opponentId && multiplayer.rematchRequested && (
-            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-              <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center space-y-6 border border-gray-200 mx-4">
-                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl mx-auto">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </div>
-                <h2 className="text-3xl font-bold text-gray-800">طلب إعادة مبارة</h2>
-                <p className="text-gray-600 text-lg">الخصم يريد لعب مبارة أخرى</p>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => {
-                      send({ type: "accept_rematch" });
-                    }}
-                    className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-6 rounded-xl transition-colors"
-                  >
-                    قبول
-                  </button>
-                  <button
-                    onClick={() => {
-                      const { setChallengeStatus, setOpponentId, setOpponentName, setMySecretCode, resetMultiplayer, setShowResults } = useNumberGame.getState();
-                      setChallengeStatus("none");
-                      setOpponentId(null);
-                      setOpponentName("");
-                      setMySecretCode([]);
-                      setShowResults(false);
-                      resetMultiplayer();
-                    }}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors"
-                  >
-                    رفض والعودة للغرفة
-                  </button>
-                </div>
-              </div>
-            </div>
+          {/* Rematch countdown dialog */}
+          {multiplayer.rematchState.requested && multiplayer.rematchState.countdown !== null && (
+            <RematchDialog />
           )}
           
           {!isConnecting && !multiplayer.roomId && <Menu />}
         </>
       )}
-      
-      <OpponentAttemptsDialog />
+    </div>
+  );
+}
+
+function RematchDialog() {
+  const { multiplayer } = useNumberGame();
+  const myVote = multiplayer.rematchState.votes.find(v => v.playerId === multiplayer.playerId);
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
+      <div className="w-full max-w-2xl bg-gradient-to-br from-blue-50 to-white rounded-3xl shadow-2xl border-2 border-blue-300 p-6 md:p-8 text-center space-y-6">
+        {/* Header */}
+        <div>
+          <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full mx-auto mb-4 shadow-lg">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">هل تريد إعادة المباراة؟</h2>
+          <p className="text-sm md:text-base text-gray-600">لديك <span className="font-bold text-blue-600">{multiplayer.rematchState.countdown}s</span> للتصويت</p>
+        </div>
+
+        {/* Voting Buttons - Only show if player hasn't voted */}
+        {!myVote && (
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <button
+              onClick={() => send({ type: "rematch_vote", accepted: true })}
+              className="bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 md:py-4 px-4 md:px-6 rounded-xl transition-all transform hover:scale-105 shadow-lg flex flex-col items-center gap-2"
+            >
+              <span className="text-xl md:text-2xl">✓</span>
+              <span className="text-xs md:text-sm">موافق</span>
+            </button>
+            <button
+              onClick={() => send({ type: "rematch_vote", accepted: false })}
+              className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 md:py-4 px-4 md:px-6 rounded-xl transition-all transform hover:scale-105 shadow-lg flex flex-col items-center gap-2"
+            >
+              <span className="text-xl md:text-2xl">✗</span>
+              <span className="text-xs md:text-sm">رافض</span>
+            </button>
+          </div>
+        )}
+
+        {/* Player Voting Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+          {multiplayer.players.map(player => {
+            const vote = multiplayer.rematchState.votes.find(v => v.playerId === player.id);
+            const isCurrentPlayer = player.id === multiplayer.playerId;
+            
+            return (
+              <div
+                key={player.id}
+                className={`relative rounded-2xl p-4 md:p-5 border-2 transition-all transform ${
+                  vote?.accepted
+                    ? 'bg-gradient-to-br from-green-50 to-green-100 border-green-400 scale-100'
+                    : vote?.accepted === false
+                    ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-400 scale-100'
+                    : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-300 animate-pulse'
+                }`}
+              >
+                {/* Vote Status Icon */}
+                <div className="absolute top-2 right-2 md:top-3 md:right-3">
+                  {vote?.accepted ? (
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                      <span className="text-white font-bold text-lg md:text-xl">✓</span>
+                    </div>
+                  ) : vote?.accepted === false ? (
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-red-500 rounded-full flex items-center justify-center shadow-lg">
+                      <span className="text-white font-bold text-lg md:text-xl">✗</span>
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-gray-400 rounded-full flex items-center justify-center shadow-lg">
+                      <span className="text-white font-bold text-lg md:text-xl">⏳</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Player Info */}
+                <div className="pr-10 md:pr-12">
+                  <p className="font-bold text-gray-800 text-sm md:text-base flex items-center gap-2">
+                    {player.name}
+                    {isCurrentPlayer && <span className="text-xs bg-blue-200 text-blue-700 px-2 py-0.5 rounded-lg">(أنت)</span>}
+                  </p>
+                  <p className={`text-xs md:text-sm font-semibold mt-1 ${
+                    vote?.accepted ? 'text-green-700' : vote?.accepted === false ? 'text-red-700' : 'text-gray-500'
+                  }`}>
+                    {vote?.accepted ? 'موافق ✓' : vote?.accepted === false ? 'رافض ✗' : 'في الانتظار...'}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
 
 function HomeButton() {
-  const { setMode, resetMultiplayer, multiplayer } = useNumberGame();
+  const { setMode, resetMultiplayer } = useNumberGame();
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleQuit = () => {
     import("@/lib/websocket").then(({ send, clearSession, disconnect }) => {
-      if (multiplayer.opponentId) {
-        send({ type: "opponent_quit" });
-      }
+      send({ type: "leave_room" });
       clearSession();
       disconnect();
     });

@@ -159,15 +159,20 @@ function ChallengeRoomScene({ onExit, onHoverButton }: {
     phase,
     isShowingSequence,
     canInput,
+    startTime,
     addToPlayerSequence,
     checkSequence,
     setIsShowingSequence,
     setCanInput,
+    startChallenge,
+    resetChallenge,
   } = useChallenge();
 
   const [activeButton, setActiveButton] = useState<number | null>(null);
   const [hoveredButton, setHoveredButton] = useState<number | null>(null);
   const [isExitButtonHovered, setIsExitButtonHovered] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [showResultDialog, setShowResultDialog] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   const handleHoverButton = (index: number | null) => {
@@ -184,6 +189,22 @@ function ChallengeRoomScene({ onExit, onHoverButton }: {
       }
     };
   }, []);
+
+  // Update time display
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 100);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Show result dialog when game ends
+  useEffect(() => {
+    if (phase === "won" || phase === "lost") {
+      setShowResultDialog(true);
+    }
+  }, [phase]);
 
   const playSound = (frequency: number, duration: number = 0.3) => {
     if (!audioContextRef.current) return;
@@ -371,6 +392,18 @@ function ChallengeRoomScene({ onExit, onHoverButton }: {
           المستوى: {currentLevel + 1} / 5
         </Text>
         
+        {startTime > 0 && (
+          <Text
+            position={[-3, -0.3, 0.1]}
+            fontSize={0.3}
+            color="#fbbf24"
+            anchorX="center"
+            anchorY="middle"
+          >
+            ⏱️ {Math.floor((currentTime - startTime) / 1000)}s
+          </Text>
+        )}
+
         {isShowingSequence && (
           <Text
             position={[0, -0.3, 0.1]}
@@ -438,6 +471,14 @@ const keyMap = [
 
 export function ChallengeRoom({ onExit }: { onExit: () => void }) {
   const [hoveredButton, setHoveredButton] = useState<number | null>(null);
+  const { phase, resetChallenge, startChallenge } = useChallenge();
+  const [showDialog, setShowDialog] = useState(false);
+
+  useEffect(() => {
+    if (phase === "won" || phase === "lost") {
+      setShowDialog(true);
+    }
+  }, [phase]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -449,6 +490,18 @@ export function ChallengeRoom({ onExit }: { onExit: () => void }) {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const handlePlayAgain = () => {
+    setShowDialog(false);
+    resetChallenge();
+    startChallenge();
+  };
+
+  const handleBackToMenu = () => {
+    setShowDialog(false);
+    resetChallenge();
+    onExit();
+  };
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0, zIndex: 100 }}>
@@ -471,6 +524,42 @@ export function ChallengeRoom({ onExit }: { onExit: () => void }) {
       </KeyboardControls>
       
       <Crosshair isHoveringButton={hoveredButton !== null} />
+
+      {/* Result Dialog */}
+      {showDialog && (phase === "won" || phase === "lost") && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              {phase === "won" ? (
+                <>
+                  <h2 className="text-4xl font-bold text-green-600 mb-2">🎉 مبروك!</h2>
+                  <p className="text-lg text-gray-700">لقد أنهيت التحدي بنجاح!</p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-4xl font-bold text-red-600 mb-2">❌ للأسف</h2>
+                  <p className="text-lg text-gray-700">لم تتمكن من إكمال التحدي</p>
+                </>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handlePlayAgain}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+              >
+                🎮 لعب جولة جديدة
+              </button>
+              <button
+                onClick={handleBackToMenu}
+                className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+              >
+                🏠 العودة للقائمة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

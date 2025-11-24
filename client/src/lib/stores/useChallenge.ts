@@ -18,6 +18,8 @@ interface ChallengeState {
   hint: Hint | null;
   isShowingSequence: boolean;
   canInput: boolean;
+  startTime: number;
+  timeoutHandle: NodeJS.Timeout | null;
 
   startChallenge: () => void;
   addToPlayerSequence: (buttonIndex: number) => void;
@@ -112,11 +114,26 @@ export const useChallenge = create<ChallengeState>()(
       hint: null,
       isShowingSequence: false,
       canInput: false,
+      startTime: 0,
+      timeoutHandle: null,
 
       startChallenge: () => {
         console.log("🎮 Starting challenge - preserving hint and challengeCompleted");
         const sequence = generateSequence(0);
-        const { hint, challengeCompleted } = get();
+        const { hint, challengeCompleted, timeoutHandle } = get();
+        
+        // Clear previous timeout if exists
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        
+        // Set 5-minute timeout (300 seconds)
+        const newTimeoutHandle = setTimeout(() => {
+          console.log("⏰ Challenge timeout - 5 minutes elapsed");
+          set({
+            phase: "lost",
+            canInput: false,
+          });
+        }, 5 * 60 * 1000);
+        
         set({
           currentLevel: 0,
           sequence,
@@ -126,6 +143,8 @@ export const useChallenge = create<ChallengeState>()(
           canInput: false,
           hint,
           challengeCompleted,
+          startTime: Date.now(),
+          timeoutHandle: newTimeoutHandle,
         });
       },
 
@@ -176,20 +195,17 @@ export const useChallenge = create<ChallengeState>()(
         });
       },
 
-      failChallenge: () => {
-        set({
-          phase: "lost",
-          playerSequence: [],
-          canInput: false,
-        });
-      },
 
       completeChallenge: () => {
         console.log("🎯 Challenge Completed! Setting to true");
+        const { timeoutHandle } = get();
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        
         set({
           phase: "won",
           challengeCompleted: true,
           canInput: false,
+          timeoutHandle: null,
         });
         setTimeout(() => {
           const state = get();
@@ -201,8 +217,22 @@ export const useChallenge = create<ChallengeState>()(
         }, 100);
       },
 
+      failChallenge: () => {
+        const { timeoutHandle } = get();
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        
+        set({
+          phase: "lost",
+          playerSequence: [],
+          canInput: false,
+          timeoutHandle: null,
+        });
+      },
+
       resetChallenge: () => {
-        const { hint, challengeCompleted } = get();
+        const { hint, challengeCompleted, timeoutHandle } = get();
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        
         console.log("🔄 Resetting challenge - preserving hint and challengeCompleted");
         set({
           currentLevel: 0,
@@ -213,6 +243,8 @@ export const useChallenge = create<ChallengeState>()(
           canInput: false,
           hint,
           challengeCompleted,
+          startTime: 0,
+          timeoutHandle: null,
         });
       },
 

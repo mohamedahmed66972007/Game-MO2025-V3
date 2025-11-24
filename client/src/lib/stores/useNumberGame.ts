@@ -4,6 +4,7 @@ import { useChallenge } from "./useChallenge";
 
 export type GameMode = "menu" | "singleplayer" | "multiplayer";
 export type GamePhase = "playing" | "won" | "lost";
+export type GameStatus = "waiting" | "playing" | "finished";
 
 interface Attempt {
   guess: number[];
@@ -26,49 +27,57 @@ interface SingleplayerState {
   settings: GameSettings;
 }
 
+interface PlayerResult {
+  playerId: string;
+  playerName: string;
+  attempts: number;
+  duration: number;
+  attemptsDetails: Attempt[];
+  rank?: number;
+}
+
+interface RematchVote {
+  playerId: string;
+  accepted: boolean;
+}
+
 interface MultiplayerState {
   roomId: string;
   playerId: string;
   playerName: string;
+  hostId: string;
+  isHost: boolean;
   players: { id: string; name: string }[];
-  opponentId: string | null;
-  opponentName: string;
-  playersGaming: { player1Id: string; player1Name: string; player2Id: string; player2Name: string }[];
-  mySecretCode: number[];
-  opponentSecretCode: number[];
+  gameStatus: GameStatus;
+  sharedSecret: number[];
   currentGuess: number[];
   attempts: Attempt[];
-  opponentAttempts: Attempt[];
   phase: GamePhase;
-  isMyTurn: boolean;
-  turnTimeLeft: number;
-  challengeStatus: "none" | "sent" | "received" | "accepted";
-  isChallengeSender: boolean;
   startTime: number;
   endTime: number | null;
-  firstWinnerId: string | null;
-  firstWinnerAttempts: number;
-  gameResult: "pending" | "won" | "lost" | "tie";
-  rematchRequested: boolean;
-  pendingWin: boolean;
-  pendingWinMessage: string;
-  opponentStatus: string;
-  opponentWonFirst: boolean;
+  winners: PlayerResult[];
+  losers: PlayerResult[];
+  stillPlaying: PlayerResult[];
   showResults: boolean;
-  turnTimerActive: boolean;
-  showOpponentAttempts: boolean;
+  rematchState: {
+    requested: boolean;
+    countdown: number | null;
+    votes: RematchVote[];
+  };
   settings: GameSettings;
 }
 
 interface NumberGameState {
   mode: GameMode;
   isConnecting: boolean;
+  connectionError: string | null;
   singleplayer: SingleplayerState;
   multiplayer: MultiplayerState;
 
   // Mode actions
   setMode: (mode: GameMode) => void;
   setIsConnecting: (isConnecting: boolean) => void;
+  setConnectionError: (error: string | null) => void;
 
   // Singleplayer actions
   startSingleplayer: (settings: GameSettings) => void;
@@ -82,32 +91,25 @@ interface NumberGameState {
   setRoomId: (roomId: string) => void;
   setPlayerId: (playerId: string) => void;
   setPlayerName: (name: string) => void;
+  setHostId: (hostId: string) => void;
+  setIsHost: (isHost: boolean) => void;
   setPlayers: (players: { id: string; name: string }[]) => void;
-  setOpponentId: (opponentId: string | null) => void;
-  setOpponentName: (name: string) => void;
-  setPlayersGaming: (playersGaming: { player1Id: string; player1Name: string; player2Id: string; player2Name: string }[]) => void;
-  setMySecretCode: (code: number[]) => void;
-  setOpponentSecretCode: (code: number[]) => void;
+  setGameStatus: (status: GameStatus) => void;
+  setSharedSecret: (secret: number[]) => void;
   addMultiplayerDigit: (digit: number) => void;
   deleteMultiplayerDigit: () => void;
   submitMultiplayerGuess: () => void;
-  setChallengeStatus: (status: "none" | "sent" | "received" | "accepted") => void;
-  setIsChallengeSender: (isChallengeSender: boolean) => void;
-  setIsMyTurn: (isMyTurn: boolean) => void;
-  setTurnTimeLeft: (time: number) => void;
-  addOpponentAttempt: (attempt: Attempt) => void;
+  addMultiplayerAttempt: (attempt: Attempt) => void;
   setMultiplayerPhase: (phase: GamePhase) => void;
   setMultiplayerStartTime: () => void;
   setMultiplayerEndTime: () => void;
-  setFirstWinner: (firstWinnerId: string, attempts: number) => void;
-  setGameResult: (result: "pending" | "won" | "lost" | "tie") => void;
-  setRematchRequested: (requested: boolean) => void;
-  setPendingWin: (pending: boolean, message: string) => void;
-  setOpponentStatus: (status: string, opponentWonFirst: boolean) => void;
+  setGameResults: (winners: PlayerResult[], losers: PlayerResult[], sharedSecret: number[]) => void;
   setShowResults: (show: boolean) => void;
-  setTurnTimerActive: (active: boolean) => void;
-  setShowOpponentAttempts: (show: boolean) => void;
+  setRematchRequested: (requested: boolean, countdown: number | null) => void;
+  setRematchVotes: (votes: RematchVote[]) => void;
+  setRematchCountdown: (countdown: number | null) => void;
   resetMultiplayer: () => void;
+  resetMultiplayerGame: () => void;
   setMultiplayerSettings: (settings: GameSettings) => void;
 }
 
@@ -152,6 +154,7 @@ export const useNumberGame = create<NumberGameState>()(
   subscribeWithSelector((set, get) => ({
     mode: "menu",
     isConnecting: false,
+    connectionError: null,
     singleplayer: {
       secretCode: [],
       currentGuess: [],
@@ -165,38 +168,31 @@ export const useNumberGame = create<NumberGameState>()(
       roomId: "",
       playerId: "",
       playerName: "",
+      hostId: "",
+      isHost: false,
       players: [],
-      opponentId: null,
-      opponentName: "",
-      playersGaming: [],
-      mySecretCode: [],
-      opponentSecretCode: [],
+      gameStatus: "waiting",
+      sharedSecret: [],
       currentGuess: [],
       attempts: [],
-      opponentAttempts: [],
       phase: "playing",
-      isMyTurn: false,
-      turnTimeLeft: 60,
-      challengeStatus: "none",
-      isChallengeSender: false,
       startTime: 0,
       endTime: null,
-      firstWinnerId: null,
-      firstWinnerAttempts: 0,
-      gameResult: "pending",
-      rematchRequested: false,
-      pendingWin: false,
-      pendingWinMessage: "",
-      opponentStatus: "لم يفز الخصم بعد",
-      opponentWonFirst: false,
+      winners: [],
+      losers: [],
+      stillPlaying: [],
       showResults: false,
-      turnTimerActive: true,
-      showOpponentAttempts: false,
+      rematchState: {
+        requested: false,
+        countdown: null,
+        votes: [],
+      },
       settings: { numDigits: 4, maxAttempts: 20 },
     },
 
     setMode: (mode) => set({ mode }),
     setIsConnecting: (isConnecting) => set({ isConnecting }),
+    setConnectionError: (error) => set({ connectionError: error }),
 
     startSingleplayer: (settings: GameSettings = { numDigits: 4, maxAttempts: 20 }) => {
       const secretCode = generateSecretCode(settings.numDigits);
@@ -292,17 +288,23 @@ export const useNumberGame = create<NumberGameState>()(
     setRoomId: (roomId) => set((state) => ({ multiplayer: { ...state.multiplayer, roomId } })),
     setPlayerId: (playerId) => set((state) => ({ multiplayer: { ...state.multiplayer, playerId } })),
     setPlayerName: (playerName) => set((state) => ({ multiplayer: { ...state.multiplayer, playerName } })),
+    setHostId: (hostId) => set((state) => ({ 
+      multiplayer: { 
+        ...state.multiplayer, 
+        hostId,
+        isHost: hostId === state.multiplayer.playerId,
+      } 
+    })),
+    setIsHost: (isHost) => set((state) => ({ multiplayer: { ...state.multiplayer, isHost } })),
     setPlayers: (players) => set((state) => ({ multiplayer: { ...state.multiplayer, players } })),
-    setOpponentId: (opponentId) => set((state) => ({ multiplayer: { ...state.multiplayer, opponentId } })),
-    setOpponentName: (opponentName) => set((state) => ({ multiplayer: { ...state.multiplayer, opponentName } })),
-    setPlayersGaming: (playersGaming) => set((state) => ({ multiplayer: { ...state.multiplayer, playersGaming } })),
-    setMySecretCode: (mySecretCode) => set((state) => ({ multiplayer: { ...state.multiplayer, mySecretCode } })),
-    setOpponentSecretCode: (opponentSecretCode) => set((state) => ({ multiplayer: { ...state.multiplayer, opponentSecretCode } })),
-    setIsChallengeSender: (isChallengeSender) => set((state) => ({ multiplayer: { ...state.multiplayer, isChallengeSender } })),
+    setGameStatus: (gameStatus) => set((state) => ({ multiplayer: { ...state.multiplayer, gameStatus } })),
+    setSharedSecret: (sharedSecret) => set((state) => ({ multiplayer: { ...state.multiplayer, sharedSecret } })),
 
     addMultiplayerDigit: (digit) => {
       const { multiplayer } = get();
-      if (multiplayer.currentGuess.length < multiplayer.settings.numDigits && multiplayer.attempts.length < multiplayer.settings.maxAttempts) {
+      if (multiplayer.currentGuess.length < multiplayer.settings.numDigits && 
+          multiplayer.attempts.length < multiplayer.settings.maxAttempts &&
+          multiplayer.phase === "playing") {
         set({
           multiplayer: {
             ...multiplayer,
@@ -336,25 +338,63 @@ export const useNumberGame = create<NumberGameState>()(
       }
     },
 
-    setChallengeStatus: (challengeStatus) =>
-      set((state) => ({ multiplayer: { ...state.multiplayer, challengeStatus } })),
-    setIsMyTurn: (isMyTurn) => set((state) => ({ multiplayer: { ...state.multiplayer, isMyTurn } })),
-    setTurnTimeLeft: (turnTimeLeft) => set((state) => ({ multiplayer: { ...state.multiplayer, turnTimeLeft } })),
-    addOpponentAttempt: (attempt) =>
-      set((state) => ({
-        multiplayer: { ...state.multiplayer, opponentAttempts: [...state.multiplayer.opponentAttempts, attempt] },
-      })),
+    addMultiplayerAttempt: (attempt) => {
+      const { multiplayer } = get();
+      set({
+        multiplayer: {
+          ...multiplayer,
+          attempts: [...multiplayer.attempts, attempt],
+        },
+      });
+    },
+
     setMultiplayerPhase: (phase) => set((state) => ({ multiplayer: { ...state.multiplayer, phase } })),
     setMultiplayerStartTime: () => set((state) => ({ multiplayer: { ...state.multiplayer, startTime: Date.now() } })),
     setMultiplayerEndTime: () => set((state) => ({ multiplayer: { ...state.multiplayer, endTime: Date.now() } })),
-    setFirstWinner: (firstWinnerId, attempts) => set((state) => ({ multiplayer: { ...state.multiplayer, firstWinnerId, firstWinnerAttempts: attempts } })),
-    setGameResult: (gameResult) => set((state) => ({ multiplayer: { ...state.multiplayer, gameResult } })),
-    setRematchRequested: (rematchRequested) => set((state) => ({ multiplayer: { ...state.multiplayer, rematchRequested } })),
-    setPendingWin: (pendingWin, pendingWinMessage) => set((state) => ({ multiplayer: { ...state.multiplayer, pendingWin, pendingWinMessage } })),
-    setOpponentStatus: (opponentStatus, opponentWonFirst) => set((state) => ({ multiplayer: { ...state.multiplayer, opponentStatus, opponentWonFirst } })),
+    
+    setGameResults: (winners, losers, sharedSecret) => set((state) => ({ 
+      multiplayer: { 
+        ...state.multiplayer, 
+        winners, 
+        losers,
+        sharedSecret,
+        showResults: true,
+        gameStatus: "finished",
+      } 
+    })),
+    
     setShowResults: (showResults) => set((state) => ({ multiplayer: { ...state.multiplayer, showResults } })),
-    setTurnTimerActive: (turnTimerActive) => set((state) => ({ multiplayer: { ...state.multiplayer, turnTimerActive } })),
-    setShowOpponentAttempts: (showOpponentAttempts) => set((state) => ({ multiplayer: { ...state.multiplayer, showOpponentAttempts } })),
+    
+    setRematchRequested: (requested, countdown) => set((state) => ({ 
+      multiplayer: { 
+        ...state.multiplayer, 
+        rematchState: {
+          ...state.multiplayer.rematchState,
+          requested,
+          countdown,
+        }
+      } 
+    })),
+    
+    setRematchVotes: (votes) => set((state) => ({ 
+      multiplayer: { 
+        ...state.multiplayer, 
+        rematchState: {
+          ...state.multiplayer.rematchState,
+          votes,
+        }
+      } 
+    })),
+    
+    setRematchCountdown: (countdown) => set((state) => ({ 
+      multiplayer: { 
+        ...state.multiplayer, 
+        rematchState: {
+          ...state.multiplayer.rematchState,
+          countdown,
+        }
+      } 
+    })),
 
     resetMultiplayer: () =>
       set((state) => ({
@@ -362,58 +402,49 @@ export const useNumberGame = create<NumberGameState>()(
           ...state.multiplayer,
           roomId: "",
           playerId: "",
+          hostId: "",
+          isHost: false,
+          players: [],
+          gameStatus: "waiting",
+          sharedSecret: [],
           currentGuess: [],
           attempts: [],
-          opponentAttempts: [],
           phase: "playing",
-          isMyTurn: false,
-          turnTimeLeft: 60,
-          firstWinnerId: null,
-          firstWinnerAttempts: 0,
-          gameResult: "pending",
-          rematchRequested: false,
-          pendingWin: false,
-          pendingWinMessage: "",
-          opponentStatus: "لم يفز الخصم بعد",
-          opponentWonFirst: false,
-          showResults: false,
-          turnTimerActive: true,
-          showOpponentAttempts: false,
-          playersGaming: [],
           startTime: 0,
           endTime: null,
-          opponentSecretCode: [],
-          opponentId: null,
-          challengeStatus: "none",
-          mySecretCode: [],
+          winners: [],
+          losers: [],
+          showResults: false,
+          isWatching: false,
+          watchingPlayerId: null,
+          rematchState: {
+            requested: false,
+            countdown: null,
+            votes: [],
+          },
         },
       })),
     
-    resetMultiplayerGameOnly: () =>
+    resetMultiplayerGame: () =>
       set((state) => ({
         multiplayer: {
           ...state.multiplayer,
+          gameStatus: "waiting",
+          sharedSecret: [],
           currentGuess: [],
           attempts: [],
-          opponentAttempts: [],
           phase: "playing",
-          isMyTurn: false,
-          turnTimeLeft: 60,
-          firstWinnerId: null,
-          firstWinnerAttempts: 0,
-          gameResult: "pending",
-          rematchRequested: false,
-          pendingWin: false,
-          pendingWinMessage: "",
-          opponentStatus: "لم يفز الخصم بعد",
-          opponentWonFirst: false,
-          showResults: false,
-          turnTimerActive: true,
-          showOpponentAttempts: false,
-          playersGaming: [],
           startTime: 0,
           endTime: null,
-          opponentSecretCode: [],
+          winners: [],
+          losers: [],
+          stillPlaying: [],
+          showResults: false,
+          rematchState: {
+            requested: false,
+            countdown: null,
+            votes: [],
+          },
         },
       })),
 

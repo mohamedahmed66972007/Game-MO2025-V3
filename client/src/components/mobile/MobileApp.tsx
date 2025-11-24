@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
-import { reconnectToSession, connectWebSocket } from "@/lib/websocket";
+import { reconnectToSession, connectWebSocket, reconnectWithRetry } from "@/lib/websocket";
 import { MobileMenu } from "./MobileMenu";
 import { MobileSingleplayer } from "./MobileSingleplayer";
 import { MobileMultiplayer } from "./MobileMultiplayer";
@@ -22,29 +22,25 @@ export function MobileApp() {
 
   useEffect(() => {
     const session = reconnectToSession();
-    if (session && !multiplayer.roomId) {
+    if (session && session.roomId && session.playerId && !multiplayer.roomId) {
+      console.log("Reconnecting to session:", session);
       setPlayerName(session.playerName);
-      setRoomId(session.roomId);
-      setPlayerId(session.playerId);
       
       // Restore game state if it was active
       if (session.gameState) {
         const store = useNumberGame.getState();
-        store.setOpponentId(session.gameState.opponentId);
-        store.setOpponentName(session.gameState.opponentName);
-        store.setMySecretCode(session.gameState.mySecretCode);
-        store.setChallengeStatus(session.gameState.challengeStatus);
-        
-        // Restore active game state if player was in game
-        if (session.gameState.playersGaming && session.gameState.playersGaming.length > 0) {
-          store.setPlayersGaming(session.gameState.playersGaming);
-          store.setIsMyTurn(session.gameState.isMyTurn);
+        if (session.gameState.gameStatus) {
+          store.setGameStatus(session.gameState.gameStatus);
+        }
+        if (session.gameState.sharedSecret) {
+          store.setSharedSecret(session.gameState.sharedSecret);
+        }
+        if (session.gameState.attempts) {
           useNumberGame.setState((state) => ({
             multiplayer: {
               ...state.multiplayer,
-              attempts: session.gameState.attempts || [],
-              opponentAttempts: session.gameState.opponentAttempts || [],
-              turnTimeLeft: session.gameState.turnTimeLeft || 60,
+              attempts: session.gameState.attempts,
+              startTime: session.gameState.startTime || 0,
             },
           }));
         }
@@ -52,7 +48,15 @@ export function MobileApp() {
       
       setMode("multiplayer");
       setIsConnecting(true);
-      connectWebSocket(session.playerName, session.roomId);
+      reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+      
+      setTimeout(() => {
+        if (useNumberGame.getState().isConnecting) {
+          console.error("Connection timeout");
+          setIsConnecting(false);
+          setMode("menu");
+        }
+      }, 3000);
     }
   }, []);
 

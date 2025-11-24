@@ -2,23 +2,47 @@ import { useState, useEffect } from "react";
 import { Button } from "./button";
 import { Input } from "./input";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./alert-dialog";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { connectWebSocket, getLastPlayerName } from "@/lib/websocket";
 import { Gamepad2, Users, User, Key, DoorOpen, ArrowLeft, BookOpen } from "lucide-react";
 import { GameSettings } from "./GameSettings";
 
 export function Menu() {
-  const { setMode, startSingleplayer, setPlayerName, setIsConnecting } = useNumberGame();
+  const { setMode, startSingleplayer, setPlayerName, setIsConnecting, setConnectionError } = useNumberGame();
   const [showMultiplayer, setShowMultiplayer] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [playerName, setPlayerNameInput] = useState("");
   const [roomId, setRoomId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [previousRoom, setPreviousRoom] = useState<{roomId: string; playerName: string} | null>(null);
+  const [showRoomWarningDialog, setShowRoomWarningDialog] = useState(false);
 
   useEffect(() => {
     const savedPlayerName = getLastPlayerName();
     if (savedPlayerName) {
       setPlayerNameInput(savedPlayerName);
+    }
+    
+    // Check for previous room session
+    const session = sessionStorage.getItem("multiplayerSession");
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        if (parsed.roomId && parsed.playerName && Date.now() - parsed.timestamp < 30 * 60 * 1000) {
+          setPreviousRoom({ roomId: parsed.roomId, playerName: parsed.playerName });
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
     }
   }, []);
 
@@ -27,6 +51,7 @@ export function Menu() {
   };
 
   const handleMultiplayerMenu = () => {
+    setConnectionError(null); // Clear any previous connection errors
     setShowMultiplayer(true);
   };
 
@@ -44,11 +69,34 @@ export function Menu() {
       alert("الرجاء إدخال اسمك");
       return;
     }
+    
+    // Check if there's a previous room and show warning
+    if (previousRoom) {
+      setShowRoomWarningDialog(true);
+      return;
+    }
+    
+    proceedCreateRoom();
+  };
+
+  const proceedCreateRoom = () => {
+    setConnectionError(null); // Clear any previous errors
+    sessionStorage.removeItem("multiplayerSession"); // Clear old session before creating new room
     setIsLoading(true);
     setPlayerName(playerName);
     setMode("multiplayer");
     setIsConnecting(true);
     connectWebSocket(playerName);
+    setShowRoomWarningDialog(false);
+  };
+
+  const handleExitPreviousRoom = () => {
+    // Delete previous room session and proceed with creating new room
+    sessionStorage.removeItem("multiplayerSession");
+    localStorage.removeItem("challengeStorage");
+    setPreviousRoom(null);
+    setShowRoomWarningDialog(false);
+    proceedCreateRoom();
   };
 
   const handleJoinRoom = () => {
@@ -60,12 +108,64 @@ export function Menu() {
       alert("الرجاء إدخال رقم الغرفة");
       return;
     }
+    setConnectionError(null); // Clear any previous errors
     setIsLoading(true);
     setPlayerName(playerName);
     setMode("multiplayer");
     setIsConnecting(true);
     connectWebSocket(playerName, roomId.toUpperCase());
   };
+
+  const handleRejoinPreviousRoom = () => {
+    if (!previousRoom) return;
+    setConnectionError(null); // Clear any previous errors
+    setIsLoading(true);
+    setPlayerName(previousRoom.playerName);
+    setMode("multiplayer");
+    setIsConnecting(true);
+    connectWebSocket(previousRoom.playerName, previousRoom.roomId);
+  };
+
+  const handleDeletePreviousRoom = () => {
+    sessionStorage.removeItem("multiplayerSession");
+    setPreviousRoom(null);
+  };
+
+  if (showRoomWarningDialog && previousRoom) {
+    return (
+      <AlertDialog open={showRoomWarningDialog} onOpenChange={setShowRoomWarningDialog}>
+        <AlertDialogContent className="bg-white border border-gray-200 rounded-2xl shadow-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-gray-800 text-2xl font-bold">
+              غرفة موجودة بالفعل
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600 text-base mt-2">
+              لقد كنت في غرفة مسبقاً برقم <span className="font-mono bg-gray-100 px-2 py-1 rounded mx-1 font-bold text-gray-800">{previousRoom.roomId}</span>
+              <br />
+              هل تريد العودة إليها أم الخروج منها والاستمرار في إنشاء غرفة جديدة؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-3 justify-end mt-6">
+            <AlertDialogCancel className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg">
+              إغلاق
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRejoinPreviousRoom}
+              className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg"
+            >
+              العودة للغرفة
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleExitPreviousRoom}
+              className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-lg"
+            >
+              خروج وإنشاء جديدة
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
 
   if (showMultiplayer) {
     if (isLoading) {
@@ -83,8 +183,8 @@ export function Menu() {
     }
 
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50 p-4">
-        <Card className="w-full max-w-4xl bg-white shadow-xl border border-gray-200 rounded-2xl relative overflow-hidden">
+      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50 p-4 overflow-y-auto">
+        <Card className="w-full max-w-4xl bg-white shadow-xl border border-gray-200 rounded-2xl relative overflow-hidden my-8">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
           
           <CardHeader className="text-center pb-4 pt-8 border-b border-gray-200">
@@ -102,6 +202,30 @@ export function Menu() {
           </CardHeader>
           
           <CardContent className="p-8 space-y-6">
+            {previousRoom && (
+              <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-300 p-5 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-lg font-bold text-orange-800">🔄 غرفة سابقة موجودة!</p>
+                  <button
+                    onClick={handleDeletePreviousRoom}
+                    className="text-orange-600 hover:text-red-600 text-xl font-bold transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-sm text-orange-700 mb-3">
+                  رقم الغرفة: <span className="font-mono font-bold">{previousRoom.roomId}</span> | اللاعب: <span className="font-bold">{previousRoom.playerName}</span>
+                </p>
+                <Button
+                  onClick={handleRejoinPreviousRoom}
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all"
+                >
+                  🚪 العودة للغرفة السابقة
+                </Button>
+              </div>
+            )}
+
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
               <label className="text-gray-700 text-sm mb-2 block font-semibold flex items-center">
                 <User className="w-4 h-4 ml-2" />

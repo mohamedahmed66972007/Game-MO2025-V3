@@ -28,7 +28,8 @@ export function FirstPersonControls() {
     if (!canvas) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isLocked.current) return;
+      // Double check pointer lock is still active
+      if (!isLocked.current || !document.pointerLockElement) return;
 
       // Skip the very first movement after lock to avoid large jump
       if (firstMoveAfterLock.current) {
@@ -82,15 +83,10 @@ export function FirstPersonControls() {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        document.exitPointerLock?.();
-      }
-    };
-
-    const requestPointerLock = async () => {
-      try {
-        await canvas.requestPointerLock?.();
-      } catch (err) {
-        console.error('Failed to request pointer lock:', err);
+        // Only exit pointer lock if it's actually locked
+        if (document.pointerLockElement) {
+          document.exitPointerLock?.();
+        }
       }
     };
 
@@ -98,9 +94,6 @@ export function FirstPersonControls() {
     document.addEventListener('pointerlockchange', handlePointerLockChange);
     document.addEventListener('pointerlockerror', handlePointerLockError);
     document.addEventListener('keydown', handleKeyDown);
-
-    // طلب pointer lock تلقائياً
-    requestPointerLock();
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
