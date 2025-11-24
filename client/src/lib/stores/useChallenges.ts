@@ -414,7 +414,7 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
         errors: 0,
         currentTarget: null,
         gridSize: 5,
-        speed: 2000,
+        speed: 1500,
       },
     });
   },

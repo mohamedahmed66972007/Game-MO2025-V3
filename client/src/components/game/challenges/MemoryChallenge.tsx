@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useChallenges } from "@/lib/stores/useChallenges";
+import { useAudio } from "@/lib/stores/useAudio";
 import { ArrowLeft, Check, X, Minus } from "lucide-react";
 
 export function MemoryChallenge() {
@@ -12,6 +13,7 @@ export function MemoryChallenge() {
     resetToMenu,
   } = useChallenges();
 
+  const { playConfirm, playError } = useAudio();
   const [showingPhase, setShowingPhase] = useState(false);
   const [flashingCells, setFlashingCells] = useState<number[]>([]);
   const [selectionComplete, setSelectionComplete] = useState(false);
@@ -28,7 +30,7 @@ export function MemoryChallenge() {
     
     const gridSize = 5;
     const totalCells = gridSize * gridSize;
-    const flashCounts = [4, 6, 8, 11, 13];
+    const flashCounts = [4, 6, 8, 11, 11];
     const numFlash = flashCounts[Math.min(memoryChallenge.currentLevel, 4)];
     
     const cells: number[] = [];
@@ -49,8 +51,19 @@ export function MemoryChallenge() {
     }, 2000);
   };
 
-  const handleCellClick = (cell: number) => {
+  const handleCellClick = (cell: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (showingPhase || selectionComplete) return;
+    
+    const isCorrect = memoryChallenge.flashedCells.includes(cell);
+    if (isCorrect) {
+      playConfirm();
+    } else {
+      playError();
+    }
     
     memorySelectCell(cell);
 
@@ -126,10 +139,10 @@ export function MemoryChallenge() {
           </button>
 
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-white mb-1">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-1">
               اختبار الذاكرة
             </h2>
-            <p className="text-gray-400">المستوى {memoryChallenge.currentLevel} / 5</p>
+            <p className="text-sm sm:text-base lg:text-lg text-gray-400">المستوى {memoryChallenge.currentLevel} / 5</p>
           </div>
 
           <div className="w-24"></div>
@@ -137,15 +150,15 @@ export function MemoryChallenge() {
 
         <div className="text-center mb-8">
           {showingPhase ? (
-            <p className="text-2xl font-bold text-yellow-400 animate-pulse">
+            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-yellow-400 animate-pulse">
               راقب المربعات المضيئة...
             </p>
           ) : (
             <div>
-              <p className="text-xl text-white mb-2">
+              <p className="text-base sm:text-lg lg:text-xl text-white mb-2">
                 اضغط على المربعات التي ضاءت
               </p>
-              <p className="text-gray-400">
+              <p className="text-sm sm:text-base lg:text-lg text-gray-400">
                 {memoryChallenge.selectedCells.length} / {memoryChallenge.flashedCells.length}
               </p>
             </div>
@@ -153,7 +166,7 @@ export function MemoryChallenge() {
         </div>
 
         <div 
-          className={`grid gap-1 sm:gap-2 md:gap-3 w-full max-w-xs sm:max-w-sm md:max-w-lg mx-auto px-2 sm:px-4`}
+          className={`grid gap-1 sm:gap-2 md:gap-3 lg:gap-4 w-full max-w-xs sm:max-w-sm md:max-w-xl lg:max-w-3xl mx-auto px-2 sm:px-4`}
           style={{
             gridTemplateColumns: `repeat(5, minmax(0, 1fr))`
           }}
@@ -166,7 +179,7 @@ export function MemoryChallenge() {
             return (
               <button
                 key={i}
-                onClick={() => handleCellClick(i)}
+                onClick={(e) => handleCellClick(i, e)}
                 disabled={showingPhase || selectionComplete}
                 className={`aspect-square rounded-xl transition-all transform ${color} ${
                   !showingPhase && !selectionComplete
@@ -182,18 +195,18 @@ export function MemoryChallenge() {
 
         {selectionComplete && (
           <div className="mt-8 text-center">
-            <div className="flex items-center justify-center gap-6">
+            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-green-500 rounded"></div>
-                <span className="text-white">صحيح</span>
+                <div className="w-4 h-4 sm:w-6 sm:h-6 bg-green-500 rounded"></div>
+                <span className="text-sm sm:text-base text-white">صحيح</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-red-500 rounded"></div>
-                <span className="text-white">خطأ</span>
+                <div className="w-4 h-4 sm:w-6 sm:h-6 bg-red-500 rounded"></div>
+                <span className="text-sm sm:text-base text-white">خطأ</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-orange-500 rounded"></div>
-                <span className="text-white">فائت</span>
+                <div className="w-4 h-4 sm:w-6 sm:h-6 bg-orange-500 rounded"></div>
+                <span className="text-sm sm:text-base text-white">فائت</span>
               </div>
             </div>
           </div>

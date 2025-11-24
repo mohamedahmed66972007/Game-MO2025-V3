@@ -82,7 +82,11 @@ export function GuessChallenge() {
     }
   }, [guessChallenge.isShowingSequence, guessChallenge.sequence, guessChallenge.currentLevel]);
 
-  const handleButtonClick = (index: number) => {
+  const handleButtonClick = (index: number, e?: React.PointerEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (guessChallenge.isShowingSequence || isProcessingClick) return;
     
     setIsProcessingClick(true);
@@ -109,10 +113,10 @@ export function GuessChallenge() {
           </button>
 
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-white mb-1">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-1">
               تحدي التخمين
             </h2>
-            <p className="text-gray-400">المستوى {guessChallenge.currentLevel + 1} / 5</p>
+            <p className="text-sm sm:text-base lg:text-lg text-gray-400">المستوى {guessChallenge.currentLevel + 1} / 5</p>
           </div>
 
           <div className="w-24"></div>
@@ -121,7 +125,7 @@ export function GuessChallenge() {
         <div className="flex-1 flex flex-col items-center justify-center">
           {guessChallenge.isShowingSequence && (
             <div className="text-center mb-8">
-              <p className="text-2xl font-bold text-yellow-400 animate-pulse">
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-yellow-400 animate-pulse">
                 راقب التسلسل...
               </p>
             </div>
@@ -129,41 +133,71 @@ export function GuessChallenge() {
 
           {!guessChallenge.isShowingSequence && (
             <div className="text-center mb-8">
-              <p className="text-xl text-white">
+              <p className="text-base sm:text-lg lg:text-xl text-white">
                 كرر التسلسل: {guessChallenge.playerSequence.length} / {guessChallenge.sequence.length}
               </p>
             </div>
           )}
 
-          <div className="grid grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 w-full h-full max-w-sm sm:max-w-md md:max-w-2xl lg:max-w-5xl mx-auto px-2 sm:px-4">
-          {BUTTON_COLORS.map((btn, index) => {
-            const isActive = activeButton === index;
-            const isFlashing = guessChallenge.isShowingSequence && guessChallenge.sequence.length > 0;
-            
-            return (
-              <button
-                key={index}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  handleButtonClick(index);
-                }}
-                disabled={guessChallenge.isShowingSequence || isProcessingClick}
-                className={`aspect-square font-bold text-white transition-all transform touch-none rounded-2xl border-4 ${
-                  isActive ? "scale-115 shadow-2xl border-white" : "border-opacity-40 hover:scale-105"
-                } ${guessChallenge.isShowingSequence || isProcessingClick ? "cursor-not-allowed opacity-40" : ""}`}
-                style={{
-                  backgroundColor: btn.color,
-                  borderColor: isActive ? "rgba(255, 255, 255, 0.8)" : `${btn.color}80`,
-                  boxShadow: isActive 
-                    ? `0 0 80px ${btn.color}, 0 0 120px ${btn.color}, 0 0 20px ${btn.color}, inset 0 0 15px rgba(255, 255, 255, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)` 
-                    : isFlashing 
-                    ? `0 0 25px ${btn.color}, 0 4px 8px rgba(0, 0, 0, 0.2)` 
-                    : "0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-                }}
-              >
-              </button>
-            );
-          })}
+          <div className="w-full flex flex-col items-center justify-center gap-8">
+            {/* Top row */}
+            <div className="flex gap-2 sm:gap-3 md:gap-4 lg:gap-6 xl:gap-8">
+              {BUTTON_COLORS.slice(0, 4).map((btn, index) => {
+                const isActive = activeButton === index;
+                const isFlashing = guessChallenge.isShowingSequence && guessChallenge.sequence.length > 0;
+                
+                return (
+                  <button
+                    key={index}
+                    onPointerDown={(e) => handleButtonClick(index, e)}
+                    disabled={guessChallenge.isShowingSequence || isProcessingClick}
+                    className={`w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 xl:w-32 xl:h-32 font-bold text-white transition-all transform touch-none rounded-2xl border-4 ${
+                      isActive ? "scale-115 shadow-2xl border-white" : "border-opacity-40 hover:scale-105"
+                    } ${guessChallenge.isShowingSequence || isProcessingClick ? "cursor-not-allowed opacity-40" : ""}`}
+                    style={{
+                      backgroundColor: btn.color,
+                      borderColor: isActive ? "rgba(255, 255, 255, 0.8)" : `${btn.color}80`,
+                      boxShadow: isActive 
+                        ? `0 0 80px ${btn.color}, 0 0 120px ${btn.color}, 0 0 20px ${btn.color}, inset 0 0 15px rgba(255, 255, 255, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)` 
+                        : isFlashing 
+                        ? `0 0 25px ${btn.color}, 0 4px 8px rgba(0, 0, 0, 0.2)` 
+                        : "0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                    }}
+                  >
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Bottom row */}
+            <div className="flex gap-2 sm:gap-3 md:gap-4 lg:gap-6 xl:gap-8">
+              {BUTTON_COLORS.slice(4, 8).map((btn, index) => {
+                const actualIndex = index + 4;
+                const isActive = activeButton === actualIndex;
+                const isFlashing = guessChallenge.isShowingSequence && guessChallenge.sequence.length > 0;
+                
+                return (
+                  <button
+                    key={actualIndex}
+                    onPointerDown={(e) => handleButtonClick(actualIndex, e)}
+                    disabled={guessChallenge.isShowingSequence || isProcessingClick}
+                    className={`w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 xl:w-32 xl:h-32 font-bold text-white transition-all transform touch-none rounded-2xl border-4 ${
+                      isActive ? "scale-115 shadow-2xl border-white" : "border-opacity-40 hover:scale-105"
+                    } ${guessChallenge.isShowingSequence || isProcessingClick ? "cursor-not-allowed opacity-40" : ""}`}
+                    style={{
+                      backgroundColor: btn.color,
+                      borderColor: isActive ? "rgba(255, 255, 255, 0.8)" : `${btn.color}80`,
+                      boxShadow: isActive 
+                        ? `0 0 80px ${btn.color}, 0 0 120px ${btn.color}, 0 0 20px ${btn.color}, inset 0 0 15px rgba(255, 255, 255, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)` 
+                        : isFlashing 
+                        ? `0 0 25px ${btn.color}, 0 4px 8px rgba(0, 0, 0, 0.2)` 
+                        : "0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                    }}
+                  >
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

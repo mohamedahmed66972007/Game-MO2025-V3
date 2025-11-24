@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
+import { useChallenges } from "@/lib/stores/useChallenges";
 import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
 import { Trophy, Medal, XCircle, RefreshCw, Home, Eye, Crown, LogOut } from "lucide-react";
 import { Button } from "./button";

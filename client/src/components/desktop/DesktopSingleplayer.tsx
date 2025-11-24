@@ -4,6 +4,49 @@ import { useAudio } from "@/lib/stores/useAudio";
 import { Home, Check, X, Maximize2, Minimize2, Lightbulb } from "lucide-react";
 import { useChallenges } from "@/lib/stores/useChallenges";
 
+function useResponsiveSizes() {
+  const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 0);
+
+  useEffect(() => {
+    const handleResize = () => setScreenWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // حساب الأحجام بناءً على عرض الشاشة الفعلي
+  const getButtonHeight = () => {
+    if (screenWidth < 480) return 'h-9';
+    if (screenWidth < 640) return 'h-10';
+    if (screenWidth < 768) return 'h-11';
+    if (screenWidth < 1024) return 'h-12';
+    return 'h-12';
+  };
+
+  const getInputSize = () => {
+    if (screenWidth < 480) return { width: 'w-9', height: 'h-11' };
+    if (screenWidth < 640) return { width: 'w-10', height: 'h-12' };
+    if (screenWidth < 768) return { width: 'w-11', height: 'h-14' };
+    if (screenWidth < 1024) return { width: 'w-12', height: 'h-16' };
+    return { width: 'w-12', height: 'h-16' };
+  };
+
+  const getTextSize = () => {
+    if (screenWidth < 480) return 'text-xs';
+    if (screenWidth < 640) return 'text-sm';
+    if (screenWidth < 768) return 'text-base';
+    return 'text-lg';
+  };
+
+  const getIconSize = () => {
+    if (screenWidth < 480) return 'w-3 h-3';
+    if (screenWidth < 640) return 'w-4 h-4';
+    if (screenWidth < 768) return 'w-5 h-5';
+    return 'w-6 h-6';
+  };
+
+  return { getButtonHeight, getInputSize, getTextSize, getIconSize, screenWidth };
+}
+
 export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: () => void }) {
   const {
     singleplayer,
@@ -21,6 +64,7 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
   const [expandedAttempts, setExpandedAttempts] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [expandedAttemptIndex, setExpandedAttemptIndex] = useState(singleplayer.attempts.length - 1);
+  const { getButtonHeight, getInputSize, getTextSize, getIconSize } = useResponsiveSizes();
 
   useEffect(() => {
     if (!singleplayer.secretCode || singleplayer.secretCode.length === 0) {
@@ -34,10 +78,11 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
   }, [numDigits]);
 
   useEffect(() => {
-    if (singleplayer.phase === "won" && hasWonChallenge && !hint && singleplayer.secretCode) {
+    if (singleplayer.phase === "won" && !hint && singleplayer.secretCode) {
+      console.log("✨ Singleplayer won - generating hint");
       generateHint(singleplayer.secretCode);
     }
-  }, [singleplayer.phase, hasWonChallenge, hint, singleplayer.secretCode, generateHint]);
+  }, [singleplayer.phase, hint, singleplayer.secretCode, generateHint]);
 
   const handleNumberInput = (num: string) => {
     if (focusedIndex >= numDigits) return;
@@ -143,13 +188,13 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
 
   useEffect(() => {
     if (singleplayer.phase === "won") {
-      console.log("🏆 Player won - hasWonChallenge:", hasWonChallenge, "hint:", hint);
-      if (hasWonChallenge && !hint && singleplayer.secretCode) {
+      console.log("🏆 Player won - generating hint if needed");
+      if (!hint && singleplayer.secretCode) {
         console.log("📝 Generating hint on win...");
         generateHint(singleplayer.secretCode);
       }
     }
-  }, [singleplayer.phase, hasWonChallenge, hint, singleplayer.secretCode, generateHint]);
+  }, [singleplayer.phase, hint, singleplayer.secretCode, generateHint]);
 
   const hintText = hint
     ? hint.type === "digit"
@@ -159,17 +204,17 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
 
   if (singleplayer.phase === "won") {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center space-y-6">
-          <div className="text-6xl">🎉</div>
-          <h2 className="text-3xl font-bold text-green-600">مبروك! فزت</h2>
-          <p className="text-gray-600 text-lg">
+      <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
+        <div className="w-full max-w-md sm:max-w-lg bg-white rounded-2xl shadow-2xl p-6 sm:p-8 text-center space-y-6">
+          <div className="text-5xl sm:text-6xl">🎉</div>
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-green-600">مبروك! فزت</h2>
+          <p className="text-sm sm:text-base lg:text-lg text-gray-600">
             عدد المحاولات: <span className="font-bold text-blue-600">{singleplayer.attempts.length}</span>
           </p>
-          <p className="text-gray-700">
-            الرقم السري كان: <span className="font-mono text-xl font-bold text-purple-600">{singleplayer.secretCode.join("")}</span>
+          <p className="text-sm sm:text-base text-gray-700">
+            الرقم السري كان: <span className="font-mono text-lg sm:text-xl lg:text-2xl font-bold text-purple-600">{singleplayer.secretCode.join("")}</span>
           </p>
-          {hasWonChallenge && hint && (
+          {hint && (
             <div className="bg-gradient-to-r from-yellow-400 to-amber-500 rounded-xl p-4 shadow-lg">
               <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2 justify-center">
                 <Lightbulb className="w-5 h-5" />
@@ -207,12 +252,12 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
 
   if (singleplayer.phase === "lost") {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center space-y-6">
-          <div className="text-6xl">😢</div>
-          <h2 className="text-3xl font-bold text-red-600">خسرت!</h2>
-          <p className="text-gray-700">
-            الرقم السري كان: <span className="font-mono text-xl font-bold text-purple-600">{singleplayer.secretCode.join("")}</span>
+      <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
+        <div className="w-full max-w-md sm:max-w-lg bg-white rounded-2xl shadow-2xl p-6 sm:p-8 text-center space-y-6">
+          <div className="text-5xl sm:text-6xl">😢</div>
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-red-600">خسرت!</h2>
+          <p className="text-sm sm:text-base text-gray-700">
+            الرقم السري كان: <span className="font-mono text-lg sm:text-xl lg:text-2xl font-bold text-purple-600">{singleplayer.secretCode.join("")}</span>
           </p>
           <div className="space-y-3">
             <button
@@ -242,13 +287,13 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
           {/* لوحة المحاولات - على اليسار */}
           <div className="bg-white rounded-xl p-6 shadow-md overflow-hidden flex flex-col">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <h3 className="text-xl font-bold text-gray-800">المحاولات ({singleplayer.attempts.length} / {singleplayer.settings.maxAttempts})</h3>
+              <h3 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-gray-800">المحاولات ({singleplayer.attempts.length} / {singleplayer.settings.maxAttempts})</h3>
               {singleplayer.attempts.length > 5 && !expandedAttempts && (
                 <button
                   onClick={() => setExpandedAttempts(true)}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  <Maximize2 className="w-5 h-5 text-gray-600" />
+                  <Maximize2 className="w-5 sm:w-6 h-5 sm:h-6 text-gray-600" />
                 </button>
               )}
             </div>
@@ -259,19 +304,19 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
                 [...singleplayer.attempts].reverse().slice(0, 5).map((attempt, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-gray-200 flex-row-reverse"
+                    className="flex items-center justify-between p-4 sm:p-5 md:p-6 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-gray-200 flex-row-reverse"
                   >
-                    <span className="font-mono text-2xl font-bold text-gray-800">
+                    <span className="font-mono text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">
                       {attempt.guess.join("")}
                     </span>
-                    <div className="flex gap-3">
+                    <div className="flex gap-2 sm:gap-3 md:gap-4">
                       <div className="flex flex-col items-center">
-                        <span className="text-2xl font-bold text-blue-600">{attempt.correctCount}</span>
-                        <span className="text-xs text-blue-600">صح</span>
+                        <span className="text-lg sm:text-2xl md:text-3xl font-bold text-blue-600">{attempt.correctCount}</span>
+                        <span className="text-xs sm:text-sm text-blue-600">صح</span>
                       </div>
                       <div className="flex flex-col items-center">
-                        <span className="text-2xl font-bold text-green-600">{attempt.correctPositionCount}</span>
-                        <span className="text-xs text-green-600">مكانهم</span>
+                        <span className="text-lg sm:text-2xl md:text-3xl font-bold text-green-600">{attempt.correctPositionCount}</span>
+                        <span className="text-xs sm:text-sm text-green-600">مكانهم</span>
                       </div>
                     </div>
                   </div>
@@ -282,16 +327,16 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
 
           {/* لوحة الأرقام والإدخال - على اليمين */}
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between bg-white rounded-xl p-4 shadow-md">
+            <div className="flex items-center justify-between bg-white rounded-xl p-2 md:p-3 shadow-md">
               <button
                 onClick={handleHome}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <Home className="w-6 h-6 text-gray-700" />
+                <Home className={`${getIconSize()} text-gray-700`} />
               </button>
               <div className="text-right">
-                <p className="text-sm text-gray-600">المحاولات المتبقية من {singleplayer.settings.maxAttempts}</p>
-                <p className="text-2xl font-bold text-blue-600">{attemptsLeft}</p>
+                <p className={`${getTextSize()} text-gray-600`}>المحاولات المتبقية من {singleplayer.settings.maxAttempts}</p>
+                <p className={`${getTextSize()} font-bold text-blue-600`}>{attemptsLeft}</p>
               </div>
             </div>
 
@@ -299,95 +344,98 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
               !hasWonChallenge ? (
                 <button
                   onClick={onStartChallenge}
-                  className="w-full flex items-center gap-2 justify-center bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-md"
+                  className="w-full flex items-center gap-2 justify-center bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg transition-colors shadow-md"
                 >
-                  <Lightbulb className="w-6 h-6" />
-                  <span className="text-lg">احصل على تلميح</span>
+                  <Lightbulb className={getIconSize()} />
+                  <span className={getTextSize()}>احصل على تلميح</span>
                 </button>
               ) : hint ? (
-                <div className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 rounded-xl p-4 shadow-md">
-                  <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2">
-                    <Lightbulb className="w-5 h-5" />
+                <div className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 rounded-lg p-2 md:p-3 shadow-md">
+                  <h3 className={`text-white font-bold ${getTextSize()} mb-1 flex items-center gap-2`}>
+                    <Lightbulb className={getIconSize()} />
                     التلميح:
                   </h3>
-                  <p className="text-white text-base font-bold">{hint.type === "digit" ? `في الخانة ${(hint.position || 0) + 1}: رقم ${hint.value}` : String(hint.value)}</p>
+                  <p className={`text-white ${getTextSize()} font-bold`}>{hint.type === "digit" ? `في الخانة ${(hint.position || 0) + 1}: رقم ${hint.value}` : String(hint.value)}</p>
                 </div>
               ) : null
             )}
 
             <div className="bg-white rounded-xl p-6 shadow-md flex-1 flex flex-col justify-center">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">أدخل {numDigits} أرقام</h3>
+          <h3 className={`${getTextSize()} font-bold text-gray-800 mb-3 text-center`}>أدخل {numDigits} أرقام</h3>
           
-          <div className="flex gap-3 justify-center mb-6" dir="ltr">
-            {input.map((digit, idx) => (
-              <div
-                key={idx}
-                className={`w-16 h-20 border-2 rounded-xl flex items-center justify-center text-3xl font-bold transition-all ${
-                  focusedIndex === idx
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-300 bg-white"
-                }`}
-              >
-                {digit}
-              </div>
-            ))}
+          <div className="flex gap-1 sm:gap-2 md:gap-2 justify-center mb-4" dir="ltr">
+            {input.map((digit, idx) => {
+              const inputSize = getInputSize();
+              return (
+                <div
+                  key={idx}
+                  className={`${inputSize.width} ${inputSize.height} border-2 rounded-lg flex items-center justify-center ${getTextSize()} font-bold transition-all ${
+                    focusedIndex === idx
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-300 bg-white"
+                  }`}
+                >
+                  {digit}
+                </div>
+              );
+            })}
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mb-3" dir="ltr">
+          <div className="grid grid-cols-3 gap-1 mb-1" dir="ltr">
             {[1, 2, 3].map((num) => (
               <button
                 key={num}
                 onClick={() => handleNumberInput(num.toString())}
-                className="h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-lg shadow-md active:scale-95 transition-all"
+                className={`${getButtonHeight()} bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white ${getTextSize()} font-bold rounded-lg shadow-md active:scale-95 transition-all`}
               >
                 {num}
               </button>
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mb-3" dir="ltr">
+          <div className="grid grid-cols-3 gap-1 mb-1" dir="ltr">
             {[4, 5, 6].map((num) => (
               <button
                 key={num}
                 onClick={() => handleNumberInput(num.toString())}
-                className="h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-lg shadow-md active:scale-95 transition-all"
+                className={`${getButtonHeight()} bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white ${getTextSize()} font-bold rounded-lg shadow-md active:scale-95 transition-all`}
               >
                 {num}
               </button>
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mb-3" dir="ltr">
+          <div className="grid grid-cols-3 gap-1 mb-1" dir="ltr">
             {[7, 8, 9].map((num) => (
               <button
                 key={num}
                 onClick={() => handleNumberInput(num.toString())}
-                className="h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-lg shadow-md active:scale-95 transition-all"
+                className={`${getButtonHeight()} bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white ${getTextSize()} font-bold rounded-lg shadow-md active:scale-95 transition-all`}
               >
                 {num}
               </button>
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-2" dir="ltr">
+          <div className="grid grid-cols-3 gap-1" dir="ltr">
             <button
               onClick={handleBackspace}
-              className="h-14 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center col-span-1"
+              className={`${getButtonHeight()} bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center col-span-1`}
             >
-              <X className="w-6 h-6" />
+              <X className={getIconSize()} />
             </button>
             <button
               onClick={() => handleNumberInput("0")}
-              className="h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-lg shadow-md active:scale-95 transition-all col-span-1"
+              className={`${getButtonHeight()} bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white ${getTextSize()} font-bold rounded-lg shadow-md active:scale-95 transition-all col-span-1`}
             >
               0
             </button>
             <button
               onClick={handleSubmit}
               disabled={input.some(val => val === "")}
-              className="h-14 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center col-span-1"
+              className={`${getButtonHeight()} bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center col-span-1`}
             >
-              <Check className="w-6 h-6" />
+              <Check className={getIconSize()} />
             </button>
           </div>
             </div>
