@@ -577,20 +577,43 @@ const handleMessage = (message: any) => {
       // Round history is saved in game_results handler when game fully finishes
       store.resetMultiplayerGame();
       store.setPlayers(message.players);
-      // Reset cards system for rematch - clear all cards but preserve settings
+      
+      // Clear card award flag for new game
+      const cardAwardKeyForRematch = `card_awarded_${store.multiplayer.roomId}_${store.multiplayer.playerId}`;
+      sessionStorage.removeItem(cardAwardKeyForRematch);
+      
+      // Reset cards system for rematch - ALWAYS clear ALL state regardless of cardsEnabled
       const cardsStoreRematch = useCards.getState();
       const preservedCardSettings = { ...cardsStoreRematch.cardSettings };
-      cardsStoreRematch.resetCards();
-      cardsStoreRematch.setCardSettings(preservedCardSettings);
+      
+      // Clear all player effects first
+      cardsStoreRematch.playerCards.forEach(player => {
+        cardsStoreRematch.clearAllActiveEffects(player.playerId);
+      });
+      
+      // Full reset of all card state - always reset revealedDigits, burnedNumbers, and playerCards
+      useCards.setState({
+        cardsEnabled: false,
+        playerCards: [],
+        revealedDigits: [],
+        burnedNumbers: [],
+        cardSettings: preservedCardSettings,
+      });
+      
+      // Also call explicit clear methods for any additional cleanup
+      cardsStoreRematch.clearRevealedAndBurned();
+      
       // Reset challenges state to prevent incorrect card awards
       const challengesStoreRematch = useChallenges.getState();
       challengesStoreRematch.resetChallengesHub();
-      console.log("Rematch starting - game, cards, challenges reset (settings preserved)");
+      
+      console.log("Rematch starting - game, cards, challenges fully reset (settings preserved)");
       break;
 
     case "card_used": {
       const cardsStore = useCards.getState();
       const currentPlayerId = store.multiplayer.playerId;
+      const currentCardSettings = cardsStore.cardSettings;
       
       console.log(`[Cards WS] Card used: ${message.cardType} from ${message.fromPlayerName} to ${message.targetPlayerName || "self"}`);
       
@@ -617,11 +640,21 @@ const handleMessage = (message: any) => {
       cardsStore.initializePlayerCards(effectRecipientId);
       
       // Apply the effect (for cards that have duration like freeze, shield)
+      // Use the correct duration from card settings
       if (["freeze", "shield"].includes(message.cardType)) {
+        let effectDuration = message.effectDuration || 30000;
+        
+        // Use card settings for freeze duration
+        if (message.cardType === "freeze") {
+          effectDuration = (currentCardSettings.freezeDuration || 30) * 1000;
+        } else if (message.cardType === "shield") {
+          effectDuration = (currentCardSettings.shieldDuration || 120) * 1000;
+        }
+        
         const effect = {
           cardType: message.cardType,
           targetPlayerId: message.targetPlayerId,
-          expiresAt: Date.now() + (message.effectDuration || 30000),
+          expiresAt: Date.now() + effectDuration,
           value: message.effectValue,
         };
         
@@ -637,7 +670,8 @@ const handleMessage = (message: any) => {
       } else if (message.targetPlayerId === currentPlayerId) {
         // Card was used against me
         if (message.cardType === "freeze") {
-          toast.error(`${message.fromPlayerName} جمّدك لمدة 30 ثانية! ❄️`, { duration: 5000 });
+          const freezeSecs = currentCardSettings.freezeDuration || 30;
+          toast.error(`${message.fromPlayerName} جمّدك لمدة ${freezeSecs} ثانية! ❄️`, { duration: 5000 });
         }
       }
       break;

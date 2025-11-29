@@ -25,7 +25,7 @@ export function MobileMultiplayer() {
   } = useNumberGame();
 
   const { playDigit, playDelete, playConfirm, playError, successSound } = useAudio();
-  const { cardSettings } = useCards();
+  const { cardSettings, hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers, playerCards } = useCards();
   const [playerName, setPlayerName] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
   const [showJoinForm, setShowJoinForm] = useState(false);
@@ -60,15 +60,51 @@ export function MobileMultiplayer() {
   }, [numDigits]);
 
   useEffect(() => {
-    if (multiplayer.currentGuess.length < numDigits) {
-      const newInput = [...multiplayer.currentGuess.map(String), ...new Array(numDigits - multiplayer.currentGuess.length).fill("")];
-      setInput(newInput);
-      setFocusedIndex(multiplayer.currentGuess.length);
-    } else if (multiplayer.currentGuess.length === numDigits) {
-      setInput(multiplayer.currentGuess.map(String));
-      setFocusedIndex(numDigits);
+    // Build input array combining revealed digits with entered digits
+    const newInput: string[] = [];
+    let enteredDigitIndex = 0;
+    
+    for (let i = 0; i < numDigits; i++) {
+      const revealedDigit = getRevealedDigitAtPosition(i);
+      if (revealedDigit !== null) {
+        newInput.push(String(revealedDigit));
+      } else {
+        if (enteredDigitIndex < multiplayer.currentGuess.length) {
+          newInput.push(String(multiplayer.currentGuess[enteredDigitIndex]));
+          enteredDigitIndex++;
+        } else {
+          newInput.push("");
+        }
+      }
     }
-  }, [multiplayer.currentGuess, numDigits]);
+    
+    setInput(newInput);
+    
+    // Calculate the next unfilled, non-revealed slot for focus
+    let nextFocusIndex = 0;
+    let enteredCount = 0;
+    for (let i = 0; i < numDigits; i++) {
+      const revealedDigit = getRevealedDigitAtPosition(i);
+      if (revealedDigit !== null) {
+        continue;
+      }
+      if (enteredCount < multiplayer.currentGuess.length) {
+        enteredCount++;
+      } else {
+        nextFocusIndex = i;
+        break;
+      }
+      nextFocusIndex = i + 1;
+    }
+    
+    // If all non-revealed slots are filled, set focus to end
+    const totalNonRevealed = numDigits - revealedDigits.length;
+    if (multiplayer.currentGuess.length >= totalNonRevealed) {
+      nextFocusIndex = numDigits;
+    }
+    
+    setFocusedIndex(nextFocusIndex);
+  }, [multiplayer.currentGuess, numDigits, revealedDigits]);
 
   // Live timer update
   useEffect(() => {
@@ -94,8 +130,6 @@ export function MobileMultiplayer() {
     }
   };
 
-  const { hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers, playerCards } = useCards();
-  
   const isPlayerFrozen = () => {
     removeExpiredEffects();
     return hasActiveEffect(multiplayer.playerId, "freeze");
@@ -162,12 +196,32 @@ export function MobileMultiplayer() {
 
   const handleSubmit = () => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
-    if (input.some(val => val === "")) {
+    
+    if (isPlayerFrozen()) {
       playError();
       return;
     }
+
+    // Build complete guess including revealed digits
+    const completeGuess: number[] = [];
+    let enteredDigitIndex = 0;
     
-    if (isPlayerFrozen()) {
+    for (let i = 0; i < numDigits; i++) {
+      const revealedDigit = getRevealedDigitAtPosition(i);
+      if (revealedDigit !== null) {
+        completeGuess.push(revealedDigit);
+      } else {
+        if (enteredDigitIndex < multiplayer.currentGuess.length) {
+          completeGuess.push(multiplayer.currentGuess[enteredDigitIndex]);
+          enteredDigitIndex++;
+        } else {
+          playError();
+          return;
+        }
+      }
+    }
+
+    if (completeGuess.length !== numDigits) {
       playError();
       return;
     }
@@ -175,7 +229,7 @@ export function MobileMultiplayer() {
     playConfirm();
     send({
       type: "submit_guess",
-      guess: multiplayer.currentGuess,
+      guess: completeGuess,
     });
     submitMultiplayerGuess();
   };
@@ -221,14 +275,6 @@ export function MobileMultiplayer() {
     return `${seconds}s`;
   };
 
-  const getElapsedTime = () => {
-    if (multiplayer.gameStatus === "playing" && multiplayer.startTime > 0) {
-      const elapsed = currentTime - multiplayer.startTime;
-      return Math.max(0, elapsed);
-    }
-    return 0;
-  };
-
   const getRemainingTime = () => {
     if (multiplayer.gameStatus === "playing" && multiplayer.startTime > 0) {
       const elapsed = currentTime - multiplayer.startTime;
@@ -237,6 +283,11 @@ export function MobileMultiplayer() {
       return Math.max(0, remaining);
     }
     return cardSettings.roundDuration * 60 * 1000;
+  };
+
+  const isTimeWarning = () => {
+    const remaining = getRemainingTime();
+    return remaining <= 30000; // Last 30 seconds
   };
 
   const playerDetails = selectedPlayer 
@@ -495,8 +546,8 @@ export function MobileMultiplayer() {
               <p className="text-xl font-bold text-blue-600">{multiplayer.settings.maxAttempts - multiplayer.attempts.length}/{multiplayer.settings.maxAttempts}</p>
             </div>
             <div className="text-right flex-1 border-l-2 border-gray-300 pl-3">
-              <p className="text-xs text-gray-600">الوقت</p>
-              <p className="text-xl font-bold text-green-600">{formatDuration(getElapsedTime())}</p>
+              <p className="text-xs text-gray-600">الوقت المتبقي</p>
+              <p className={`text-xl font-bold ${isTimeWarning() ? 'text-red-600 animate-pulse' : 'text-green-600'}`}>{formatDuration(getRemainingTime())}</p>
             </div>
           </div>
 
