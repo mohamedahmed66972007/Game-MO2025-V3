@@ -284,53 +284,43 @@ export function RainDropsChallenge() {
       <RainBackground />
       
       {/* Desktop: Side panel for controls */}
-      <div className={`${isDesktop ? 'w-80 order-2 flex flex-col' : 'hidden'} bg-slate-900/95 backdrop-blur-xl z-20 relative`}>
+      <div className={`${isDesktop ? 'w-64 order-2 flex flex-col' : 'hidden'} bg-slate-900/95 backdrop-blur-xl z-20 relative`}>
         {/* Header for desktop */}
-        <div className="flex items-center justify-between p-4 border-b border-purple-500/30">
+        <div className="flex items-center justify-between p-3 border-b border-purple-500/30">
           <button
             onClick={resetToMenu}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all"
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl transition-all text-sm"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
             <span className="font-bold">رجوع</span>
           </button>
-          <button
-            onClick={togglePause}
-            className="w-12 h-12 bg-white/20 backdrop-blur-xl hover:bg-white/30 text-white rounded-full flex items-center justify-center transition-all shadow-lg"
-          >
-            {isPaused ? <Play className="w-6 h-6" /> : <Pause className="w-6 h-6" />}
-          </button>
         </div>
 
-        {/* Stats for desktop */}
-        <div className="p-4 space-y-4">
-          <div className="bg-gradient-to-br from-purple-600/50 to-indigo-600/50 rounded-2xl p-4 text-center border border-purple-400/30">
-            <span className="text-white/70 text-sm block mb-1">النتيجة</span>
-            <span className="text-4xl font-bold text-white">{raindropsChallenge.score}</span>
+        {/* Stats for desktop - only show time and errors */}
+        <div className="p-3 space-y-3">
+          <div className="bg-gradient-to-br from-cyan-600/50 to-blue-600/50 rounded-xl p-3 text-center border border-cyan-400/30">
+            <span className="text-white/70 text-xs block mb-1">الوقت المتبقي</span>
+            <span className="text-3xl font-bold text-white">{raindropsChallenge.timeRemaining}s</span>
           </div>
-          <div className="bg-gradient-to-br from-cyan-600/50 to-blue-600/50 rounded-2xl p-4 text-center border border-cyan-400/30">
-            <span className="text-white/70 text-sm block mb-1">الوقت المتبقي</span>
-            <span className="text-4xl font-bold text-white">{raindropsChallenge.timeRemaining}s</span>
-          </div>
-          <div className="bg-gradient-to-br from-red-600/50 to-orange-600/50 rounded-2xl p-4 text-center border border-red-400/30">
-            <span className="text-white/70 text-sm block mb-1">الأخطاء</span>
-            <span className="text-4xl font-bold text-white">{raindropsChallenge.errors}/{raindropsChallenge.maxErrors}</span>
+          <div className="bg-gradient-to-br from-red-600/50 to-orange-600/50 rounded-xl p-3 text-center border border-red-400/30">
+            <span className="text-white/70 text-xs block mb-1">الأخطاء</span>
+            <span className="text-3xl font-bold text-white">{raindropsChallenge.errors}/{raindropsChallenge.maxErrors}</span>
           </div>
         </div>
 
-        {/* Desktop numpad */}
-        <div className="flex-1 p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="flex-1 bg-purple-300/30 rounded-xl px-4 py-4 text-center border border-purple-400/30">
-              <span className="text-3xl font-bold text-white font-mono">
+        {/* Desktop numpad - full visibility */}
+        <div className="flex-1 p-3 flex flex-col">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex-1 bg-purple-300/30 rounded-xl px-3 py-3 text-center border border-purple-400/30">
+              <span className="text-2xl font-bold text-white font-mono">
                 {raindropsChallenge.currentInput || '‎'}
               </span>
             </div>
             <button
               onClick={handleDelete}
-              className="w-14 h-14 bg-purple-400/30 hover:bg-purple-400/50 text-white font-bold rounded-xl transition-all flex items-center justify-center border border-purple-400/30"
+              className="w-12 h-12 bg-purple-400/30 hover:bg-purple-400/50 text-white font-bold rounded-xl transition-all flex items-center justify-center border border-purple-400/30"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
@@ -339,7 +329,7 @@ export function RainDropsChallenge() {
               <button
                 key={num}
                 onClick={() => handleNumberPress(num.toString())}
-                className="h-16 bg-purple-600/80 hover:bg-purple-500/80 text-white text-2xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
+                className="h-12 bg-purple-600/80 hover:bg-purple-500/80 text-white text-xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
               >
                 {num}
               </button>
@@ -349,14 +339,14 @@ export function RainDropsChallenge() {
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => handleNumberPress('0')}
-              className="h-16 bg-purple-600/80 hover:bg-purple-500/80 text-white text-2xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
+              className="h-12 bg-purple-600/80 hover:bg-purple-500/80 text-white text-xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
             >
               0
             </button>
             <button
               onClick={handleSubmit}
               disabled={!raindropsChallenge.currentInput}
-              className="h-16 bg-indigo-500/80 hover:bg-indigo-400/80 disabled:bg-gray-600/50 disabled:cursor-not-allowed text-white text-lg font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-indigo-400/30"
+              className="h-12 bg-indigo-500/80 hover:bg-indigo-400/80 disabled:bg-gray-600/50 disabled:cursor-not-allowed text-white text-base font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-indigo-400/30"
             >
               إدخال
             </button>
@@ -366,34 +356,35 @@ export function RainDropsChallenge() {
 
       {/* Main game area */}
       <div className={`flex-1 flex flex-col ${isDesktop ? 'order-1' : ''}`}>
-        {/* Mobile header */}
+        {/* Mobile header - simplified without score/stop */}
         {!isDesktop && (
           <div className="flex items-center justify-between p-3 z-20 relative">
             <button
-              onClick={togglePause}
-              className="w-10 h-10 bg-white/20 backdrop-blur-xl hover:bg-white/30 text-white rounded-full flex items-center justify-center transition-all shadow-lg"
+              onClick={resetToMenu}
+              className="flex items-center gap-2 bg-white/20 backdrop-blur-xl hover:bg-white/30 text-white px-3 py-2 rounded-xl transition-all text-sm"
             >
-              {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+              <ArrowLeft className="w-4 h-4" />
+              <span className="font-bold text-sm">رجوع</span>
             </button>
 
             <div className="flex items-center gap-3">
               <div className="bg-slate-800/80 backdrop-blur-xl px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
-                <span className="text-white/70 text-xs">النتيجة</span>
-                <span className="text-base font-bold text-white">{raindropsChallenge.score}</span>
-              </div>
-              <div className="bg-slate-800/80 backdrop-blur-xl px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
                 <span className="text-white/70 text-xs">الوقت</span>
                 <span className="text-base font-bold text-cyan-400">{raindropsChallenge.timeRemaining}s</span>
+              </div>
+              <div className="bg-slate-800/80 backdrop-blur-xl px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
+                <span className="text-white/70 text-xs">الأخطاء</span>
+                <span className="text-base font-bold text-red-400">{raindropsChallenge.errors}/{raindropsChallenge.maxErrors}</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Game container - larger on desktop */}
+        {/* Game container */}
         <div 
           ref={containerRef}
-          className={`flex-1 relative overflow-hidden z-10 ${isDesktop ? 'min-h-[70vh]' : ''}`}
-          style={{ minHeight: isDesktop ? '70vh' : '50vh' }}
+          className={`flex-1 relative overflow-hidden z-10 ${isDesktop ? 'min-h-[60vh]' : ''}`}
+          style={{ minHeight: isDesktop ? '60vh' : '45vh' }}
         >
           <AnimatePresence>
             {raindropsChallenge.drops.map((drop) => (

@@ -1,4 +1,5 @@
 import { useNumberGame } from "./stores/useNumberGame";
+import { useCards } from "./stores/useCards";
 import { toast } from "sonner";
 
 let socket: WebSocket | null = null;
@@ -286,6 +287,8 @@ const handleMessage = (message: any) => {
 
     case "game_started":
       // Clear previous game data and start fresh
+      const cardsEnabled = message.settings?.cardsEnabled ?? store.multiplayer.settings.cardsEnabled;
+      
       useNumberGame.setState((state) => ({
         multiplayer: {
           ...state.multiplayer,
@@ -308,12 +311,23 @@ const handleMessage = (message: any) => {
           settings: message.settings ? {
             ...state.multiplayer.settings,
             ...message.settings,
-            cardsEnabled: message.settings.cardsEnabled ?? state.multiplayer.settings.cardsEnabled
+            cardsEnabled: cardsEnabled
           } : state.multiplayer.settings,
         },
       }));
+      
+      // Initialize cards system if enabled
+      const cardsStore = useCards.getState();
+      if (cardsEnabled) {
+        cardsStore.enableCards();
+        cardsStore.initializePlayerCards(store.multiplayer.playerId);
+        console.log("Cards system initialized for player:", store.multiplayer.playerId);
+      } else {
+        cardsStore.resetCards();
+      }
+      
       saveSessionToStorage(store.multiplayer.playerName, store.multiplayer.playerId, store.multiplayer.roomId);
-      console.log("Game started with shared secret, cardsEnabled:", message.settings?.cardsEnabled ?? store.multiplayer.settings.cardsEnabled);
+      console.log("Game started with shared secret, cardsEnabled:", cardsEnabled);
       break;
 
     case "room_rejoined":
@@ -430,6 +444,9 @@ const handleMessage = (message: any) => {
         },
       });
       console.log("Game finished - results received", { winners: message.winners.length, losers: message.losers.length, stillPlaying: message.stillPlaying?.length });
+      
+      // Reset cards system when game ends
+      useCards.getState().resetCards();
       
       // Clear session when results are shown to prevent reconnecting to finished game
       clearSession();

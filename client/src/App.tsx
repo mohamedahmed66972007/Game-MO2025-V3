@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Routes, Route, useNavigate, useParams, useLocation } from "react-router-dom";
 import { useNumberGame } from "./lib/stores/useNumberGame";
 import { useAudio } from "./lib/stores/useAudio";
 import { send, reconnectToSession, connectWebSocket, reconnectWithRetry, getLastRoomSession } from "./lib/websocket";
@@ -17,7 +18,132 @@ import { DesktopSingleplayer } from "./components/desktop/DesktopSingleplayer";
 import { MultiplayerGame2D } from "./components/desktop/MultiplayerGame2D";
 import "@fontsource/inter";
 
-function App() {
+function RoomRoute() {
+  const { roomId } = useParams<{ roomId: string }>();
+  const navigate = useNavigate();
+  const { multiplayer, setMode, setIsConnecting, setPlayerName, setRoomId, setPlayerId, resetMultiplayer, connectionError, setConnectionError } = useNumberGame();
+  const [isJoining, setIsJoining] = useState(false);
+  const [playerNameInput, setPlayerNameInput] = useState(() => localStorage.getItem("lastPlayerName") || "");
+
+  useEffect(() => {
+    if (roomId && multiplayer.roomId === roomId && multiplayer.playerId) {
+      return;
+    }
+
+    const session = reconnectToSession();
+    if (session && session.roomId === roomId && session.playerId) {
+      console.log("Reconnecting to room from URL:", roomId);
+      setPlayerName(session.playerName);
+      setMode("multiplayer");
+      setIsConnecting(true);
+      reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+      
+      setTimeout(() => {
+        if (useNumberGame.getState().isConnecting) {
+          console.error("Connection timeout");
+          setIsConnecting(false);
+          navigate("/");
+        }
+      }, 5000);
+      return;
+    }
+
+    const lastRoom = getLastRoomSession();
+    if (lastRoom && lastRoom.roomId === roomId && lastRoom.playerId) {
+      console.log("Reconnecting to last room from URL:", roomId);
+      setPlayerName(lastRoom.playerName);
+      setMode("multiplayer");
+      setIsConnecting(true);
+      reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
+      
+      setTimeout(() => {
+        if (useNumberGame.getState().isConnecting) {
+          console.error("Connection timeout");
+          setIsConnecting(false);
+          navigate("/");
+        }
+      }, 5000);
+      return;
+    }
+  }, [roomId]);
+
+  const handleJoinRoom = () => {
+    if (!playerNameInput.trim() || !roomId) return;
+    setIsJoining(true);
+    localStorage.setItem("lastPlayerName", playerNameInput.trim());
+    setPlayerName(playerNameInput.trim());
+    setMode("multiplayer");
+    setIsConnecting(true);
+    connectWebSocket(playerNameInput.trim(), roomId);
+  };
+
+  if (connectionError) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 z-50">
+        <div className="text-center relative max-w-md mx-4">
+          <div className="inline-flex items-center justify-center mb-4">
+            <div className="text-6xl">❌</div>
+          </div>
+          <p className="text-gray-800 text-xl font-semibold mb-4">{connectionError}</p>
+          <button
+            onClick={() => {
+              setConnectionError(null);
+              resetMultiplayer();
+              navigate("/");
+            }}
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold transition-colors"
+          >
+            العودة للقائمة الرئيسية
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (multiplayer.roomId === roomId && multiplayer.playerId) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50 p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-center space-y-6">
+        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+          <span className="text-3xl">🎮</span>
+        </div>
+        <h2 className="text-2xl font-bold text-gray-800">الانضمام للغرفة</h2>
+        <p className="text-gray-600">رقم الغرفة: <span className="font-mono font-bold text-blue-600">{roomId}</span></p>
+        
+        <div className="space-y-4">
+          <input
+            type="text"
+            placeholder="أدخل اسمك"
+            value={playerNameInput}
+            onChange={(e) => setPlayerNameInput(e.target.value)}
+            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center font-semibold focus:border-blue-500 focus:outline-none transition-colors"
+            maxLength={20}
+          />
+          <button
+            onClick={handleJoinRoom}
+            disabled={!playerNameInput.trim() || isJoining}
+            className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-3 rounded-xl transition-all"
+          >
+            {isJoining ? "جاري الانضمام..." : "انضم للغرفة"}
+          </button>
+          <button
+            onClick={() => navigate("/")}
+            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl transition-colors"
+          >
+            العودة للقائمة
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppContent() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
   const { mode, singleplayer, multiplayer, connectionError, setMode, isConnecting, setIsConnecting, setPlayerName, setRoomId, setPlayerId, setConnectionError, resetMultiplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
@@ -32,62 +158,92 @@ function App() {
   }, [setSuccessSound]);
 
   useEffect(() => {
-    const session = reconnectToSession();
-    if (session && session.roomId && session.playerId && !multiplayer.roomId) {
-      // Only auto-reconnect if game is actively playing (not finished/results shown)
-      const isGameActive = session.gameState && session.gameState.gameStatus === "playing";
-      
-      if (isGameActive) {
-        console.log("Reconnecting to active session:", session);
-        setPlayerName(session.playerName);
+    if (multiplayer.roomId && location.pathname !== `/room/${multiplayer.roomId}`) {
+      navigate(`/room/${multiplayer.roomId}`, { replace: true });
+    }
+  }, [multiplayer.roomId, navigate, location.pathname]);
+
+  useEffect(() => {
+    if (location.pathname === "/" || location.pathname === "") {
+      const session = reconnectToSession();
+      if (session && session.roomId && session.playerId && !multiplayer.roomId) {
+        const isGameActive = session.gameState && session.gameState.gameStatus === "playing";
         
-        // Restore game state if it was active
-        if (session.gameState) {
-          const store = useNumberGame.getState();
-          if (session.gameState.gameStatus) {
-            store.setGameStatus(session.gameState.gameStatus);
+        if (isGameActive) {
+          console.log("Reconnecting to active session:", session);
+          setPlayerName(session.playerName);
+          
+          if (session.gameState) {
+            const store = useNumberGame.getState();
+            if (session.gameState.gameStatus) {
+              store.setGameStatus(session.gameState.gameStatus);
+            }
+            if (session.gameState.sharedSecret) {
+              store.setSharedSecret(session.gameState.sharedSecret);
+            }
+            if (session.gameState.settings) {
+              store.setMultiplayerSettings(session.gameState.settings);
+            }
+            if (session.gameState.attempts) {
+              useNumberGame.setState((state) => ({
+                multiplayer: {
+                  ...state.multiplayer,
+                  attempts: session.gameState.attempts,
+                  startTime: session.gameState.startTime || Date.now(),
+                },
+              }));
+            }
           }
-          if (session.gameState.sharedSecret) {
-            store.setSharedSecret(session.gameState.sharedSecret);
-          }
-          if (session.gameState.settings) {
-            store.setMultiplayerSettings(session.gameState.settings);
-          }
-          if (session.gameState.attempts) {
+          
+          setMode("multiplayer");
+          setIsConnecting(true);
+          
+          const ws = reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+          
+          setTimeout(() => {
+            if (useNumberGame.getState().isConnecting) {
+              console.error("Connection timeout - redirecting to menu");
+              setIsConnecting(false);
+              setMode("menu");
+            }
+          }, 3000);
+        } else {
+          const lastRoom = getLastRoomSession();
+          if (lastRoom && lastRoom.roomId && lastRoom.playerId) {
+            console.log("Game finished but reconnecting to last room:", lastRoom);
+            setPlayerName(lastRoom.playerName);
+            setMode("multiplayer");
+            setIsConnecting(true);
+            
             useNumberGame.setState((state) => ({
               multiplayer: {
                 ...state.multiplayer,
-                attempts: session.gameState.attempts,
-                startTime: session.gameState.startTime || Date.now(),
+                gameStatus: "waiting",
+                startTime: lastRoom.startTime || 0,
               },
             }));
+            
+            const ws = reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
+            
+            setTimeout(() => {
+              if (useNumberGame.getState().isConnecting) {
+                console.error("Connection timeout - redirecting to menu");
+                setIsConnecting(false);
+                setMode("menu");
+              }
+            }, 3000);
+          } else {
+            sessionStorage.removeItem("multiplayerSession");
           }
         }
-        
-        setMode("multiplayer");
-        setIsConnecting(true);
-        
-        // Attempt reconnection with retry
-        const ws = reconnectWithRetry(session.playerName, session.playerId, session.roomId);
-        
-        // Add timeout to prevent infinite loading (network issues only)
-        setTimeout(() => {
-          if (useNumberGame.getState().isConnecting) {
-            console.error("Connection timeout - redirecting to menu");
-            setIsConnecting(false);
-            setMode("menu");
-          }
-        }, 3000);
       } else {
-        // Game is finished, try to reconnect to last room if available
         const lastRoom = getLastRoomSession();
-        if (lastRoom && lastRoom.roomId && lastRoom.playerId) {
-          console.log("Game finished but reconnecting to last room:", lastRoom);
+        if (lastRoom && lastRoom.roomId && lastRoom.playerId && !multiplayer.roomId) {
+          console.log("Auto-reconnecting to last room:", lastRoom);
           setPlayerName(lastRoom.playerName);
           setMode("multiplayer");
           setIsConnecting(true);
           
-          // Restore startTime if available (preserve elapsed time)
           useNumberGame.setState((state) => ({
             multiplayer: {
               ...state.multiplayer,
@@ -105,41 +261,10 @@ function App() {
               setMode("menu");
             }
           }, 3000);
-        } else {
-          // No active game and no last room, clear the session
-          sessionStorage.removeItem("multiplayerSession");
         }
       }
-    } else {
-      // Check if there's a last room to rejoin
-      const lastRoom = getLastRoomSession();
-      if (lastRoom && lastRoom.roomId && lastRoom.playerId && !multiplayer.roomId) {
-        console.log("Auto-reconnecting to last room:", lastRoom);
-        setPlayerName(lastRoom.playerName);
-        setMode("multiplayer");
-        setIsConnecting(true);
-        
-        // Restore startTime if available (preserve elapsed time)
-        useNumberGame.setState((state) => ({
-          multiplayer: {
-            ...state.multiplayer,
-            gameStatus: "waiting",
-            startTime: lastRoom.startTime || 0,
-          },
-        }));
-        
-        const ws = reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
-        
-        setTimeout(() => {
-          if (useNumberGame.getState().isConnecting) {
-            console.error("Connection timeout - redirecting to menu");
-            setIsConnecting(false);
-            setMode("menu");
-          }
-        }, 3000);
-      }
     }
-  }, []);
+  }, [location.pathname]);
 
   if (isMobile) {
     return <MobileApp />;
@@ -170,7 +295,6 @@ function App() {
 
       {mode === "multiplayer" && (
         <>
-          {/* Show connection error */}
           {connectionError && (
             <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 z-50">
               <div className="text-center relative max-w-md mx-4">
@@ -183,6 +307,7 @@ function App() {
                     setConnectionError(null);
                     resetMultiplayer();
                     setMode("menu");
+                    navigate("/");
                   }}
                   className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold transition-colors"
                 >
@@ -192,7 +317,6 @@ function App() {
             </div>
           )}
 
-          {/* Show loading screen while connecting */}
           {isConnecting && !connectionError && (
             <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50">
               <div className="text-center relative">
@@ -205,20 +329,16 @@ function App() {
             </div>
           )}
 
-          {/* Show lobby when not in game */}
           {!isConnecting && multiplayer.roomId && multiplayer.gameStatus === "waiting" && !multiplayer.showResults && (
             <MultiplayerLobby />
           )}
           
-          {/* Show game */}
           {isMultiplayerGameActive && !multiplayer.showResults && (
             <MultiplayerGame2D />
           )}
           
-          {/* Show results */}
           {multiplayer.showResults && <MultiplayerResults />}
 
-          {/* Rematch countdown dialog */}
           {multiplayer.rematchState.requested && multiplayer.rematchState.countdown !== null && (
             <RematchDialog />
           )}
@@ -237,7 +357,6 @@ function RematchDialog() {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
       <div className="w-full max-w-2xl bg-gradient-to-br from-blue-50 to-white rounded-3xl shadow-2xl border-2 border-blue-300 p-6 md:p-8 text-center space-y-6">
-        {/* Header */}
         <div>
           <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full mx-auto mb-4 shadow-lg">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -248,7 +367,6 @@ function RematchDialog() {
           <p className="text-sm md:text-base text-gray-600">لديك <span className="font-bold text-blue-600">{multiplayer.rematchState.countdown}s</span> للتصويت</p>
         </div>
 
-        {/* Voting Buttons - Only show if player hasn't voted */}
         {!myVote && (
           <div className="grid grid-cols-2 gap-3 md:gap-4">
             <button
@@ -268,7 +386,6 @@ function RematchDialog() {
           </div>
         )}
 
-        {/* Player Voting Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
           {multiplayer.players.map(player => {
             const vote = multiplayer.rematchState.votes.find(v => v.playerId === player.id);
@@ -285,7 +402,6 @@ function RematchDialog() {
                     : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-300 animate-pulse'
                 }`}
               >
-                {/* Vote Status Icon */}
                 <div className="absolute top-2 right-2 md:top-3 md:right-3">
                   {vote?.accepted ? (
                     <div className="w-8 h-8 md:w-10 md:h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
@@ -302,7 +418,6 @@ function RematchDialog() {
                   )}
                 </div>
 
-                {/* Player Info */}
                 <div className="pr-10 md:pr-12">
                   <p className="font-bold text-gray-800 text-sm md:text-base flex items-center gap-2">
                     {player.name}
@@ -323,53 +438,12 @@ function RematchDialog() {
   );
 }
 
-function HomeButton() {
-  const { setMode, resetMultiplayer } = useNumberGame();
-  const [showConfirm, setShowConfirm] = useState(false);
-
-  const handleQuit = () => {
-    import("@/lib/websocket").then(({ send, clearSession, disconnect }) => {
-      send({ type: "leave_room" });
-      clearSession();
-      disconnect();
-    });
-    resetMultiplayer();
-    setMode("menu");
-    setTimeout(() => {
-      window.location.reload();
-    }, 300);
-  };
-
-  if (showConfirm) {
-    return (
-      <div className="fixed top-4 right-4 z-50 bg-red-900 border-2 border-red-600 rounded-lg p-4 shadow-lg">
-        <p className="text-white font-semibold mb-3">هل تريد الانسحاب؟</p>
-        <div className="flex gap-2">
-          <button
-            onClick={handleQuit}
-            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold"
-          >
-            نعم
-          </button>
-          <button
-            onClick={() => setShowConfirm(false)}
-            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-semibold"
-          >
-            لا
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+function App() {
   return (
-    <button
-      onClick={() => setShowConfirm(true)}
-      className="fixed top-4 right-4 z-40 w-12 h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-full flex items-center justify-center shadow-lg text-xl transition-transform duration-200 hover:scale-110"
-      title="البيت"
-    >
-      🏠
-    </button>
+    <Routes>
+      <Route path="/" element={<AppContent />} />
+      <Route path="/room/:roomId" element={<><RoomRoute /><AppContent /></>} />
+    </Routes>
   );
 }
 
