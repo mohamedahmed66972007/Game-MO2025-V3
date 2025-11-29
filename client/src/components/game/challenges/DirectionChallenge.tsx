@@ -300,16 +300,25 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
         />
       </div>
 
-      {/* Game Area - Centered arrows around center card */}
-      <div className="flex-1 flex items-center justify-center w-full z-10">
-        <div className="relative" style={{ width: 'min(90vw, 400px)', height: 'min(90vw, 400px)' }}>
-          {/* Up Arrow */}
+      {/* Game Area - Grid layout for perfect alignment */}
+      <div className="flex-1 flex items-center justify-center w-full z-10 px-4">
+        <div 
+          className="grid gap-4"
+          style={{
+            gridTemplateColumns: '80px 100px 80px',
+            gridTemplateRows: '80px 100px 80px',
+            width: 'fit-content',
+          }}
+        >
+          {/* Up Arrow - Grid position: row 0, col 1 */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("up")}
-            className="absolute rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm top-0 left-1/2 transform -translate-x-1/2"
+            className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              width: '70px',
-              height: '70px',
+              gridColumn: '2',
+              gridRow: '1',
+              width: '80px',
+              height: '80px',
               backgroundColor: directionChallenge.useColors && getColorForPosition('top') 
                 ? `${colorValues[getColorForPosition('top')!]}30` 
                 : 'rgba(255,255,255,0.1)',
@@ -331,13 +340,15 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
             </span>
           </motion.button>
           
-          {/* Left Arrow */}
+          {/* Left Arrow - Grid position: row 1, col 0 */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("left")}
-            className="absolute rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm left-0 top-1/2 transform -translate-y-1/2"
+            className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              width: '70px',
-              height: '70px',
+              gridColumn: '1',
+              gridRow: '2',
+              width: '80px',
+              height: '80px',
               backgroundColor: directionChallenge.useColors && getColorForPosition('left') 
                 ? `${colorValues[getColorForPosition('left')!]}30` 
                 : 'rgba(255,255,255,0.1)',
@@ -358,70 +369,13 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
               {getDirectionIcon('left')}
             </span>
           </motion.button>
-          
-          {/* Right Arrow */}
-          <motion.button
-            onClick={() => !hasInputRef.current && handleInput("right")}
-            className="absolute rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm right-0 top-1/2 transform -translate-y-1/2"
-            style={{
-              width: '70px',
-              height: '70px',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('right') 
-                ? `${colorValues[getColorForPosition('right')!]}30` 
-                : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('right')
-                ? colorValues[getColorForPosition('right')!]
-                : 'rgba(255,255,255,0.3)',
-              boxShadow: pulseDirection === 'right' 
-                ? `0 0 30px rgba(139, 92, 246, 0.8)`
-                : '0 4px 15px rgba(0,0,0,0.3)',
-            }}
-            animate={{
-              scale: pulseDirection === 'right' ? 1.15 : 1,
-            }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-          >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('right') ? colorValues[getColorForPosition('right')!] : 'white' }}>
-              {getDirectionIcon('right')}
-            </span>
-          </motion.button>
-          
-          {/* Down Arrow */}
-          <motion.button
-            onClick={() => !hasInputRef.current && handleInput("down")}
-            className="absolute rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm bottom-0 left-1/2 transform -translate-x-1/2"
-            style={{
-              width: '70px',
-              height: '70px',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('bottom') 
-                ? `${colorValues[getColorForPosition('bottom')!]}30` 
-                : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('bottom')
-                ? colorValues[getColorForPosition('bottom')!]
-                : 'rgba(255,255,255,0.3)',
-              boxShadow: pulseDirection === 'down' 
-                ? `0 0 30px rgba(139, 92, 246, 0.8)`
-                : '0 4px 15px rgba(0,0,0,0.3)',
-            }}
-            animate={{
-              scale: pulseDirection === 'down' ? 1.15 : 1,
-            }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-          >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('bottom') ? colorValues[getColorForPosition('bottom')!] : 'white' }}>
-              {getDirectionIcon('down')}
-            </span>
-          </motion.button>
 
-          {/* Center card */}
+          {/* Center card - Grid position: row 1, col 1 */}
           <motion.div
-            className="absolute rounded-2xl flex items-center justify-center overflow-hidden bg-slate-800/95 border-2 border-white/40 shadow-2xl"
+            className="rounded-2xl flex items-center justify-center overflow-hidden bg-slate-800/95 border-2 border-white/40 shadow-2xl"
             style={{
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
+              gridColumn: '2',
+              gridRow: '2',
               width: '100px',
               height: '100px',
               boxShadow: '0 0 50px rgba(139, 92, 246, 0.4), inset 0 0 80px rgba(139, 92, 246, 0.2)',
@@ -474,6 +428,66 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
               )}
             </AnimatePresence>
           </motion.div>
+          
+          {/* Right Arrow - Grid position: row 1, col 2 */}
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("right")}
+            className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
+            style={{
+              gridColumn: '3',
+              gridRow: '2',
+              width: '80px',
+              height: '80px',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('right') 
+                ? `${colorValues[getColorForPosition('right')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('right')
+                ? colorValues[getColorForPosition('right')!]
+                : 'rgba(255,255,255,0.3)',
+              boxShadow: pulseDirection === 'right' 
+                ? `0 0 30px rgba(139, 92, 246, 0.8)`
+                : '0 4px 15px rgba(0,0,0,0.3)',
+            }}
+            animate={{
+              scale: pulseDirection === 'right' ? 1.15 : 1,
+            }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('right') ? colorValues[getColorForPosition('right')!] : 'white' }}>
+              {getDirectionIcon('right')}
+            </span>
+          </motion.button>
+          
+          {/* Down Arrow - Grid position: row 2, col 1 */}
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("down")}
+            className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
+            style={{
+              gridColumn: '2',
+              gridRow: '3',
+              width: '80px',
+              height: '80px',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('bottom') 
+                ? `${colorValues[getColorForPosition('bottom')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('bottom')
+                ? colorValues[getColorForPosition('bottom')!]
+                : 'rgba(255,255,255,0.3)',
+              boxShadow: pulseDirection === 'down' 
+                ? `0 0 30px rgba(139, 92, 246, 0.8)`
+                : '0 4px 15px rgba(0,0,0,0.3)',
+            }}
+            animate={{
+              scale: pulseDirection === 'down' ? 1.15 : 1,
+            }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('bottom') ? colorValues[getColorForPosition('bottom')!] : 'white' }}>
+              {getDirectionIcon('down')}
+            </span>
+          </motion.button>
         </div>
       </div>
 
