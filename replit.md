@@ -15,6 +15,28 @@ The application features:
 
 # Recent Changes
 
+## November 29, 2025
+
+**Challenge System Updates:**
+- **Removed Reaction Challenge**: Deleted the reaction-based clicking challenge from single player mode
+- **Renamed Challenges**:
+  - "guess" → "تحدي تسلسل الأضواء" (Light Sequence Challenge)
+  - "memory" → "لوحة الذاكرة" (Memory Board)
+  - Both organized under "الذاكرة" (Memory) category
+- **New Direction Sorting Challenge** ("ترتيب الاتجاهات"):
+  - Under "رد الفعل" (Reaction) category
+  - 1.5 second time limit per round
+  - 30 rounds total, 3 max errors
+  - Mobile: Swipe gestures for direction input
+  - Desktop: Arrow keys or WASD for direction input
+  - Shows direction prompts (right/left/up/down/notRight/etc.) or color prompts
+  - Visual feedback with rotation animation and checkmarks
+- **Improved Memory Challenge Animation**:
+  - Added scanner effect when completing a level successfully
+  - Added large checkmark success animation with sound
+  - Visual feedback for correct/wrong/missed cells with icons
+- **Fixed Hint Display on Mobile**: Hint now correctly shows after winning a challenge instead of being cleared by resetChallengesHub()
+
 ## November 24, 2025
 
 **UI Redesign & Features:**
