@@ -269,14 +269,14 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
           )
         )}
 
-        <div className="bg-white rounded-xl p-6 shadow-md flex-shrink-0">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">أدخل {numDigits} أرقام</h3>
+        <div className="bg-white rounded-xl p-4 shadow-md flex-shrink-0">
+          <h3 className="text-base font-bold text-gray-800 mb-3 text-center">أدخل {numDigits} أرقام</h3>
           
-          <div className="flex gap-3 justify-center mb-6" dir="ltr">
+          <div className="flex gap-2 justify-center mb-4" dir="ltr">
             {input.map((digit, idx) => (
               <div
                 key={idx}
-                className={`w-16 h-20 border-2 rounded-xl flex items-center justify-center text-3xl font-bold transition-all ${
+                className={`w-12 h-14 border-2 rounded-xl flex items-center justify-center text-2xl font-bold transition-all ${
                   focusedIndex === idx
                     ? "border-blue-500 bg-blue-50"
                     : "border-gray-300 bg-white"
@@ -287,97 +287,75 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mb-4" dir="ltr">
-            {[1, 2, 3].map((num) => (
+          <div className="grid grid-cols-3 gap-2 max-w-[280px] mx-auto" dir="ltr">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
               <button
                 key={num}
                 onClick={() => handleNumberInput(num.toString())}
-                className="h-16 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-2xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                className="h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
               >
                 {num}
               </button>
             ))}
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-4" dir="ltr">
-            {[4, 5, 6].map((num) => (
-              <button
-                key={num}
-                onClick={() => handleNumberInput(num.toString())}
-                className="h-16 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-2xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
-              >
-                {num}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-4" dir="ltr">
-            {[7, 8, 9].map((num) => (
-              <button
-                key={num}
-                onClick={() => handleNumberInput(num.toString())}
-                className="h-16 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-2xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
-              >
-                {num}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-3 gap-3" dir="ltr">
             <button
               onClick={handleBackspace}
-              className="h-16 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center col-span-1"
+              className="h-14 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
             <button
               onClick={() => handleNumberInput("0")}
-              className="h-16 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-2xl font-bold rounded-xl shadow-md active:scale-95 transition-all col-span-1"
+              className="h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
             >
               0
             </button>
             <button
               onClick={handleSubmit}
               disabled={input.some(val => val === "")}
-              className="h-16 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center col-span-1"
+              className="h-14 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
             >
-              <Check className="w-6 h-6" />
+              <Check className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {singleplayer.attempts.length > 0 && !expandedAttempts && (
-          <div className="bg-white rounded-xl p-4 shadow-md flex-shrink-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-gray-800">محاولات ({singleplayer.attempts.length} / {singleplayer.settings.maxAttempts})</h3>
+        <div className="bg-white rounded-xl p-4 shadow-md flex-shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-gray-800">المحاولات ({singleplayer.attempts.length} / {singleplayer.settings.maxAttempts})</h3>
+            {singleplayer.attempts.length > 3 && (
               <button
                 onClick={() => setExpandedAttempts(true)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <Maximize2 className="w-5 h-5 text-gray-600" />
               </button>
-            </div>
-            <div>
-              {singleplayer.attempts.length > 0 && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg flex-row-reverse">
+            )}
+          </div>
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+            {singleplayer.attempts.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">لا توجد محاولات بعد</p>
+            ) : (
+              [...singleplayer.attempts].reverse().map((attempt, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-gray-200 flex-row-reverse"
+                >
                   <span className="font-mono text-lg font-bold text-gray-800">
-                    {[...singleplayer.attempts].reverse()[0].guess.join("")}
+                    {attempt.guess.join("")}
                   </span>
-                  <div className="flex gap-2 text-sm">
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg font-semibold">
-                      {[...singleplayer.attempts].reverse()[0].correctCount} صح
+                  <div className="flex gap-2 text-xs">
+                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-lg font-semibold">
+                      {attempt.correctCount} صح
                     </span>
-                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-lg font-semibold">
-                      {[...singleplayer.attempts].reverse()[0].correctPositionCount === 0 && '0 مكانو صح'}
-                      {[...singleplayer.attempts].reverse()[0].correctPositionCount === 1 && '1 مكانو صح'}
-                      {[...singleplayer.attempts].reverse()[0].correctPositionCount > 1 && `${[...singleplayer.attempts].reverse()[0].correctPositionCount} مكانهم صح`}
+                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded-lg font-semibold">
+                      {attempt.correctPositionCount} مكان
                     </span>
                   </div>
                 </div>
-              )}
-            </div>
+              ))
+            )}
           </div>
-        )}
+        </div>
 
         {expandedAttempts && (
           <div className="fixed inset-0 bg-black/50 flex items-end z-50 p-4">
