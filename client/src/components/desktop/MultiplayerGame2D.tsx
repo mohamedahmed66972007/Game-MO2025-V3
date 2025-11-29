@@ -115,22 +115,32 @@ export function MultiplayerGame2D() {
     }
   };
 
-  const { hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers } = useCards();
+  const { hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers, getActiveEffect, playerCards } = useCards();
   
   const isPlayerFrozen = () => {
     removeExpiredEffects();
     return hasActiveEffect(multiplayer.playerId, "freeze");
   };
 
-  // الحصول على الرقم المكشوف في خانة معينة
   const getRevealedDigitAtPosition = (position: number): number | null => {
     const revealed = revealedDigits.find(r => r.position === position);
     return revealed ? revealed.digit : null;
   };
 
-  // التحقق إذا كان رقم محروق
   const isBurnedNumber = (num: number): boolean => {
     return burnedNumbers.includes(num);
+  };
+  
+  const getParityAtPosition = (position: number): { isEven: boolean } | null => {
+    const player = playerCards.find(p => p.playerId === multiplayer.playerId);
+    if (!player) return null;
+    
+    const parityEffect = player.activeEffects.find(e => e.cardType === "revealParity" && e.expiresAt > Date.now());
+    if (!parityEffect || !parityEffect.value) return null;
+    
+    const parityInfos = parityEffect.value as { position: number; isEven: boolean }[];
+    const parityInfo = parityInfos.find(p => p.position === position);
+    return parityInfo ? { isEven: parityInfo.isEven } : null;
   };
 
   const handleNumberInput = (num: string) => {
@@ -226,7 +236,15 @@ export function MultiplayerGame2D() {
     return `${seconds}s`;
   };
 
-  const getCurrentDuration = () => {
+  const getElapsedTime = () => {
+    if (multiplayer.gameStatus === "playing" && multiplayer.startTime > 0) {
+      const elapsed = currentTime - multiplayer.startTime;
+      return Math.max(0, elapsed);
+    }
+    return 0;
+  };
+  
+  const getRemainingTime = () => {
     if (multiplayer.gameStatus === "playing" && multiplayer.startTime > 0) {
       const elapsed = currentTime - multiplayer.startTime;
       const totalDuration = cardSettings.roundDuration * 60 * 1000;
@@ -610,7 +628,7 @@ export function MultiplayerGame2D() {
             </div>
             <div className="text-right flex-1 border-l-2 border-gray-300 pl-4">
               <p className="text-sm text-gray-600">الوقت المنقضي</p>
-              <p className="text-2xl font-bold text-green-600">{formatDuration(getCurrentDuration())}</p>
+              <p className="text-2xl font-bold text-green-600">{formatDuration(getElapsedTime())}</p>
             </div>
           </div>
 
@@ -627,6 +645,7 @@ export function MultiplayerGame2D() {
                 {input.map((digit, idx) => {
                   const revealedDigit = getRevealedDigitAtPosition(idx);
                   const isRevealed = revealedDigit !== null;
+                  const parityInfo = getParityAtPosition(idx);
                   
                   return (
                     <div
@@ -638,12 +657,26 @@ export function MultiplayerGame2D() {
                           ? "border-blue-500 bg-blue-50"
                           : "border-gray-300 bg-white"
                       }`}
-                      title={isRevealed ? "رقم مكشوف (ثابت)" : undefined}
+                      title={isRevealed ? "رقم مكشوف (ثابت)" : parityInfo ? (parityInfo.isEven ? "رقم زوجي" : "رقم فردي") : undefined}
                     >
-                      {isRevealed ? revealedDigit : digit}
+                      {parityInfo && !isRevealed && !digit && (
+                        <span className={`absolute inset-0 flex items-center justify-center text-lg font-medium opacity-40 ${
+                          parityInfo.isEven ? "text-green-600" : "text-orange-600"
+                        }`}>
+                          {parityInfo.isEven ? "زوجي" : "فردي"}
+                        </span>
+                      )}
+                      <span className="relative z-10">{isRevealed ? revealedDigit : digit}</span>
                       {isRevealed && (
                         <span className="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
                           <Eye className="w-2.5 h-2.5 text-white" />
+                        </span>
+                      )}
+                      {parityInfo && !isRevealed && (
+                        <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] text-white ${
+                          parityInfo.isEven ? "bg-green-500" : "bg-orange-500"
+                        }`}>
+                          {parityInfo.isEven ? "ز" : "ف"}
                         </span>
                       )}
                     </div>

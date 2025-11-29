@@ -337,8 +337,13 @@ const handleMessage = (message: any) => {
       
       // Initialize cards system if enabled
       const cardsStore = useCards.getState();
-      // دائماً امسح الأرقام المكشوفة والمحروقة عند بداية لعبة جديدة
+      
+      // Always clear revealed/burned and player cards for new game
       cardsStore.clearRevealedAndBurned();
+      cardsStore.clearAllActiveEffects();
+      
+      // Clear existing player cards to prevent duplication
+      useCards.setState({ playerCards: [] });
       
       // Sync card settings from server for all players
       if (message.settings?.cardSettings) {
@@ -358,14 +363,15 @@ const handleMessage = (message: any) => {
       break;
 
     case "game_starting":
-      // All players completed challenges - now actually start the game timer
+      // All players completed challenges - use server timestamp for sync if provided
+      const gameStartTime = message.serverStartTime || Date.now();
       useNumberGame.setState((state) => ({
         multiplayer: {
           ...state.multiplayer,
-          startTime: Date.now(),
+          startTime: gameStartTime,
         },
       }));
-      console.log("All players completed challenges - game timer started");
+      console.log("All players completed challenges - game timer started, serverStartTime:", gameStartTime);
       toast.success(message.message || "بدأت اللعبة!", {
         duration: 3000,
       });
@@ -571,13 +577,15 @@ const handleMessage = (message: any) => {
       // Round history is saved in game_results handler when game fully finishes
       store.resetMultiplayerGame();
       store.setPlayers(message.players);
-      // Reset cards system for rematch - clear all cards from previous game
+      // Reset cards system for rematch - clear all cards but preserve settings
       const cardsStoreRematch = useCards.getState();
+      const preservedCardSettings = { ...cardsStoreRematch.cardSettings };
       cardsStoreRematch.resetCards();
+      cardsStoreRematch.setCardSettings(preservedCardSettings);
       // Reset challenges state to prevent incorrect card awards
       const challengesStoreRematch = useChallenges.getState();
       challengesStoreRematch.resetChallengesHub();
-      console.log("Rematch starting - game, cards, challenges reset");
+      console.log("Rematch starting - game, cards, challenges reset (settings preserved)");
       break;
 
     case "card_used": {

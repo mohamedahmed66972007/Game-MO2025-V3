@@ -623,10 +623,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           room.game.gameTimerHandle = gameTimerHandle;
 
-          // Notify all players game is starting
+          // Notify all players game is starting with server timestamp for sync
           broadcastToRoom(room, {
             type: "game_starting",
             message: "جميع اللاعبين انتهوا من التحديات - بدء اللعبة!",
+            serverStartTime: room.game.startTime,
           });
         }
         break;

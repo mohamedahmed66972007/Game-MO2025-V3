@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./button";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
@@ -13,6 +13,8 @@ interface GameSettingsProps {
   onConfirm: (settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean; selectedChallenge?: ChallengeType; allowedCards?: CardTypeId[] }) => void;
   isMultiplayer?: boolean;
 }
+
+const SETTINGS_STORAGE_KEY = "multiplayer_room_settings";
 
 const challenges: { id: ChallengeType; name: string; description: string; icon: React.ReactNode; color: string }[] = [
   { id: "guess", name: "تحدي تسلسل الأضواء", description: "تذكر تسلسل الألوان وأعده بالترتيب", icon: <Lightbulb className="w-5 h-5" />, color: "blue" },
@@ -32,29 +34,50 @@ const cardTypes: { id: CardTypeId; name: string; icon: React.ReactNode; color: s
 
 const allCardIds: CardTypeId[] = ["revealNumber", "burnNumber", "revealParity", "freeze", "shield"];
 
+const loadSavedSettings = () => {
+  try {
+    const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.log("Failed to load saved settings");
+  }
+  return null;
+};
+
+const saveSettings = (settings: any) => {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch (e) {
+    console.log("Failed to save settings");
+  }
+};
+
 export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsProps) {
   const { singleplayer, multiplayer, setSingleplayerSettings, setMultiplayerSettings } = useNumberGame();
   const { cardSettings, setCardSettings } = useCards();
   const currentSettings = isMultiplayer ? multiplayer.settings : singleplayer.settings;
   
-  const [numDigits, setNumDigits] = useState(currentSettings.numDigits);
-  const [maxAttempts, setMaxAttempts] = useState(currentSettings.maxAttempts);
-  const [cardsEnabled, setCardsEnabled] = useState(currentSettings.cardsEnabled || false);
+  const savedSettings = isMultiplayer ? loadSavedSettings() : null;
+  
+  const [numDigits, setNumDigits] = useState(savedSettings?.numDigits ?? currentSettings.numDigits);
+  const [maxAttempts, setMaxAttempts] = useState(savedSettings?.maxAttempts ?? currentSettings.maxAttempts);
+  const [cardsEnabled, setCardsEnabled] = useState(savedSettings?.cardsEnabled ?? currentSettings.cardsEnabled ?? false);
   const [selectedChallenge, setSelectedChallenge] = useState<ChallengeType>(
-    (currentSettings.selectedChallenge as ChallengeType) || "random"
+    savedSettings?.selectedChallenge ?? (currentSettings.selectedChallenge as ChallengeType) ?? "random"
   );
   const [allowedCards, setAllowedCards] = useState<CardTypeId[]>(
-    (currentSettings.allowedCards as CardTypeId[]) || allCardIds
+    savedSettings?.allowedCards ?? (currentSettings.allowedCards as CardTypeId[]) ?? allCardIds
   );
   
-  // إعدادات البطاقات الجديدة
   const [showCardSettings, setShowCardSettings] = useState(false);
-  const [roundDuration, setRoundDuration] = useState(cardSettings.roundDuration);
-  const [revealNumberShowPosition, setRevealNumberShowPosition] = useState(cardSettings.revealNumberShowPosition);
-  const [burnNumberCount, setBurnNumberCount] = useState(cardSettings.burnNumberCount);
-  const [revealParitySlots, setRevealParitySlots] = useState(Math.min(cardSettings.revealParitySlots, numDigits));
-  const [freezeDuration, setFreezeDuration] = useState(cardSettings.freezeDuration);
-  const [shieldDuration, setShieldDuration] = useState(cardSettings.shieldDuration);
+  const [roundDuration, setRoundDuration] = useState(savedSettings?.cardSettings?.roundDuration ?? cardSettings.roundDuration);
+  const [revealNumberShowPosition, setRevealNumberShowPosition] = useState(savedSettings?.cardSettings?.revealNumberShowPosition ?? cardSettings.revealNumberShowPosition);
+  const [burnNumberCount, setBurnNumberCount] = useState(savedSettings?.cardSettings?.burnNumberCount ?? cardSettings.burnNumberCount);
+  const [revealParitySlots, setRevealParitySlots] = useState(Math.min(savedSettings?.cardSettings?.revealParitySlots ?? cardSettings.revealParitySlots, numDigits));
+  const [freezeDuration, setFreezeDuration] = useState(savedSettings?.cardSettings?.freezeDuration ?? cardSettings.freezeDuration);
+  const [shieldDuration, setShieldDuration] = useState(savedSettings?.cardSettings?.shieldDuration ?? cardSettings.shieldDuration);
 
   const toggleCard = (cardId: CardTypeId) => {
     if (allowedCards.includes(cardId)) {
@@ -75,16 +98,17 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
       allowedCards: isMultiplayer && cardsEnabled ? allowedCards : undefined
     };
     
-    // حفظ إعدادات البطاقات
     if (isMultiplayer) {
-      setCardSettings({
+      const cardSettingsToSave = {
         roundDuration,
         revealNumberShowPosition,
         burnNumberCount,
         revealParitySlots: Math.min(revealParitySlots, numDigits),
         freezeDuration,
         shieldDuration,
-      });
+      };
+      
+      setCardSettings(cardSettingsToSave);
       
       setMultiplayerSettings({ 
         numDigits, 
@@ -93,6 +117,16 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
         selectedChallenge: selectedChallenge as any, 
         allowedCards 
       });
+      
+      saveSettings({
+        numDigits,
+        maxAttempts,
+        cardsEnabled,
+        selectedChallenge,
+        allowedCards,
+        cardSettings: cardSettingsToSave,
+      });
+      
       send({
         type: "update_settings",
         settings: { 
@@ -101,14 +135,7 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
           cardsEnabled, 
           selectedChallenge, 
           allowedCards,
-          cardSettings: {
-            roundDuration,
-            revealNumberShowPosition,
-            burnNumberCount,
-            revealParitySlots: Math.min(revealParitySlots, numDigits),
-            freezeDuration,
-            shieldDuration,
-          }
+          cardSettings: cardSettingsToSave,
         },
       });
     } else {

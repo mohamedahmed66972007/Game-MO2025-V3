@@ -177,14 +177,8 @@ const generateMathEquation = (difficulty: number): { equation: string; answer: n
 const generateRainDrop = (difficulty: number, timeRemaining: number = 90): RainDrop => {
   const { equation, answer } = generateMathEquation(difficulty);
   
-  let baseSpeed = 0.35;
-  let difficultyBonus = difficulty * 0.03;
-  
-  if (timeRemaining <= 15) {
-    const urgencyFactor = (15 - timeRemaining) / 15;
-    baseSpeed = 0.5 + urgencyFactor * 0.4;
-    difficultyBonus = difficulty * 0.08;
-  }
+  const baseSpeed = 0.35;
+  const difficultyBonus = difficulty * 0.03;
   
   return {
     id: Math.random().toString(36).substr(2, 9),
