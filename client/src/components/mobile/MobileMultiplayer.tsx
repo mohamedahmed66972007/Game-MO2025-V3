@@ -25,6 +25,7 @@ export function MobileMultiplayer() {
   } = useNumberGame();
 
   const { playDigit, playDelete, playConfirm, playError, successSound } = useAudio();
+  const { cardSettings } = useCards();
   const [playerName, setPlayerName] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
   const [showJoinForm, setShowJoinForm] = useState(false);
@@ -212,9 +213,12 @@ export function MobileMultiplayer() {
 
   const getCurrentDuration = () => {
     if (multiplayer.gameStatus === "playing" && multiplayer.startTime > 0) {
-      return currentTime - multiplayer.startTime;
+      const elapsed = currentTime - multiplayer.startTime;
+      const totalDuration = cardSettings.roundDuration * 60 * 1000;
+      const remaining = totalDuration - elapsed;
+      return Math.max(0, remaining);
     }
-    return 0;
+    return cardSettings.roundDuration * 60 * 1000;
   };
 
   const playerDetails = selectedPlayer 
@@ -658,10 +662,13 @@ export function MobileMultiplayer() {
               playerId={multiplayer.playerId}
               onUseCard={(cardId, targetPlayerId) => {
                 const cardsState = useCards.getState();
-                const playerCards = cardsState.playerCards.find(p => p.playerId === multiplayer.playerId);
-                const card = playerCards?.cards.find(c => c.id === cardId);
+                const playerCardsData = cardsState.playerCards.find(p => p.playerId === multiplayer.playerId);
+                const card = playerCardsData?.cards.find(c => c.id === cardId);
                 
                 if (!card) return;
+                
+                // حفظ عدد الأرقام المكشوفة قبل الاستخدام
+                const prevRevealedCount = cardsState.revealedDigits.length;
                 
                 // استخدام البطاقة عبر المتجر - يتم حساب كل شيء هناك
                 const success = cardsState.useCard(
@@ -674,8 +681,18 @@ export function MobileMultiplayer() {
                 
                 if (success) {
                   // الحصول على التأثير من المتجر
-                  const updatedPlayerCards = cardsState.playerCards.find(p => p.playerId === multiplayer.playerId);
+                  const updatedCardsState = useCards.getState();
+                  const updatedPlayerCards = updatedCardsState.playerCards.find(p => p.playerId === multiplayer.playerId);
                   const latestEffect = updatedPlayerCards?.activeEffects[updatedPlayerCards.activeEffects.length - 1];
+                  
+                  // للبطاقة revealNumber مع إظهار في الخانة، نحصل على القيمة من revealedDigits
+                  let effectValue = latestEffect?.value;
+                  if (card.type === "revealNumber" && updatedCardsState.cardSettings.revealNumberShowPosition) {
+                    const newRevealed = updatedCardsState.revealedDigits[updatedCardsState.revealedDigits.length - 1];
+                    if (newRevealed && updatedCardsState.revealedDigits.length > prevRevealedCount) {
+                      effectValue = { position: newRevealed.position, digit: newRevealed.digit };
+                    }
+                  }
                   
                   // إرسال استخدام البطاقة عبر WebSocket
                   send({
@@ -684,9 +701,9 @@ export function MobileMultiplayer() {
                     cardType: card.type,
                     targetPlayerId,
                     effectDuration: latestEffect ? latestEffect.expiresAt - Date.now() : 30000,
-                    effectValue: latestEffect?.value,
+                    effectValue,
                   });
-                  console.log("Card used successfully:", card.type);
+                  console.log("Card used successfully:", card.type, effectValue);
                 }
               }}
               otherPlayers={multiplayer.players

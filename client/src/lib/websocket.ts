@@ -560,6 +560,19 @@ const handleMessage = (message: any) => {
       
       console.log(`[Cards WS] Card used: ${message.cardType} from ${message.fromPlayerName} to ${message.targetPlayerName || "self"}`);
       
+      // Handle revealNumber card - permanent effect, not expiring
+      if (message.cardType === "revealNumber" && message.fromPlayerId === currentPlayerId) {
+        // Only add to revealedDigits if this is my own card and effectValue has position/digit
+        if (message.effectValue && typeof message.effectValue === "object") {
+          const { position, digit } = message.effectValue as { position: number; digit: number };
+          if (position !== undefined && digit !== undefined) {
+            cardsStore.addRevealedDigit(position, digit);
+            toast.success(`تم كشف الرقم ${digit} في الخانة ${position + 1}! 👁️`, { duration: 3000 });
+          }
+        }
+        break;
+      }
+      
       // Determine who receives the effect
       const isAttackCard = ["freeze"].includes(message.cardType);
       const effectRecipientId = isAttackCard && message.targetPlayerId
@@ -569,15 +582,17 @@ const handleMessage = (message: any) => {
       // Initialize the recipient if not exists
       cardsStore.initializePlayerCards(effectRecipientId);
       
-      // Apply the effect
-      const effect = {
-        cardType: message.cardType,
-        targetPlayerId: message.targetPlayerId,
-        expiresAt: Date.now() + (message.effectDuration || 30000),
-        value: message.effectValue,
-      };
-      
-      cardsStore.addActiveEffect(effectRecipientId, effect);
+      // Apply the effect (for cards that have duration like freeze, shield)
+      if (["freeze", "shield"].includes(message.cardType)) {
+        const effect = {
+          cardType: message.cardType,
+          targetPlayerId: message.targetPlayerId,
+          expiresAt: Date.now() + (message.effectDuration || 30000),
+          value: message.effectValue,
+        };
+        
+        cardsStore.addActiveEffect(effectRecipientId, effect);
+      }
       
       // Show notification based on who used the card
       if (message.fromPlayerId === currentPlayerId) {

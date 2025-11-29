@@ -392,39 +392,45 @@ const useCards = create<CardState>((set, get) => ({
         break;
     }
     
-    const newEffect: ActiveCardEffect = {
-      cardType: card.type,
-      targetPlayerId,
-      expiresAt: Date.now() + effectDuration,
-      value: effectValue,
-    };
+    // بطاقة إظهار رقم مع إظهار في الخانة لا تحتاج لتأثير نشط (مؤقت)
+    // الرقم يظهر بشكل دائم في الخانة عبر revealedDigits
+    const skipActiveEffect = card.type === "revealNumber" && cardSettings.revealNumberShowPosition;
     
-    // For attack cards (freeze), apply to target
-    // For self cards (shield, reveal), apply to self
-    const effectTargetId = ["freeze"].includes(card.type) && targetPlayerId 
-      ? targetPlayerId 
-      : playerId;
-    
-    let effectTargetIndex = updatedPlayerCards.findIndex((p) => p.playerId === effectTargetId);
-    
-    // If target player doesn't exist in playerCards, add them first
-    if (effectTargetIndex === -1) {
-      updatedPlayerCards.push({
-        playerId: effectTargetId,
-        cards: [],
-        activeEffects: [],
-      });
-      effectTargetIndex = updatedPlayerCards.length - 1;
-      console.log(`[Cards] Initialized target player ${effectTargetId} for effect`);
+    if (!skipActiveEffect && effectDuration > 0) {
+      const newEffect: ActiveCardEffect = {
+        cardType: card.type,
+        targetPlayerId,
+        expiresAt: Date.now() + effectDuration,
+        value: effectValue,
+      };
+      
+      // For attack cards (freeze), apply to target
+      // For self cards (shield, reveal), apply to self
+      const effectTargetId = ["freeze"].includes(card.type) && targetPlayerId 
+        ? targetPlayerId 
+        : playerId;
+      
+      let effectTargetIndex = updatedPlayerCards.findIndex((p) => p.playerId === effectTargetId);
+      
+      // If target player doesn't exist in playerCards, add them first
+      if (effectTargetIndex === -1) {
+        updatedPlayerCards.push({
+          playerId: effectTargetId,
+          cards: [],
+          activeEffects: [],
+        });
+        effectTargetIndex = updatedPlayerCards.length - 1;
+        console.log(`[Cards] Initialized target player ${effectTargetId} for effect`);
+      }
+      
+      updatedPlayerCards[effectTargetIndex] = {
+        ...updatedPlayerCards[effectTargetIndex],
+        activeEffects: [...updatedPlayerCards[effectTargetIndex].activeEffects, newEffect],
+      };
     }
     
-    updatedPlayerCards[effectTargetIndex] = {
-      ...updatedPlayerCards[effectTargetIndex],
-      activeEffects: [...updatedPlayerCards[effectTargetIndex].activeEffects, newEffect],
-    };
-    
     set({ playerCards: updatedPlayerCards });
-    console.log(`[Cards] Card ${card.type} used by ${playerId} on ${targetPlayerId || "self"}, effect applied to ${effectTargetId}`);
+    console.log(`[Cards] Card ${card.type} used by ${playerId} on ${targetPlayerId || "self"}`);
     return true;
   },
 

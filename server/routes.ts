@@ -56,13 +56,22 @@ interface GameSession {
   };
 }
 
+interface CardSettings {
+  roundDuration: number;
+  revealNumberShowPosition?: boolean;
+  burnNumberCount?: number;
+  revealParitySlots?: number;
+  freezeDuration?: number;
+  shieldDuration?: number;
+}
+
 interface Room {
   id: string;
   hostId: string;
   players: Player[];
   disconnectedPlayers: Map<string, { player: Player; disconnectTime: number; timeoutHandle: NodeJS.Timeout }>;
   game: GameSession | null;
-  settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean };
+  settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean; cardSettings?: CardSettings };
   roomTimeoutHandle?: NodeJS.Timeout;
 }
 
@@ -533,9 +542,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         });
 
-        // Start 5-minute game timer
+        // Start game timer based on roundDuration setting (default 5 minutes)
+        const roundDurationMinutes = room.settings.cardSettings?.roundDuration ?? 5;
+        const timerDuration = roundDurationMinutes * 60 * 1000;
         const gameTimerHandle = setTimeout(() => {
-          console.log(`5-minute timer expired for room ${room.id}`);
+          console.log(`${roundDurationMinutes}-minute timer expired for room ${room.id}`);
           if (room.game && room.game.status === "playing") {
             // Mark all unfinished players as losers
             room.game.players.forEach((playerData) => {
@@ -556,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Send final results to ALL finished players (everyone at this point)
             sendResultsToAllFinishedPlayers(room, "time_expired");
           }
-        }, 5 * 60 * 1000); // 5 minutes
+        }, timerDuration);
 
         game.gameTimerHandle = gameTimerHandle;
         room.game = game;
@@ -586,13 +597,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           room.game.status = "playing";
           room.game.startTime = Date.now();
 
-          // Clear any existing timer and restart the 5-minute timer
+          // Clear any existing timer and restart the game timer based on roundDuration
           if (room.game.gameTimerHandle) {
             clearTimeout(room.game.gameTimerHandle);
           }
 
+          const roundDurationMinutes = room.settings.cardSettings?.roundDuration ?? 5;
+          const timerDuration = roundDurationMinutes * 60 * 1000;
           const gameTimerHandle = setTimeout(() => {
-            console.log(`5-minute timer expired for room ${room.id}`);
+            console.log(`${roundDurationMinutes}-minute timer expired for room ${room.id}`);
             if (room.game && room.game.status === "playing") {
               room.game.players.forEach((playerData) => {
                 if (!playerData.finished) {
@@ -606,7 +619,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               room.game.gameTimerHandle = undefined;
               sendResultsToAllFinishedPlayers(room, "time_expired");
             }
-          }, 5 * 60 * 1000);
+          }, timerDuration);
 
           room.game.gameTimerHandle = gameTimerHandle;
 
