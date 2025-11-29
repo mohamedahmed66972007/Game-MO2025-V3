@@ -44,6 +44,7 @@ interface CardState {
   disableCards: () => void;
   
   initializePlayerCards: (playerId: string) => void;
+  awardWinnerCard: (playerId: string) => Card | null;
   drawCard: (playerId: string) => Card | null;
   useCard: (playerId: string, cardId: string, targetPlayerId?: string) => boolean;
   
@@ -151,12 +152,54 @@ const useCards = create<CardState>((set, get) => ({
           ...playerCards,
           {
             playerId,
-            cards: createInitialCards(),
+            cards: [],
             activeEffects: [],
           },
         ],
       });
+      console.log(`[Cards] Initialized player ${playerId} with empty cards`);
     }
+  },
+
+  awardWinnerCard: (playerId: string) => {
+    const { playerCards, cardsEnabled } = get();
+    if (!cardsEnabled) {
+      console.log("[Cards] Cards not enabled, skipping award");
+      return null;
+    }
+    
+    let playerIndex = playerCards.findIndex((p) => p.playerId === playerId);
+    
+    if (playerIndex === -1) {
+      set({
+        playerCards: [
+          ...playerCards,
+          {
+            playerId,
+            cards: [],
+            activeEffects: [],
+          },
+        ],
+      });
+      playerIndex = playerCards.length;
+    }
+    
+    const newCard = createRandomCard();
+    const currentCards = get().playerCards;
+    const updatedPlayerCards = [...currentCards];
+    const pIndex = updatedPlayerCards.findIndex((p) => p.playerId === playerId);
+    
+    if (pIndex !== -1 && updatedPlayerCards[pIndex].cards.length < 5) {
+      updatedPlayerCards[pIndex] = {
+        ...updatedPlayerCards[pIndex],
+        cards: [...updatedPlayerCards[pIndex].cards, newCard],
+      };
+      set({ playerCards: updatedPlayerCards });
+      console.log(`[Cards] Awarded winner card to ${playerId}:`, newCard.nameAr);
+      return newCard;
+    }
+    
+    return null;
   },
 
   drawCard: (playerId: string) => {

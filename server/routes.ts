@@ -145,62 +145,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Remove from active players
           room.players = room.players.filter((p) => p.id !== player.id);
           
-          // If game is finished, delete the player immediately (auto logout from results screen)
-          if (room.game && room.game.status === "finished") {
-            // Just remove the player, don't add to disconnected list
-            console.log(`Player ${player.name} disconnected from finished game - auto logout`);
-            
-            // Delete room if it's completely empty
-            if (room.players.length === 0 && room.disconnectedPlayers.size === 0) {
-              if (room.game?.rematchState.countdownHandle) {
-                clearInterval(room.game.rematchState.countdownHandle);
-              }
-              rooms.delete(player.roomId);
-              console.log(`Room ${player.roomId} deleted (all players left finished game)`);
-            }
-          } else {
-            // If game is active, keep the disconnected player for 5 minutes
-            const disconnectTime = Date.now();
-            player.disconnectTime = disconnectTime;
-            
-            // Add to disconnected players with 5-minute timeout
-            const timeoutHandle = setTimeout(() => {
-              const disconnected = room.disconnectedPlayers.get(player.id);
-              if (disconnected) {
-                room.disconnectedPlayers.delete(player.id);
-                
-                // If player is in active game, mark them as quit
-                if (room.game && room.game.status === "playing") {
-                  const playerData = room.game.players.get(player.id);
-                  if (playerData && !playerData.finished) {
-                    playerData.finished = true;
-                    playerData.endTime = Date.now();
-                    
-                    // Notify others player timed out
-                    broadcastToRoom(room, {
-                      type: "player_timeout",
-                      playerId: player.id,
-                      playerName: player.name,
-                    });
-                    
-                    checkGameEnd(room);
-                  }
+          // Keep player in disconnectedPlayers for reconnection (both during game AND on results page)
+          const disconnectTime = Date.now();
+          player.disconnectTime = disconnectTime;
+          
+          // Timeout duration: 2 minutes for finished games, 5 minutes for active games
+          const timeoutDuration = (room.game && room.game.status === "finished") ? 2 * 60 * 1000 : 5 * 60 * 1000;
+          
+          const timeoutHandle = setTimeout(() => {
+            const disconnected = room.disconnectedPlayers.get(player.id);
+            if (disconnected) {
+              room.disconnectedPlayers.delete(player.id);
+              
+              // If player is in active game, mark them as quit
+              if (room.game && room.game.status === "playing") {
+                const playerData = room.game.players.get(player.id);
+                if (playerData && !playerData.finished) {
+                  playerData.finished = true;
+                  playerData.endTime = Date.now();
+                  
+                  // Notify others player timed out
+                  broadcastToRoom(room, {
+                    type: "player_timeout",
+                    playerId: player.id,
+                    playerName: player.name,
+                  });
+                  
+                  checkGameEnd(room);
                 }
               }
-              
-              // Check if room should be deleted after timeout
-              checkAndDeleteRoomIfNeeded(room);
-            }, 5 * 60 * 1000); // 5 minutes
+            }
             
-            room.disconnectedPlayers.set(player.id, { player, disconnectTime, timeoutHandle });
-          }
+            // Check if room should be deleted after timeout
+            checkAndDeleteRoomIfNeeded(room);
+          }, timeoutDuration);
           
-          // Notify others that player disconnected
-          broadcastToRoom(room, {
-            type: "player_disconnected",
-            playerId: player.id,
-            playerName: player.name,
-          });
+          room.disconnectedPlayers.set(player.id, { player, disconnectTime, timeoutHandle });
+          console.log(`Player ${player.name} disconnected from ${room.game?.status === "finished" ? "finished" : "active"} game - allowing reconnection for ${timeoutDuration / 1000}s`);
+          
+          // Notify others that player disconnected (but only if game is active)
+          if (!room.game || room.game.status !== "finished") {
+            broadcastToRoom(room, {
+              type: "player_disconnected",
+              playerId: player.id,
+              playerName: player.name,
+            });
+          }
           
           // Check if room should be deleted (1 player left or empty)
           if (!checkAndDeleteRoomIfNeeded(room)) {

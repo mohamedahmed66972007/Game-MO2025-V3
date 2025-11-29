@@ -106,6 +106,7 @@ interface NumberGameState {
   addMultiplayerAttempt: (attempt: Attempt) => void;
   setMultiplayerPhase: (phase: GamePhase) => void;
   setMultiplayerStartTime: () => void;
+  setMultiplayerStartTimeFromServer: (timestamp: number) => void;
   setMultiplayerEndTime: () => void;
   setGameResults: (winners: PlayerResult[], losers: PlayerResult[], sharedSecret: number[]) => void;
   setShowResults: (show: boolean) => void;
@@ -358,6 +359,7 @@ export const useNumberGame = create<NumberGameState>()(
 
     setMultiplayerPhase: (phase) => set((state) => ({ multiplayer: { ...state.multiplayer, phase } })),
     setMultiplayerStartTime: () => set((state) => ({ multiplayer: { ...state.multiplayer, startTime: Date.now() } })),
+    setMultiplayerStartTimeFromServer: (timestamp: number) => set((state) => ({ multiplayer: { ...state.multiplayer, startTime: timestamp } })),
     setMultiplayerEndTime: () => set((state) => ({ multiplayer: { ...state.multiplayer, endTime: Date.now() } })),
     
     setGameResults: (winners, losers, sharedSecret) => set((state) => ({ 

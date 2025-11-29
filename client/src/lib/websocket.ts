@@ -316,6 +316,10 @@ const handleMessage = (message: any) => {
         },
       }));
       
+      // Clear card award flag for new game
+      const cardAwardKeyToClear = `card_awarded_${store.multiplayer.roomId}_${store.multiplayer.playerId}`;
+      sessionStorage.removeItem(cardAwardKeyToClear);
+      
       // Initialize cards system if enabled
       const cardsStore = useCards.getState();
       if (cardsEnabled) {
@@ -346,7 +350,11 @@ const handleMessage = (message: any) => {
       if (message.settings) {
         store.setMultiplayerSettings(message.settings);
       }
-      // Keep existing attempts and game data
+      // Restore startTime from server if provided
+      if (message.gameStartTime && message.gameStartTime > 0) {
+        store.setMultiplayerStartTimeFromServer(message.gameStartTime);
+        console.log("Restored game startTime from server:", message.gameStartTime, "Date:", new Date(message.gameStartTime).toLocaleTimeString());
+      }
       console.log("Received game state after reconnect");
       break;
 
@@ -394,8 +402,24 @@ const handleMessage = (message: any) => {
       store.addMultiplayerAttempt(attempt);
       
       if (message.won) {
+        const wasAlreadyWon = store.multiplayer.phase === "won";
         store.setMultiplayerPhase("won");
         store.setMultiplayerEndTime();
+        
+        // Award ONE card to the winner - only if not already won and card not already awarded in this game
+        const cardAwardKey = `card_awarded_${store.multiplayer.roomId}_${store.multiplayer.playerId}`;
+        const alreadyAwarded = sessionStorage.getItem(cardAwardKey) === "true";
+        
+        if (!wasAlreadyWon && !alreadyAwarded && store.multiplayer.settings.cardsEnabled) {
+          const cardsStore = useCards.getState();
+          const awardedCard = cardsStore.awardWinnerCard(store.multiplayer.playerId);
+          if (awardedCard) {
+            sessionStorage.setItem(cardAwardKey, "true");
+            toast.success(`🎴 حصلت على بطاقة ${awardedCard.nameAr}!`, {
+              duration: 5000,
+            });
+          }
+        }
       }
       break;
 
@@ -444,9 +468,6 @@ const handleMessage = (message: any) => {
         },
       });
       console.log("Game finished - results received", { winners: message.winners.length, losers: message.losers.length, stillPlaying: message.stillPlaying?.length });
-      
-      // Reset cards system when game ends
-      useCards.getState().resetCards();
       
       // Clear session when results are shown to prevent reconnecting to finished game
       clearSession();

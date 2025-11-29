@@ -479,149 +479,141 @@ export function MultiplayerGame2D() {
   // Show game while playing
   if (multiplayer.gameStatus === "playing" && multiplayer.sharedSecret.length > 0) {
     return (
-      <div className="min-h-screen p-4 pb-safe flex flex-col overflow-y-auto">
-        <div className="max-w-2xl mx-auto w-full space-y-4 flex-1 flex flex-col">
-          <div className="flex flex-row-reverse items-center justify-between bg-white rounded-xl p-4 shadow-md flex-shrink-0 gap-4">
-            <div className="flex gap-2">
-              <button
-                onClick={handleHome}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0 text-red-600 hover:bg-red-50"
-                title="الخروج من الغرفة"
-              >
-                <LogOut className="w-6 h-6" />
-              </button>
-              <button
-                onClick={handleHome}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-              >
-                <Home className="w-6 h-6 text-gray-700" />
-              </button>
-            </div>
-            <div className="text-right flex-1">
-              <p className="text-sm text-gray-600">المحاولات المتبقية من {multiplayer.settings.maxAttempts}</p>
-              <p className="text-2xl font-bold text-blue-600">{multiplayer.settings.maxAttempts - multiplayer.attempts.length}</p>
-            </div>
-            <div className="text-right flex-1 border-l-2 border-gray-300 pl-4">
-              <p className="text-sm text-gray-600">الوقت المنقضي</p>
-              <p className="text-2xl font-bold text-green-600">{formatDuration(getCurrentDuration())}</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl p-3 shadow-md flex-shrink-0">
-            <h3 className="text-base font-bold text-gray-800 mb-2 text-center">أدخل {numDigits} أرقام</h3>
-            
-            <div className="flex gap-2 justify-center mb-3" dir="ltr">
-              {input.map((digit, idx) => (
-                <div
-                  key={idx}
-                  className={`w-12 h-14 border-2 rounded-lg flex items-center justify-center text-2xl font-bold transition-all ${
-                    focusedIndex === idx
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-300 bg-white"
-                  }`}
-                >
-                  {digit}
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 mb-2" dir="ltr">
-              {[1, 2, 3].map((num) => (
+      <div className="min-h-screen h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-y-auto">
+        <div className="w-full h-full flex flex-col lg:flex-row gap-4 p-4">
+          {/* Main Game Area */}
+          <div className="flex-1 flex flex-col gap-4 max-w-2xl mx-auto lg:mx-0 lg:max-w-none">
+            {/* Header */}
+            <div className="flex flex-row-reverse items-center justify-between bg-white rounded-xl p-4 shadow-md gap-4">
+              <div className="flex gap-2">
                 <button
-                  key={num}
-                  onClick={() => handleNumberInput(num.toString())}
-                  className="h-12 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-bold rounded-lg shadow-md active:scale-95 transition-all"
+                  onClick={() => {
+                    handleLeaveRoom();
+                    setMode("menu");
+                  }}
+                  className="p-2 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 text-red-600"
+                  title="الخروج من الغرفة"
                 >
-                  {num}
+                  <LogOut className="w-6 h-6" />
                 </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 mb-2" dir="ltr">
-              {[4, 5, 6].map((num) => (
                 <button
-                  key={num}
-                  onClick={() => handleNumberInput(num.toString())}
-                  className="h-12 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-bold rounded-lg shadow-md active:scale-95 transition-all"
+                  onClick={() => {
+                    handleLeaveRoom();
+                    setMode("menu");
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                  title="الصفحة الرئيسية"
                 >
-                  {num}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 mb-2" dir="ltr">
-              {[7, 8, 9].map((num) => (
-                <button
-                  key={num}
-                  onClick={() => handleNumberInput(num.toString())}
-                  className="h-12 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-bold rounded-lg shadow-md active:scale-95 transition-all"
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2" dir="ltr">
-              <button
-                onClick={handleBackspace}
-                className="h-12 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center col-span-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => handleNumberInput("0")}
-                className="h-12 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-bold rounded-lg shadow-md active:scale-95 transition-all col-span-1"
-              >
-                0
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={input.some(val => val === "")}
-                className="h-12 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center col-span-1"
-              >
-                <Check className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          {multiplayer.attempts.length > 0 && !expandedAttempts && (
-            <div className="bg-white rounded-xl p-4 shadow-md flex-shrink-0">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-bold text-gray-800">محاولات ({multiplayer.attempts.length} / {multiplayer.settings.maxAttempts})</h3>
-                <button
-                  onClick={() => setExpandedAttempts(true)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <Maximize2 className="w-5 h-5 text-gray-600" />
+                  <Home className="w-6 h-6 text-gray-700" />
                 </button>
               </div>
-              <div>
-                {multiplayer.attempts.length > 0 && (
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg flex-row-reverse">
-                    <span className="font-mono text-lg font-bold text-gray-800">
-                      {[...multiplayer.attempts].reverse()[0].guess.join("")}
-                    </span>
-                    <div className="flex gap-2 text-sm">
-                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg font-semibold">
-                        {[...multiplayer.attempts].reverse()[0].correctCount} صح
-                      </span>
-                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-lg font-semibold">
-                        {[...multiplayer.attempts].reverse()[0].correctPositionCount === 0 && '0 مكانو صح'}
-                        {[...multiplayer.attempts].reverse()[0].correctPositionCount === 1 && '1 مكانو صح'}
-                        {[...multiplayer.attempts].reverse()[0].correctPositionCount > 1 && `${[...multiplayer.attempts].reverse()[0].correctPositionCount} مكانهم صح`}
-                      </span>
-                    </div>
+              <div className="text-right flex-1">
+                <p className="text-sm text-gray-600">المحاولات المتبقية من {multiplayer.settings.maxAttempts}</p>
+                <p className="text-2xl font-bold text-blue-600">{multiplayer.settings.maxAttempts - multiplayer.attempts.length}</p>
+              </div>
+              <div className="text-right flex-1 border-l-2 border-gray-300 pl-4">
+                <p className="text-sm text-gray-600">الوقت المنقضي</p>
+                <p className="text-2xl font-bold text-green-600">{formatDuration(getCurrentDuration())}</p>
+              </div>
+            </div>
+
+            {/* Number Input Section */}
+            <div className="bg-white rounded-xl p-4 shadow-md">
+              <h3 className="text-lg font-bold text-gray-800 mb-3 text-center">أدخل {numDigits} أرقام</h3>
+              
+              <div className="flex gap-3 justify-center mb-4" dir="ltr">
+                {input.map((digit, idx) => (
+                  <div
+                    key={idx}
+                    className={`w-14 h-16 md:w-16 md:h-18 border-2 rounded-xl flex items-center justify-center text-2xl md:text-3xl font-bold transition-all ${
+                      focusedIndex === idx
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-300 bg-white"
+                    }`}
+                  >
+                    {digit}
                   </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto" dir="ltr">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => handleNumberInput(num.toString())}
+                    className="h-14 md:h-16 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                  >
+                    {num}
+                  </button>
+                ))}
+                <button
+                  onClick={handleBackspace}
+                  className="h-14 md:h-16 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => handleNumberInput("0")}
+                  className="h-14 md:h-16 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                >
+                  0
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={input.some(val => val === "")}
+                  className="h-14 md:h-16 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
+                >
+                  <Check className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Attempts Section - Below keypad on mobile/tablet, side on desktop */}
+            <div className="bg-white rounded-xl p-4 shadow-md flex-1 overflow-hidden flex flex-col min-h-[200px]">
+              <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                <h3 className="text-lg font-bold text-gray-800">المحاولات ({multiplayer.attempts.length} / {multiplayer.settings.maxAttempts})</h3>
+                {multiplayer.attempts.length > 3 && (
+                  <button
+                    onClick={() => setExpandedAttempts(true)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <Maximize2 className="w-5 h-5 text-gray-600" />
+                  </button>
+                )}
+              </div>
+              <div className="overflow-y-auto flex-1 space-y-2">
+                {multiplayer.attempts.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">لا توجد محاولات بعد</p>
+                ) : (
+                  [...multiplayer.attempts].reverse().map((attempt, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-gray-200 flex-row-reverse"
+                    >
+                      <span className="font-mono text-xl font-bold text-gray-800">
+                        {attempt.guess.join("")}
+                      </span>
+                      <div className="flex gap-2 text-sm">
+                        <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg font-semibold">
+                          {attempt.correctCount} صح
+                        </span>
+                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-lg font-semibold">
+                          {attempt.correctPositionCount} مكان
+                        </span>
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
-          )}
+          </div>
 
+          {/* Expanded Attempts Modal */}
           {expandedAttempts && (
-            <div className="fixed inset-0 bg-black/50 flex items-end z-50 p-4">
-              <div className="w-full bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
                 <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
-                  <h3 className="text-2xl font-bold text-gray-800">محاولات ({multiplayer.attempts.length} / {multiplayer.settings.maxAttempts})</h3>
+                  <h3 className="text-xl font-bold text-gray-800">المحاولات ({multiplayer.attempts.length} / {multiplayer.settings.maxAttempts})</h3>
                   <button
                     onClick={() => setExpandedAttempts(false)}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -629,7 +621,7 @@ export function MultiplayerGame2D() {
                     <Minimize2 className="w-6 h-6 text-gray-600" />
                   </button>
                 </div>
-                <div className="overflow-y-scroll flex-1 p-4">
+                <div className="overflow-y-auto flex-1 p-4">
                   <div className="space-y-3">
                     {[...multiplayer.attempts].reverse().map((attempt, idx) => (
                       <div
@@ -646,7 +638,7 @@ export function MultiplayerGame2D() {
                           </div>
                           <div className="flex flex-col items-center">
                             <span className="text-2xl font-bold text-green-600">{attempt.correctPositionCount}</span>
-                            <span className="text-xs text-green-600">مكانهم</span>
+                            <span className="text-xs text-green-600">مكان</span>
                           </div>
                         </div>
                       </div>
