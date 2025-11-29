@@ -36,7 +36,9 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
   const [numDigits, setNumDigits] = useState(currentSettings.numDigits);
   const [maxAttempts, setMaxAttempts] = useState(currentSettings.maxAttempts);
   const [cardsEnabled, setCardsEnabled] = useState(currentSettings.cardsEnabled || false);
-  const [selectedChallenge, setSelectedChallenge] = useState<ChallengeType>("random");
+  const [selectedChallenge, setSelectedChallenge] = useState<ChallengeType>(
+    (currentSettings.selectedChallenge as ChallengeType) || "random"
+  );
 
   const handleConfirm = () => {
     const settings = { 

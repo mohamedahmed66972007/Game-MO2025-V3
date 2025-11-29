@@ -174,15 +174,25 @@ const generateMathEquation = (difficulty: number): { equation: string; answer: n
   return { equation: `${num1} ${opSymbol} ${num2}`, answer };
 };
 
-const generateRainDrop = (difficulty: number): RainDrop => {
+const generateRainDrop = (difficulty: number, timeRemaining: number = 90): RainDrop => {
   const { equation, answer } = generateMathEquation(difficulty);
+  
+  let baseSpeed = 0.35;
+  let difficultyBonus = difficulty * 0.03;
+  
+  if (timeRemaining <= 15) {
+    const urgencyFactor = (15 - timeRemaining) / 15;
+    baseSpeed = 0.5 + urgencyFactor * 0.4;
+    difficultyBonus = difficulty * 0.08;
+  }
+  
   return {
     id: Math.random().toString(36).substr(2, 9),
     equation,
     answer,
     x: Math.random() * 70 + 15,
     y: 0,
-    speed: 0.5 + difficulty * 0.08,
+    speed: baseSpeed + difficultyBonus,
   };
 };
 
@@ -311,7 +321,7 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
     drops: [],
     score: 0,
     errors: 0,
-    maxErrors: 3,
+    maxErrors: 5,
     gameTime: 90,
     timeRemaining: 90,
     currentInput: '',
@@ -425,7 +435,7 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
         drops: [],
         score: 0,
         errors: 0,
-        maxErrors: 3,
+        maxErrors: 5,
         gameTime: 90,
         timeRemaining: 90,
         currentInput: '',
@@ -774,7 +784,7 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
         drops: [initialDrop],
         score: 0,
         errors: 0,
-        maxErrors: 3,
+        maxErrors: 5,
         gameTime: 90,
         timeRemaining: 90,
         currentInput: '',
@@ -788,7 +798,7 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
     const { raindropsChallenge } = get();
     if (!raindropsChallenge.isGameActive) return;
     
-    const newDrop = generateRainDrop(raindropsChallenge.difficulty);
+    const newDrop = generateRainDrop(raindropsChallenge.difficulty, raindropsChallenge.timeRemaining);
     set({
       raindropsChallenge: {
         ...raindropsChallenge,
@@ -801,9 +811,17 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
     const { raindropsChallenge } = get();
     if (!raindropsChallenge.isGameActive) return;
     
+    const { timeRemaining } = raindropsChallenge;
+    let speedMultiplier = 0.025;
+    
+    if (timeRemaining <= 15) {
+      const urgencyFactor = (15 - timeRemaining) / 15;
+      speedMultiplier = 0.025 + urgencyFactor * 0.02;
+    }
+    
     const updatedDrops = raindropsChallenge.drops.map(drop => ({
       ...drop,
-      y: drop.y + drop.speed * deltaTime * 0.025,
+      y: drop.y + drop.speed * deltaTime * speedMultiplier,
     }));
     
     set({

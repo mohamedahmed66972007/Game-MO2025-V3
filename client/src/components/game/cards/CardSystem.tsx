@@ -210,6 +210,52 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
     return null;
   }
 
+  const getEffectValueDisplay = (effect: { cardType: CardType; value?: number | string | number[] | { position: number; isEven: boolean }[] }) => {
+    if (!effect.value) return null;
+    
+    switch (effect.cardType) {
+      case "revealNumber":
+        if (Array.isArray(effect.value) && effect.value.length === 2) {
+          const [position, digit] = effect.value as number[];
+          return (
+            <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
+              <span className="text-sm font-bold">
+                الخانة {position + 1}: {digit}
+              </span>
+            </div>
+          );
+        }
+        return null;
+        
+      case "burnNumber":
+        return (
+          <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
+            <span className="text-sm font-bold">
+              ❌ الرقم {effect.value} غير موجود
+            </span>
+          </div>
+        );
+        
+      case "revealParity":
+        if (Array.isArray(effect.value)) {
+          const parityInfo = effect.value as { position: number; isEven: boolean }[];
+          return (
+            <div className="mt-1 bg-white/20 rounded-lg px-2 py-1 space-y-1">
+              {parityInfo.map((info, idx) => (
+                <div key={idx} className="text-sm font-bold">
+                  الخانة {info.position + 1}: {info.isEven ? "زوجي" : "فردي"}
+                </div>
+              ))}
+            </div>
+          );
+        }
+        return null;
+        
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="fixed top-20 right-4 z-40 space-y-2">
       <AnimatePresence>
@@ -218,6 +264,7 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
           if (!cardDef) return null;
 
           const remainingTime = Math.max(0, Math.ceil((effect.expiresAt - Date.now()) / 1000));
+          const valueDisplay = getEffectValueDisplay(effect);
 
           return (
             <motion.div
@@ -225,13 +272,16 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
               initial={{ x: 100, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 100, opacity: 0 }}
-              className={`bg-gradient-to-r ${cardDef.color} rounded-xl p-3 shadow-lg flex items-center gap-3 text-white`}
+              className={`bg-gradient-to-r ${cardDef.color} rounded-xl p-3 shadow-lg text-white min-w-[180px]`}
             >
-              <CardIcon icon={cardDef.icon} className="w-6 h-6" />
-              <div>
-                <span className="font-bold text-sm block">{cardDef.nameAr}</span>
-                <span className="text-xs opacity-80">{remainingTime}s</span>
+              <div className="flex items-center gap-3">
+                <CardIcon icon={cardDef.icon} className="w-6 h-6" />
+                <div>
+                  <span className="font-bold text-sm block">{cardDef.nameAr}</span>
+                  <span className="text-xs opacity-80">{remainingTime}s</span>
+                </div>
               </div>
+              {valueDisplay}
             </motion.div>
           );
         })}

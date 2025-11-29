@@ -544,7 +544,10 @@ const handleMessage = (message: any) => {
     case "rematch_starting":
       store.resetMultiplayerGame();
       store.setPlayers(message.players);
-      console.log("Rematch starting - game reset");
+      // Reset cards system for rematch - clear all cards from previous game
+      const cardsStoreRematch = useCards.getState();
+      cardsStoreRematch.resetCards();
+      console.log("Rematch starting - game and cards reset");
       break;
 
     case "rematch_cancelled":

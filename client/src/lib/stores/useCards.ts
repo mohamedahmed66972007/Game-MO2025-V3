@@ -343,16 +343,26 @@ const useCards = create<CardState>((set, get) => ({
       ? targetPlayerId 
       : playerId;
     
-    const effectTargetIndex = updatedPlayerCards.findIndex((p) => p.playerId === effectTargetId);
-    if (effectTargetIndex !== -1) {
-      updatedPlayerCards[effectTargetIndex] = {
-        ...updatedPlayerCards[effectTargetIndex],
-        activeEffects: [...updatedPlayerCards[effectTargetIndex].activeEffects, newEffect],
-      };
+    let effectTargetIndex = updatedPlayerCards.findIndex((p) => p.playerId === effectTargetId);
+    
+    // If target player doesn't exist in playerCards, add them first
+    if (effectTargetIndex === -1) {
+      updatedPlayerCards.push({
+        playerId: effectTargetId,
+        cards: [],
+        activeEffects: [],
+      });
+      effectTargetIndex = updatedPlayerCards.length - 1;
+      console.log(`[Cards] Initialized target player ${effectTargetId} for effect`);
     }
     
+    updatedPlayerCards[effectTargetIndex] = {
+      ...updatedPlayerCards[effectTargetIndex],
+      activeEffects: [...updatedPlayerCards[effectTargetIndex].activeEffects, newEffect],
+    };
+    
     set({ playerCards: updatedPlayerCards });
-    console.log(`[Cards] Card ${card.type} used by ${playerId} on ${targetPlayerId || "self"}`);
+    console.log(`[Cards] Card ${card.type} used by ${playerId} on ${targetPlayerId || "self"}, effect applied to ${effectTargetId}`);
     return true;
   },
 
