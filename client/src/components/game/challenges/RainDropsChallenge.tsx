@@ -122,7 +122,7 @@ function EquationBubble({ drop, containerHeight, containerWidth }: EquationBubbl
   );
 }
 
-export function RainDropsChallenge() {
+export function RainDropsChallenge({ onExit }: { onExit?: () => void } = {}) {
   const {
     raindropsChallenge,
     raindropsAddDrop,
@@ -319,7 +319,10 @@ export function RainDropsChallenge() {
         {/* Header for desktop */}
         <div className="flex items-center justify-between p-3 border-b border-purple-500/30">
           <button
-            onClick={resetToMenu}
+            onClick={() => {
+              resetToMenu();
+              onExit?.();
+            }}
             className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl transition-all text-sm"
           >
             <ArrowLeft className="w-4 h-4" />

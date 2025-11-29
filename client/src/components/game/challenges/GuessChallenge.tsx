@@ -14,7 +14,7 @@ const BUTTON_COLORS = [
   { color: "#06b6d4", sound: 523.25 },
 ];
 
-export function GuessChallenge() {
+export function GuessChallenge({ onExit }: { onExit?: () => void } = {}) {
   const {
     guessChallenge,
     guessAddToSequence,
@@ -106,7 +106,10 @@ export function GuessChallenge() {
       <div className="w-full max-w-4xl flex flex-col h-full">
         <div className="flex items-center justify-between mb-8">
           <button
-            onClick={resetToMenu}
+            onClick={() => {
+              resetToMenu();
+              onExit?.();
+            }}
             className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-700/80 text-white px-6 py-3 rounded-xl transition-all shadow-lg"
           >
             <ArrowLeft className="w-5 h-5" />

@@ -4,7 +4,7 @@ import { useAudio } from "@/lib/stores/useAudio";
 import { ArrowLeft, Check, X, Minus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export function MemoryChallenge() {
+export function MemoryChallenge({ onExit }: { onExit?: () => void } = {}) {
   const {
     memoryChallenge,
     memoryFlashCells,
@@ -219,7 +219,10 @@ export function MemoryChallenge() {
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between mb-6 sm:mb-8">
           <button
-            onClick={resetToMenu}
+            onClick={() => {
+              resetToMenu();
+              onExit?.();
+            }}
             className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-700/80 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-xl transition-all shadow-lg"
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />

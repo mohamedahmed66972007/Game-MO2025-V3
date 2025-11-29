@@ -76,10 +76,10 @@ export function ChallengesHub({ onExit }: { onExit: () => void }) {
     if (currentPhase === "playing") {
       return (
         <div className="fixed inset-0 bg-slate-950 flex items-center justify-center">
-          {selectedChallenge === "guess" && <GuessChallenge />}
-          {selectedChallenge === "memory" && <MemoryChallenge />}
-          {selectedChallenge === "direction" && <DirectionChallenge />}
-          {selectedChallenge === "raindrops" && <RainDropsChallenge />}
+          {selectedChallenge === "guess" && <GuessChallenge onExit={onExit} />}
+          {selectedChallenge === "memory" && <MemoryChallenge onExit={onExit} />}
+          {selectedChallenge === "direction" && <DirectionChallenge onExit={onExit} />}
+          {selectedChallenge === "raindrops" && <RainDropsChallenge onExit={onExit} />}
         </div>
       );
     }

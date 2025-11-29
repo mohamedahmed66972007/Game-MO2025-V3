@@ -48,7 +48,7 @@ const colorValues: Record<ColorDirection, string> = {
   red: "#ef4444",
 };
 
-export function DirectionChallenge() {
+export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
   const {
     directionChallenge,
     directionNextRound,
@@ -220,7 +220,7 @@ export function DirectionChallenge() {
   };
 
   const getDirectionIcon = (dir: "up" | "down" | "left" | "right") => {
-    const iconClass = "w-6 h-6 md:w-7 md:h-7";
+    const iconClass = "w-6 h-6 md:w-8 md:h-8";
     switch (dir) {
       case "up": return <ArrowUp className={iconClass} />;
       case "down": return <ArrowDown className={iconClass} />;
@@ -250,73 +250,181 @@ export function DirectionChallenge() {
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
 
-      {/* Header - Back button and stats */}
-      <div className="w-full max-w-3xl z-10 mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <button
-            onClick={resetToMenu}
-            className="flex items-center gap-2 bg-white/10 backdrop-blur-xl hover:bg-white/20 text-white px-4 py-2 md:px-6 md:py-3 rounded-2xl transition-all shadow-lg border border-white/10"
+      {/* Header */}
+      <div className="w-full max-w-2xl z-10 mb-6 flex items-center justify-between">
+        <button
+          onClick={() => {
+            resetToMenu();
+            onExit?.();
+          }}
+          className="flex items-center gap-2 bg-white/10 backdrop-blur-xl hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all shadow-lg border border-white/10"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="font-bold text-sm">رجوع</span>
+        </button>
+
+        <div className="flex items-center gap-2 md:gap-3">
+          <motion.div 
+            className="bg-white/10 backdrop-blur-xl px-3 py-2 rounded-lg shadow-lg border border-white/10 flex items-center gap-2"
+            animate={{ scale: directionChallenge.errors > 0 ? [1, 1.1, 1] : 1 }}
           >
-            <ArrowLeft className="w-4 h-4 md:w-5 md:h-5" />
-            <span className="font-bold text-sm md:text-base">رجوع</span>
-          </button>
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <span className="text-sm font-bold text-white">{directionChallenge.errors}/{directionChallenge.maxErrors}</span>
+          </motion.div>
 
-          <div className="flex items-center gap-2 md:gap-4">
-            <motion.div 
-              className="bg-white/10 backdrop-blur-xl px-3 py-2 md:px-4 md:py-3 rounded-2xl shadow-lg border border-white/10 flex items-center gap-2"
-              animate={{ scale: directionChallenge.errors > 0 ? [1, 1.1, 1] : 1 }}
-            >
-              <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-red-400" />
-              <span className="text-base md:text-lg font-bold text-white">
-                {directionChallenge.errors}/{directionChallenge.maxErrors}
-              </span>
-            </motion.div>
-
-            <div className="bg-white/10 backdrop-blur-xl px-3 py-2 md:px-4 md:py-3 rounded-2xl shadow-lg border border-white/10 flex items-center gap-2">
-              <Check className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
-              <span className="text-base md:text-lg font-bold text-white">
-                {directionChallenge.score}
-              </span>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-xl px-3 py-2 md:px-4 md:py-3 rounded-2xl shadow-lg border border-white/10 flex items-center gap-2">
-              <Clock className="w-4 h-4 md:w-5 md:h-5 text-cyan-400" />
-              <span className="text-base md:text-lg font-bold text-white">
-                {directionChallenge.currentRound}/{directionChallenge.totalRounds}
-              </span>
-            </div>
+          <div className="bg-white/10 backdrop-blur-xl px-3 py-2 rounded-lg shadow-lg border border-white/10 flex items-center gap-2">
+            <Check className="w-4 h-4 text-green-400" />
+            <span className="text-sm font-bold text-white">{directionChallenge.score}</span>
           </div>
-        </div>
 
-        <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-xl">
-          <motion.div
-            className="h-full rounded-full"
-            style={{
-              width: `${progress}%`,
-              background: progress > 50 
-                ? 'linear-gradient(90deg, #06b6d4, #8b5cf6)' 
-                : progress > 25 
-                  ? 'linear-gradient(90deg, #eab308, #f97316)' 
-                  : 'linear-gradient(90deg, #ef4444, #dc2626)',
-            }}
-            transition={{ duration: 0.1 }}
-          />
+          <div className="bg-white/10 backdrop-blur-xl px-3 py-2 rounded-lg shadow-lg border border-white/10 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-cyan-400" />
+            <span className="text-sm font-bold text-white">{directionChallenge.currentRound}/{directionChallenge.totalRounds}</span>
+          </div>
         </div>
       </div>
 
-      {/* Game Area */}
+      {/* Progress bar */}
+      <div className="w-full max-w-2xl h-1.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-xl mb-8 z-10">
+        <motion.div
+          className="h-full rounded-full"
+          style={{
+            width: `${progress}%`,
+            background: progress > 50 
+              ? 'linear-gradient(90deg, #06b6d4, #8b5cf6)' 
+              : progress > 25 
+                ? 'linear-gradient(90deg, #eab308, #f97316)' 
+                : 'linear-gradient(90deg, #ef4444, #dc2626)',
+          }}
+          transition={{ duration: 0.1 }}
+        />
+      </div>
+
+      {/* Game Area - Centered arrows around center card */}
       <div className="flex-1 flex items-center justify-center w-full z-10">
-        <div className="relative" style={{ width: 'min(75vw, 280px)', height: 'min(75vw, 280px)' }}>
-          {/* Center - Display text */}
+        <div className="relative" style={{ width: 'min(90vw, 400px)', height: 'min(90vw, 400px)' }}>
+          {/* Up Arrow */}
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("up")}
+            className="absolute rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm top-0 left-1/2 transform -translate-x-1/2"
+            style={{
+              width: '70px',
+              height: '70px',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('top') 
+                ? `${colorValues[getColorForPosition('top')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('top')
+                ? colorValues[getColorForPosition('top')!]
+                : 'rgba(255,255,255,0.3)',
+              boxShadow: pulseDirection === 'up' 
+                ? `0 0 30px rgba(139, 92, 246, 0.8)`
+                : '0 4px 15px rgba(0,0,0,0.3)',
+            }}
+            animate={{
+              scale: pulseDirection === 'up' ? 1.15 : 1,
+            }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('top') ? colorValues[getColorForPosition('top')!] : 'white' }}>
+              {getDirectionIcon('up')}
+            </span>
+          </motion.button>
+          
+          {/* Left Arrow */}
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("left")}
+            className="absolute rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm left-0 top-1/2 transform -translate-y-1/2"
+            style={{
+              width: '70px',
+              height: '70px',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('left') 
+                ? `${colorValues[getColorForPosition('left')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('left')
+                ? colorValues[getColorForPosition('left')!]
+                : 'rgba(255,255,255,0.3)',
+              boxShadow: pulseDirection === 'left' 
+                ? `0 0 30px rgba(139, 92, 246, 0.8)`
+                : '0 4px 15px rgba(0,0,0,0.3)',
+            }}
+            animate={{
+              scale: pulseDirection === 'left' ? 1.15 : 1,
+            }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('left') ? colorValues[getColorForPosition('left')!] : 'white' }}>
+              {getDirectionIcon('left')}
+            </span>
+          </motion.button>
+          
+          {/* Right Arrow */}
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("right")}
+            className="absolute rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm right-0 top-1/2 transform -translate-y-1/2"
+            style={{
+              width: '70px',
+              height: '70px',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('right') 
+                ? `${colorValues[getColorForPosition('right')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('right')
+                ? colorValues[getColorForPosition('right')!]
+                : 'rgba(255,255,255,0.3)',
+              boxShadow: pulseDirection === 'right' 
+                ? `0 0 30px rgba(139, 92, 246, 0.8)`
+                : '0 4px 15px rgba(0,0,0,0.3)',
+            }}
+            animate={{
+              scale: pulseDirection === 'right' ? 1.15 : 1,
+            }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('right') ? colorValues[getColorForPosition('right')!] : 'white' }}>
+              {getDirectionIcon('right')}
+            </span>
+          </motion.button>
+          
+          {/* Down Arrow */}
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("down")}
+            className="absolute rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm bottom-0 left-1/2 transform -translate-x-1/2"
+            style={{
+              width: '70px',
+              height: '70px',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('bottom') 
+                ? `${colorValues[getColorForPosition('bottom')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('bottom')
+                ? colorValues[getColorForPosition('bottom')!]
+                : 'rgba(255,255,255,0.3)',
+              boxShadow: pulseDirection === 'down' 
+                ? `0 0 30px rgba(139, 92, 246, 0.8)`
+                : '0 4px 15px rgba(0,0,0,0.3)',
+            }}
+            animate={{
+              scale: pulseDirection === 'down' ? 1.15 : 1,
+            }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('bottom') ? colorValues[getColorForPosition('bottom')!] : 'white' }}>
+              {getDirectionIcon('down')}
+            </span>
+          </motion.button>
+
+          {/* Center card */}
           <motion.div
-            className="absolute rounded-2xl flex items-center justify-center overflow-hidden bg-slate-800/95 border-2 border-white/30 shadow-2xl"
+            className="absolute rounded-2xl flex items-center justify-center overflow-hidden bg-slate-800/95 border-2 border-white/40 shadow-2xl"
             style={{
               left: '50%',
               top: '50%',
               transform: 'translate(-50%, -50%)',
-              width: '38%',
-              height: '38%',
-              boxShadow: '0 0 40px rgba(139, 92, 246, 0.3), inset 0 0 60px rgba(139, 92, 246, 0.15)',
+              width: '100px',
+              height: '100px',
+              boxShadow: '0 0 50px rgba(139, 92, 246, 0.4), inset 0 0 80px rgba(139, 92, 246, 0.2)',
             }}
             animate={{
               scale: showFeedback ? 1.05 : 1,
@@ -324,206 +432,72 @@ export function DirectionChallenge() {
             }}
             transition={{ duration: 0.3 }}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-2xl" />
             
             <span 
-              className="text-lg md:text-xl lg:text-2xl font-black text-white z-10 text-center px-2"
+              className="text-xl md:text-2xl font-black text-white z-10 text-center px-3 leading-tight"
               style={{
                 textShadow: '0 0 20px rgba(255,255,255,0.3)',
               }}
             >
               {getDisplayText()}
             </span>
+
+            {/* Feedback overlay */}
+            <AnimatePresence>
+              {showFeedback && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1.5, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                >
+                  <div className={`w-full h-full rounded-2xl flex items-center justify-center ${
+                    showFeedback === "correct"
+                      ? "bg-gradient-to-br from-green-400 to-emerald-600 shadow-2xl shadow-green-500/50"
+                      : "bg-gradient-to-br from-red-400 to-rose-600 shadow-2xl shadow-red-500/50"
+                  }`}>
+                    <motion.div
+                      initial={{ rotate: -45, scale: 0 }}
+                      animate={{ rotate: 0, scale: 1 }}
+                      transition={{ type: "spring", stiffness: 300 }}
+                    >
+                      {showFeedback === "correct" ? (
+                        <Check className="w-10 h-10 text-white" />
+                      ) : (
+                        <X className="w-10 h-10 text-white" />
+                      )}
+                    </motion.div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
-
-          {/* Up arrow */}
-          <motion.button
-            onClick={() => !hasInputRef.current && handleInput("up")}
-            className="absolute rounded-xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
-            style={{
-              left: '50%',
-              top: '0%',
-              transform: 'translateX(-50%)',
-              width: '28%',
-              height: '28%',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('top') 
-                ? `${colorValues[getColorForPosition('top')!]}30` 
-                : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('top')
-                ? colorValues[getColorForPosition('top')!]
-                : 'rgba(255,255,255,0.25)',
-              boxShadow: pulseDirection === 'up' 
-                ? `0 0 25px rgba(139, 92, 246, 0.6)`
-                : '0 4px 15px rgba(0,0,0,0.2)',
-            }}
-            animate={{
-              scale: pulseDirection === 'up' ? 1.1 : 1,
-              opacity: pulseDirection === 'up' ? 1 : 0.85,
-            }}
-            whileHover={{ scale: 1.08, opacity: 1 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('top') ? colorValues[getColorForPosition('top')!] : 'white' }}>
-              {getDirectionIcon('up')}
-            </span>
-          </motion.button>
-          
-          {/* Right arrow */}
-          <motion.button
-            onClick={() => !hasInputRef.current && handleInput("right")}
-            className="absolute rounded-xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
-            style={{
-              left: '0%',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: '28%',
-              height: '28%',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('right') 
-                ? `${colorValues[getColorForPosition('right')!]}30` 
-                : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('right')
-                ? colorValues[getColorForPosition('right')!]
-                : 'rgba(255,255,255,0.25)',
-              boxShadow: pulseDirection === 'right' 
-                ? `0 0 25px rgba(139, 92, 246, 0.6)`
-                : '0 4px 15px rgba(0,0,0,0.2)',
-            }}
-            animate={{
-              scale: pulseDirection === 'right' ? 1.1 : 1,
-              opacity: pulseDirection === 'right' ? 1 : 0.85,
-            }}
-            whileHover={{ scale: 1.08, opacity: 1 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('right') ? colorValues[getColorForPosition('right')!] : 'white' }}>
-              {getDirectionIcon('right')}
-            </span>
-          </motion.button>
-          
-          {/* Left arrow */}
-          <motion.button
-            onClick={() => !hasInputRef.current && handleInput("left")}
-            className="absolute rounded-xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
-            style={{
-              right: '0%',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: '28%',
-              height: '28%',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('left') 
-                ? `${colorValues[getColorForPosition('left')!]}30` 
-                : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('left')
-                ? colorValues[getColorForPosition('left')!]
-                : 'rgba(255,255,255,0.25)',
-              boxShadow: pulseDirection === 'left' 
-                ? `0 0 25px rgba(139, 92, 246, 0.6)`
-                : '0 4px 15px rgba(0,0,0,0.2)',
-            }}
-            animate={{
-              scale: pulseDirection === 'left' ? 1.1 : 1,
-              opacity: pulseDirection === 'left' ? 1 : 0.85,
-            }}
-            whileHover={{ scale: 1.08, opacity: 1 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('left') ? colorValues[getColorForPosition('left')!] : 'white' }}>
-              {getDirectionIcon('left')}
-            </span>
-          </motion.button>
-          
-          {/* Down arrow */}
-          <motion.button
-            onClick={() => !hasInputRef.current && handleInput("down")}
-            className="absolute rounded-xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
-            style={{
-              left: '50%',
-              bottom: '0%',
-              transform: 'translateX(-50%)',
-              width: '28%',
-              height: '28%',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('bottom') 
-                ? `${colorValues[getColorForPosition('bottom')!]}30` 
-                : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('bottom')
-                ? colorValues[getColorForPosition('bottom')!]
-                : 'rgba(255,255,255,0.25)',
-              boxShadow: pulseDirection === 'down' 
-                ? `0 0 25px rgba(139, 92, 246, 0.6)`
-                : '0 4px 15px rgba(0,0,0,0.2)',
-            }}
-            animate={{
-              scale: pulseDirection === 'down' ? 1.1 : 1,
-              opacity: pulseDirection === 'down' ? 1 : 0.85,
-            }}
-            whileHover={{ scale: 1.08, opacity: 1 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('bottom') ? colorValues[getColorForPosition('bottom')!] : 'white' }}>
-              {getDirectionIcon('down')}
-            </span>
-          </motion.button>
-
-          {/* Feedback overlay */}
-          <AnimatePresence>
-            {showFeedback && (
-              <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1.3, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none"
-              >
-                <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center ${
-                  showFeedback === "correct"
-                    ? "bg-gradient-to-br from-green-400 to-emerald-600 shadow-2xl shadow-green-500/50"
-                    : "bg-gradient-to-br from-red-400 to-rose-600 shadow-2xl shadow-red-500/50"
-                }`}>
-                  <motion.div
-                    initial={{ rotate: -45, scale: 0 }}
-                    animate={{ rotate: 0, scale: 1 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    {showFeedback === "correct" ? (
-                      <Check className="w-8 h-8 md:w-10 md:h-10 text-white" />
-                    ) : (
-                      <X className="w-8 h-8 md:w-10 md:h-10 text-white" />
-                    )}
-                  </motion.div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </div>
 
       {/* Instructions */}
-      <div className="w-full max-w-lg z-10 mt-4">
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 md:p-6">
-          <div className="flex items-center gap-3 justify-center text-white/70 text-sm md:text-base">
+      <div className="w-full max-w-lg z-10 mt-6">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+          <div className="flex items-center gap-3 justify-center text-white/70 text-xs md:text-sm">
             {isMobile ? (
               <>
-                <Hand className="w-5 h-5" />
+                <Hand className="w-4 h-4" />
                 <span>اسحب في اتجاه الإجابة الصحيحة</span>
               </>
             ) : (
               <>
-                <span className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-white/10 rounded-lg text-xs">W</kbd>
-                  <kbd className="px-2 py-1 bg-white/10 rounded-lg text-xs">A</kbd>
-                  <kbd className="px-2 py-1 bg-white/10 rounded-lg text-xs">S</kbd>
-                  <kbd className="px-2 py-1 bg-white/10 rounded-lg text-xs">D</kbd>
+                <span className="flex items-center gap-1">
+                  <kbd className="px-2 py-1 bg-white/10 rounded text-xs">↑</kbd>
+                  <kbd className="px-2 py-1 bg-white/10 rounded text-xs">←</kbd>
+                  <kbd className="px-2 py-1 bg-white/10 rounded text-xs">↓</kbd>
+                  <kbd className="px-2 py-1 bg-white/10 rounded text-xs">→</kbd>
                 </span>
-                <span>أو الأسهم للتحرك</span>
+                <span>أو الأسهم</span>
               </>
             )}
           </div>
-          
-          {directionChallenge.useColors && (
-            <div className="mt-3 text-center text-white/50 text-xs md:text-sm">
-              اضغط على السهم الذي يطابق لون الكلمة
-            </div>
-          )}
         </div>
       </div>
     </div>
