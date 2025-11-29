@@ -94,7 +94,8 @@ export function MultiplayerChallenge({ onComplete }: MultiplayerChallengeProps) 
         console.log("Challenge won!");
         hasCompletedRef.current = true;
         setHasWon(true);
-        awardWinnerCard(multiplayer.playerId);
+        const allowedCards = multiplayer.settings.allowedCards;
+        awardWinnerCard(multiplayer.playerId, allowedCards);
         setPhase("result");
       } else if (currentPhase === "lost") {
         console.log("Challenge lost!");
@@ -103,7 +104,7 @@ export function MultiplayerChallenge({ onComplete }: MultiplayerChallengeProps) 
         setPhase("result");
       }
     }
-  }, [currentPhase, phase, awardWinnerCard, multiplayer.playerId]);
+  }, [currentPhase, phase, awardWinnerCard, multiplayer.playerId, multiplayer.settings.allowedCards]);
 
   // Intro countdown
   useEffect(() => {

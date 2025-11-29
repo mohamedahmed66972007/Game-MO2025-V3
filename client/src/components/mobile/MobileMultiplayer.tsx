@@ -595,10 +595,63 @@ export function MobileMultiplayer() {
             <CardHand
               playerId={multiplayer.playerId}
               onUseCard={(cardId, targetPlayerId) => {
-                const { useCard } = useCards.getState();
-                const success = useCard(multiplayer.playerId, cardId, targetPlayerId);
+                const cardsState = useCards.getState();
+                const playerCards = cardsState.playerCards.find(p => p.playerId === multiplayer.playerId);
+                const card = playerCards?.cards.find(c => c.id === cardId);
+                
+                if (!card) return;
+                
+                // Calculate effect value for reveal cards
+                let effectValue: any = undefined;
+                let effectDuration = 30000;
+                
+                if (card.type === "revealNumber" && multiplayer.sharedSecret.length > 0) {
+                  const randomPos = Math.floor(Math.random() * multiplayer.sharedSecret.length);
+                  effectValue = [randomPos, multiplayer.sharedSecret[randomPos]];
+                  effectDuration = 60000;
+                } else if (card.type === "burnNumber" && multiplayer.sharedSecret.length > 0) {
+                  const possibleNumbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+                  const notInSecret = possibleNumbers.filter(n => !multiplayer.sharedSecret.includes(n));
+                  if (notInSecret.length > 0) {
+                    effectValue = notInSecret[Math.floor(Math.random() * notInSecret.length)];
+                    effectDuration = 60000;
+                  }
+                } else if (card.type === "revealParity" && multiplayer.sharedSecret.length > 0) {
+                  const positions = [];
+                  const usedPositions: number[] = [];
+                  for (let i = 0; i < 2 && i < multiplayer.sharedSecret.length; i++) {
+                    let pos;
+                    do {
+                      pos = Math.floor(Math.random() * multiplayer.sharedSecret.length);
+                    } while (usedPositions.includes(pos));
+                    usedPositions.push(pos);
+                    positions.push({
+                      position: pos,
+                      isEven: multiplayer.sharedSecret[pos] % 2 === 0
+                    });
+                  }
+                  effectValue = positions;
+                  effectDuration = 60000;
+                } else if (card.type === "freeze" || card.type === "blindMode") {
+                  effectDuration = 30000;
+                } else if (card.type === "shield") {
+                  effectDuration = 120000;
+                }
+                
+                // Remove card from local state
+                const success = cardsState.useCard(multiplayer.playerId, cardId, targetPlayerId, multiplayer.sharedSecret);
+                
                 if (success) {
-                  console.log("Card used successfully:", cardId);
+                  // Send card use via WebSocket
+                  send({
+                    type: "use_card",
+                    cardId,
+                    cardType: card.type,
+                    targetPlayerId,
+                    effectDuration,
+                    effectValue,
+                  });
+                  console.log("Card sent via WebSocket:", card.type);
                 }
               }}
               otherPlayers={multiplayer.players

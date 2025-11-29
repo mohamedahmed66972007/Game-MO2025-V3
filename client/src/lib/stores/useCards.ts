@@ -49,8 +49,8 @@ interface CardState {
   disableCards: () => void;
   
   initializePlayerCards: (playerId: string) => void;
-  awardWinnerCard: (playerId: string) => Card | null;
-  drawCard: (playerId: string) => Card | null;
+  awardWinnerCard: (playerId: string, allowedTypes?: CardType[]) => Card | null;
+  drawCard: (playerId: string, allowedTypes?: CardType[]) => Card | null;
   useCard: (playerId: string, cardId: string, targetPlayerId?: string, secretNumber?: number[]) => boolean;
   
   addActiveEffect: (playerId: string, effect: ActiveCardEffect) => void;
@@ -123,8 +123,17 @@ function generateUniqueId(): string {
   return `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function createRandomCard(): Card {
-  const randomDef = CARD_DEFINITIONS[Math.floor(Math.random() * CARD_DEFINITIONS.length)];
+function createRandomCard(allowedTypes?: CardType[]): Card {
+  let availableDefinitions = CARD_DEFINITIONS;
+  
+  if (allowedTypes && allowedTypes.length > 0) {
+    availableDefinitions = CARD_DEFINITIONS.filter(def => allowedTypes.includes(def.type));
+    if (availableDefinitions.length === 0) {
+      availableDefinitions = CARD_DEFINITIONS;
+    }
+  }
+  
+  const randomDef = availableDefinitions[Math.floor(Math.random() * availableDefinitions.length)];
   return {
     ...randomDef,
     id: generateUniqueId(),
@@ -159,7 +168,7 @@ const useCards = create<CardState>((set, get) => ({
     }
   },
 
-  awardWinnerCard: (playerId: string) => {
+  awardWinnerCard: (playerId: string, allowedTypes?: CardType[]) => {
     const { playerCards, cardsEnabled } = get();
     if (!cardsEnabled) {
       console.log("[Cards] Cards not enabled, skipping award");
@@ -182,7 +191,7 @@ const useCards = create<CardState>((set, get) => ({
       playerIndex = playerCards.length;
     }
     
-    const newCard = createRandomCard();
+    const newCard = createRandomCard(allowedTypes);
     const currentCards = get().playerCards;
     const updatedPlayerCards = [...currentCards];
     const pIndex = updatedPlayerCards.findIndex((p) => p.playerId === playerId);
@@ -193,20 +202,20 @@ const useCards = create<CardState>((set, get) => ({
         cards: [...updatedPlayerCards[pIndex].cards, newCard],
       };
       set({ playerCards: updatedPlayerCards });
-      console.log(`[Cards] Awarded winner card to ${playerId}:`, newCard.nameAr);
+      console.log(`[Cards] Awarded winner card to ${playerId}:`, newCard.nameAr, allowedTypes ? `(from allowed: ${allowedTypes.join(", ")})` : "");
       return newCard;
     }
     
     return null;
   },
 
-  drawCard: (playerId: string) => {
+  drawCard: (playerId: string, allowedTypes?: CardType[]) => {
     const { playerCards } = get();
     const playerIndex = playerCards.findIndex((p) => p.playerId === playerId);
     
     if (playerIndex === -1) return null;
     
-    const newCard = createRandomCard();
+    const newCard = createRandomCard(allowedTypes);
     const updatedPlayerCards = [...playerCards];
     
     if (updatedPlayerCards[playerIndex].cards.length < 5) {

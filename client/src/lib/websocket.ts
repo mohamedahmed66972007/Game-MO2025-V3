@@ -430,7 +430,8 @@ const handleMessage = (message: any) => {
         
         if (!wasAlreadyWon && !alreadyAwarded && store.multiplayer.settings.cardsEnabled) {
           const cardsStore = useCards.getState();
-          const awardedCard = cardsStore.awardWinnerCard(store.multiplayer.playerId);
+          const allowedCards = store.multiplayer.settings.allowedCards;
+          const awardedCard = cardsStore.awardWinnerCard(store.multiplayer.playerId, allowedCards);
           if (awardedCard) {
             sessionStorage.setItem(cardAwardKey, "true");
             toast.success(`🎴 حصلت على بطاقة ${awardedCard.nameAr}!`, {
@@ -549,6 +550,48 @@ const handleMessage = (message: any) => {
       cardsStoreRematch.resetCards();
       console.log("Rematch starting - game and cards reset");
       break;
+
+    case "card_used": {
+      const cardsStore = useCards.getState();
+      const currentPlayerId = store.multiplayer.playerId;
+      
+      console.log(`[Cards WS] Card used: ${message.cardType} from ${message.fromPlayerName} to ${message.targetPlayerName || "self"}`);
+      
+      // Determine who receives the effect
+      const isAttackCard = ["freeze", "blindMode"].includes(message.cardType);
+      const effectRecipientId = isAttackCard && message.targetPlayerId
+        ? message.targetPlayerId
+        : message.fromPlayerId;
+      
+      // Initialize the recipient if not exists
+      cardsStore.initializePlayerCards(effectRecipientId);
+      
+      // Apply the effect
+      const effect = {
+        cardType: message.cardType,
+        targetPlayerId: message.targetPlayerId,
+        expiresAt: Date.now() + (message.effectDuration || 30000),
+        value: message.effectValue,
+      };
+      
+      cardsStore.addActiveEffect(effectRecipientId, effect);
+      
+      // Show notification based on who used the card
+      if (message.fromPlayerId === currentPlayerId) {
+        // I used the card
+        if (message.targetPlayerId && message.targetPlayerName) {
+          toast.success(`استخدمت البطاقة ضد ${message.targetPlayerName}! 🎴`, { duration: 3000 });
+        }
+      } else if (message.targetPlayerId === currentPlayerId) {
+        // Card was used against me
+        if (message.cardType === "freeze") {
+          toast.error(`${message.fromPlayerName} جمّدك لمدة 30 ثانية! ❄️`, { duration: 5000 });
+        } else if (message.cardType === "blindMode") {
+          toast.warning(`${message.fromPlayerName} عطّل رؤيتك للأرقام الزرقاء! 👁️`, { duration: 5000 });
+        }
+      }
+      break;
+    }
 
     case "rematch_cancelled":
       store.setRematchRequested(false, null);

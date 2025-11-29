@@ -6,9 +6,10 @@ import { send } from "@/lib/websocket";
 import { Sliders, Sparkles, Eye, XCircle, Hash, Snowflake, Shield, EyeOff, Gamepad2, Shuffle, Brain, Zap, CloudRain, Lightbulb, Check } from "lucide-react";
 
 type ChallengeType = "guess" | "memory" | "direction" | "raindrops" | "random";
+type CardTypeId = "revealNumber" | "burnNumber" | "revealParity" | "freeze" | "shield" | "blindMode";
 
 interface GameSettingsProps {
-  onConfirm: (settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean; selectedChallenge?: ChallengeType }) => void;
+  onConfirm: (settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean; selectedChallenge?: ChallengeType; allowedCards?: CardTypeId[] }) => void;
   isMultiplayer?: boolean;
 }
 
@@ -20,14 +21,16 @@ const challenges: { id: ChallengeType; name: string; description: string; icon: 
   { id: "random", name: "عشوائي", description: "يختار النظام تحدي عشوائياً", icon: <Shuffle className="w-5 h-5" />, color: "pink" },
 ];
 
-const cardTypes = [
-  { name: "إظهار رقم", icon: <Eye className="w-3 h-3" />, color: "purple" },
-  { name: "حرق رقم", icon: <XCircle className="w-3 h-3" />, color: "red" },
-  { name: "زوجي/فردي", icon: <Hash className="w-3 h-3" />, color: "green" },
-  { name: "تجميد", icon: <Snowflake className="w-3 h-3" />, color: "cyan" },
-  { name: "درع", icon: <Shield className="w-3 h-3" />, color: "blue" },
-  { name: "تعطيل العرض", icon: <EyeOff className="w-3 h-3" />, color: "orange" },
+const cardTypes: { id: CardTypeId; name: string; icon: React.ReactNode; color: string }[] = [
+  { id: "revealNumber", name: "إظهار رقم", icon: <Eye className="w-3 h-3" />, color: "purple" },
+  { id: "burnNumber", name: "حرق رقم", icon: <XCircle className="w-3 h-3" />, color: "red" },
+  { id: "revealParity", name: "زوجي/فردي", icon: <Hash className="w-3 h-3" />, color: "green" },
+  { id: "freeze", name: "تجميد", icon: <Snowflake className="w-3 h-3" />, color: "cyan" },
+  { id: "shield", name: "درع", icon: <Shield className="w-3 h-3" />, color: "blue" },
+  { id: "blindMode", name: "تعطيل العرض", icon: <EyeOff className="w-3 h-3" />, color: "orange" },
 ];
+
+const allCardIds: CardTypeId[] = ["revealNumber", "burnNumber", "revealParity", "freeze", "shield", "blindMode"];
 
 export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsProps) {
   const { singleplayer, multiplayer, setSingleplayerSettings, setMultiplayerSettings } = useNumberGame();
@@ -39,19 +42,33 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
   const [selectedChallenge, setSelectedChallenge] = useState<ChallengeType>(
     (currentSettings.selectedChallenge as ChallengeType) || "random"
   );
+  const [allowedCards, setAllowedCards] = useState<CardTypeId[]>(
+    (currentSettings.allowedCards as CardTypeId[]) || allCardIds
+  );
+
+  const toggleCard = (cardId: CardTypeId) => {
+    if (allowedCards.includes(cardId)) {
+      if (allowedCards.length > 1) {
+        setAllowedCards(allowedCards.filter(id => id !== cardId));
+      }
+    } else {
+      setAllowedCards([...allowedCards, cardId]);
+    }
+  };
 
   const handleConfirm = () => {
     const settings = { 
       numDigits, 
       maxAttempts, 
       cardsEnabled: isMultiplayer ? cardsEnabled : undefined,
-      selectedChallenge: isMultiplayer && cardsEnabled ? selectedChallenge : undefined
+      selectedChallenge: isMultiplayer && cardsEnabled ? selectedChallenge : undefined,
+      allowedCards: isMultiplayer && cardsEnabled ? allowedCards : undefined
     };
     if (isMultiplayer) {
-      setMultiplayerSettings({ numDigits, maxAttempts, cardsEnabled, selectedChallenge });
+      setMultiplayerSettings({ numDigits, maxAttempts, cardsEnabled, selectedChallenge, allowedCards });
       send({
         type: "update_settings",
-        settings: { numDigits, maxAttempts, cardsEnabled, selectedChallenge },
+        settings: { numDigits, maxAttempts, cardsEnabled, selectedChallenge, allowedCards },
       });
     } else {
       setSingleplayerSettings({ numDigits, maxAttempts });
@@ -222,24 +239,34 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
                   <div className="p-3 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
                     <p className="text-xs text-gray-700 font-medium mb-2 flex items-center gap-1">
                       <Sparkles className="w-3 h-3" />
-                      البطاقات المتاحة للفائز:
+                      اختر البطاقات المسموحة ({allowedCards.length} من {cardTypes.length}):
+                    </p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      الفائز يحصل على بطاقة عشوائية من البطاقات المختارة
                     </p>
                     <div className="grid grid-cols-2 gap-1.5 text-xs">
-                      {cardTypes.map((card, index) => (
-                        <span 
-                          key={index}
-                          className={`px-2 py-1 rounded flex items-center gap-1 ${
-                            card.color === 'purple' ? 'bg-purple-100 text-purple-700' :
-                            card.color === 'red' ? 'bg-red-100 text-red-700' :
-                            card.color === 'green' ? 'bg-green-100 text-green-700' :
-                            card.color === 'cyan' ? 'bg-cyan-100 text-cyan-700' :
-                            card.color === 'blue' ? 'bg-blue-100 text-blue-700' :
-                            'bg-orange-100 text-orange-700'
-                          }`}
-                        >
-                          {card.icon} {card.name}
-                        </span>
-                      ))}
+                      {cardTypes.map((card) => {
+                        const isSelected = allowedCards.includes(card.id);
+                        return (
+                          <button
+                            key={card.id}
+                            onClick={() => toggleCard(card.id)}
+                            className={`px-2 py-1.5 rounded flex items-center gap-1 transition-all duration-200 border-2 ${
+                              isSelected 
+                                ? card.color === 'purple' ? 'bg-purple-100 text-purple-700 border-purple-400' :
+                                  card.color === 'red' ? 'bg-red-100 text-red-700 border-red-400' :
+                                  card.color === 'green' ? 'bg-green-100 text-green-700 border-green-400' :
+                                  card.color === 'cyan' ? 'bg-cyan-100 text-cyan-700 border-cyan-400' :
+                                  card.color === 'blue' ? 'bg-blue-100 text-blue-700 border-blue-400' :
+                                  'bg-orange-100 text-orange-700 border-orange-400'
+                                : 'bg-gray-100 text-gray-400 border-gray-200 opacity-60'
+                            }`}
+                          >
+                            {card.icon} {card.name}
+                            {isSelected && <Check className="w-3 h-3 mr-auto" />}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

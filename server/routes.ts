@@ -1116,6 +1116,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         players.delete(ws);
         break;
       }
+
+      case "use_card": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room || !room.game || room.game.status !== "playing") return;
+
+        // Get target player info
+        const targetPlayer = message.targetPlayerId 
+          ? room.players.find(p => p.id === message.targetPlayerId)
+          : null;
+
+        // Broadcast card usage to ALL players in the room (including the user)
+        broadcastToRoom(room, {
+          type: "card_used",
+          fromPlayerId: player.id,
+          fromPlayerName: player.name,
+          targetPlayerId: message.targetPlayerId,
+          targetPlayerName: targetPlayer?.name,
+          cardType: message.cardType,
+          cardId: message.cardId,
+          effectDuration: message.effectDuration,
+          effectValue: message.effectValue,
+        });
+
+        console.log(`[Cards] ${player.name} used ${message.cardType} on ${targetPlayer?.name || "self"}`);
+        break;
+      }
     }
   }
 
