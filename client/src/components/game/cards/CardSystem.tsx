@@ -228,6 +228,17 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
         return null;
         
       case "burnNumber":
+        if (Array.isArray(effect.value)) {
+          return (
+            <div className="mt-1 bg-white/20 rounded-lg px-2 py-1 space-y-1">
+              {(effect.value as number[]).map((num, idx) => (
+                <div key={idx} className="text-sm font-bold">
+                  ❌ الرقم {num} غير موجود
+                </div>
+              ))}
+            </div>
+          );
+        }
         return (
           <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
             <span className="text-sm font-bold">

@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Button } from "./button";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
+import { useCards, DEFAULT_CARD_SETTINGS, CardSettings } from "@/lib/stores/useCards";
 import { send } from "@/lib/websocket";
-import { Sliders, Sparkles, Eye, XCircle, Hash, Snowflake, Shield, EyeOff, Gamepad2, Shuffle, Brain, Zap, CloudRain, Lightbulb, Check } from "lucide-react";
+import { Sliders, Sparkles, Eye, XCircle, Hash, Snowflake, Shield, EyeOff, Gamepad2, Shuffle, Brain, Zap, CloudRain, Lightbulb, Check, Clock, Settings2 } from "lucide-react";
 
 type ChallengeType = "guess" | "memory" | "direction" | "raindrops" | "random";
 type CardTypeId = "revealNumber" | "burnNumber" | "revealParity" | "freeze" | "shield" | "blindMode";
@@ -34,6 +35,7 @@ const allCardIds: CardTypeId[] = ["revealNumber", "burnNumber", "revealParity", 
 
 export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsProps) {
   const { singleplayer, multiplayer, setSingleplayerSettings, setMultiplayerSettings } = useNumberGame();
+  const { cardSettings, setCardSettings } = useCards();
   const currentSettings = isMultiplayer ? multiplayer.settings : singleplayer.settings;
   
   const [numDigits, setNumDigits] = useState(currentSettings.numDigits);
@@ -45,6 +47,15 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
   const [allowedCards, setAllowedCards] = useState<CardTypeId[]>(
     (currentSettings.allowedCards as CardTypeId[]) || allCardIds
   );
+  
+  // إعدادات البطاقات الجديدة
+  const [showCardSettings, setShowCardSettings] = useState(false);
+  const [roundDuration, setRoundDuration] = useState(cardSettings.roundDuration);
+  const [revealNumberShowPosition, setRevealNumberShowPosition] = useState(cardSettings.revealNumberShowPosition);
+  const [burnNumberCount, setBurnNumberCount] = useState(cardSettings.burnNumberCount);
+  const [revealParitySlots, setRevealParitySlots] = useState(Math.min(cardSettings.revealParitySlots, numDigits));
+  const [freezeDuration, setFreezeDuration] = useState(cardSettings.freezeDuration);
+  const [shieldDuration, setShieldDuration] = useState(cardSettings.shieldDuration);
 
   const toggleCard = (cardId: CardTypeId) => {
     if (allowedCards.includes(cardId)) {
@@ -64,11 +75,44 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
       selectedChallenge: isMultiplayer && cardsEnabled ? selectedChallenge : undefined,
       allowedCards: isMultiplayer && cardsEnabled ? allowedCards : undefined
     };
+    
+    // حفظ إعدادات البطاقات
+    if (isMultiplayer && cardsEnabled) {
+      setCardSettings({
+        roundDuration,
+        revealNumberShowPosition,
+        burnNumberCount,
+        revealParitySlots: Math.min(revealParitySlots, numDigits),
+        freezeDuration,
+        shieldDuration,
+      });
+    }
+    
     if (isMultiplayer) {
-      setMultiplayerSettings({ numDigits, maxAttempts, cardsEnabled, selectedChallenge, allowedCards });
+      setMultiplayerSettings({ 
+        numDigits, 
+        maxAttempts, 
+        cardsEnabled, 
+        selectedChallenge: selectedChallenge as any, 
+        allowedCards 
+      });
       send({
         type: "update_settings",
-        settings: { numDigits, maxAttempts, cardsEnabled, selectedChallenge, allowedCards },
+        settings: { 
+          numDigits, 
+          maxAttempts, 
+          cardsEnabled, 
+          selectedChallenge, 
+          allowedCards,
+          cardSettings: cardsEnabled ? {
+            roundDuration,
+            revealNumberShowPosition,
+            burnNumberCount,
+            revealParitySlots: Math.min(revealParitySlots, numDigits),
+            freezeDuration,
+            shieldDuration,
+          } : undefined
+        },
       });
     } else {
       setSingleplayerSettings({ numDigits, maxAttempts });
@@ -269,6 +313,153 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
                       })}
                     </div>
                   </div>
+
+                  {/* إعدادات البطاقات المتقدمة */}
+                  <div className="p-3 bg-gradient-to-br from-gray-50 to-slate-50 rounded-lg border border-gray-200">
+                    <button
+                      onClick={() => setShowCardSettings(!showCardSettings)}
+                      className="w-full flex items-center justify-between text-sm text-gray-700 font-medium"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Settings2 className="w-4 h-4" />
+                        إعدادات البطاقات المتقدمة
+                      </span>
+                      <span className={`transform transition-transform ${showCardSettings ? 'rotate-180' : ''}`}>▼</span>
+                    </button>
+                    
+                    {showCardSettings && (
+                      <div className="mt-4 space-y-4">
+                        {/* مدة الجولة */}
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            مدة الجولة: <span className="text-blue-600 font-bold">{roundDuration} دقائق</span>
+                          </label>
+                          <input
+                            type="range"
+                            min="1"
+                            max="15"
+                            value={roundDuration}
+                            onChange={(e) => setRoundDuration(Number(e.target.value))}
+                            className="w-full h-1.5 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                          />
+                          <div className="flex justify-between text-xs text-gray-400 mt-1">
+                            <span>1 دقيقة</span>
+                            <span>15 دقيقة</span>
+                          </div>
+                        </div>
+
+                        {/* إعداد بطاقة إظهار رقم */}
+                        {allowedCards.includes("revealNumber") && (
+                          <div className="p-2 bg-purple-50 rounded-lg border border-purple-200">
+                            <p className="text-xs font-medium text-purple-700 mb-2 flex items-center gap-1">
+                              <Eye className="w-3 h-3" />
+                              بطاقة إظهار رقم
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setRevealNumberShowPosition(true)}
+                                className={`flex-1 px-2 py-1.5 text-xs rounded border-2 transition-all ${
+                                  revealNumberShowPosition 
+                                    ? 'bg-purple-100 border-purple-400 text-purple-700' 
+                                    : 'bg-white border-gray-200 text-gray-500'
+                                }`}
+                              >
+                                إظهار في الخانة
+                              </button>
+                              <button
+                                onClick={() => setRevealNumberShowPosition(false)}
+                                className={`flex-1 px-2 py-1.5 text-xs rounded border-2 transition-all ${
+                                  !revealNumberShowPosition 
+                                    ? 'bg-purple-100 border-purple-400 text-purple-700' 
+                                    : 'bg-white border-gray-200 text-gray-500'
+                                }`}
+                              >
+                                إشعار فقط
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* إعداد بطاقة حرق رقم */}
+                        {allowedCards.includes("burnNumber") && (
+                          <div className="p-2 bg-red-50 rounded-lg border border-red-200">
+                            <p className="text-xs font-medium text-red-700 mb-2 flex items-center gap-1">
+                              <XCircle className="w-3 h-3" />
+                              عدد الأرقام المحروقة: <span className="text-red-600 font-bold">{burnNumberCount}</span>
+                            </p>
+                            <input
+                              type="range"
+                              min="1"
+                              max="3"
+                              value={burnNumberCount}
+                              onChange={(e) => setBurnNumberCount(Number(e.target.value))}
+                              className="w-full h-1.5 bg-red-200 rounded-lg appearance-none cursor-pointer accent-red-600"
+                            />
+                          </div>
+                        )}
+
+                        {/* إعداد بطاقة كشف الزوجي/الفردي */}
+                        {allowedCards.includes("revealParity") && (
+                          <div className="p-2 bg-green-50 rounded-lg border border-green-200">
+                            <p className="text-xs font-medium text-green-700 mb-2 flex items-center gap-1">
+                              <Hash className="w-3 h-3" />
+                              عدد الخانات المكشوفة: <span className="text-green-600 font-bold">{Math.min(revealParitySlots, numDigits)}</span>
+                            </p>
+                            <input
+                              type="range"
+                              min="1"
+                              max={numDigits}
+                              value={Math.min(revealParitySlots, numDigits)}
+                              onChange={(e) => setRevealParitySlots(Number(e.target.value))}
+                              className="w-full h-1.5 bg-green-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                            />
+                          </div>
+                        )}
+
+                        {/* إعداد بطاقة التجميد */}
+                        {allowedCards.includes("freeze") && (
+                          <div className="p-2 bg-cyan-50 rounded-lg border border-cyan-200">
+                            <p className="text-xs font-medium text-cyan-700 mb-2 flex items-center gap-1">
+                              <Snowflake className="w-3 h-3" />
+                              مدة التجميد: <span className="text-cyan-600 font-bold">{freezeDuration} ثانية</span>
+                            </p>
+                            <input
+                              type="range"
+                              min="10"
+                              max="120"
+                              step="10"
+                              value={freezeDuration}
+                              onChange={(e) => setFreezeDuration(Number(e.target.value))}
+                              className="w-full h-1.5 bg-cyan-200 rounded-lg appearance-none cursor-pointer accent-cyan-600"
+                            />
+                          </div>
+                        )}
+
+                        {/* إعداد بطاقة الدرع */}
+                        {allowedCards.includes("shield") && (
+                          <div className="p-2 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="text-xs font-medium text-blue-700 mb-2 flex items-center gap-1">
+                              <Shield className="w-3 h-3" />
+                              مدة الدرع: <span className="text-blue-600 font-bold">{shieldDuration} ثانية</span>
+                            </p>
+                            <input
+                              type="range"
+                              min="30"
+                              max="300"
+                              step="30"
+                              value={shieldDuration}
+                              onChange={(e) => setShieldDuration(Number(e.target.value))}
+                              className="w-full h-1.5 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              ملاحظة: الدرع لا يلغي التجميد إذا كان مفعّلاً قبله
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -286,6 +477,7 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
                   <li>التحدي: <span className="font-bold text-indigo-600">
                     {challenges.find(c => c.id === selectedChallenge)?.name}
                   </span></li>
+                  <li>مدة الجولة: <span className="font-bold text-blue-600">{roundDuration} دقائق</span></li>
                 </>
               )}
             </ul>

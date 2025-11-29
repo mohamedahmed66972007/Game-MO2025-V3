@@ -326,6 +326,9 @@ const handleMessage = (message: any) => {
       
       // Initialize cards system if enabled
       const cardsStore = useCards.getState();
+      // دائماً امسح الأرقام المكشوفة والمحروقة عند بداية لعبة جديدة
+      cardsStore.clearRevealedAndBurned();
+      
       if (cardsEnabled) {
         cardsStore.enableCards();
         cardsStore.initializePlayerCards(store.multiplayer.playerId);

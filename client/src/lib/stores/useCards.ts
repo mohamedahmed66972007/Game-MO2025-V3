@@ -3,10 +3,29 @@ import { create } from "zustand";
 export type CardType = 
   | "revealNumber"    // إظهار رقم ومكانه
   | "burnNumber"      // حرق رقم (رقم غير موجود)
-  | "revealParity"    // إظهار زوجي/فردي لخانتين
-  | "freeze"          // تجميد الخصم 30 ثانية
+  | "revealParity"    // إظهار زوجي/فردي لجميع الخانات
+  | "freeze"          // تجميد الخصم
   | "shield"          // درع الدفاع
-  | "blindMode";      // تعطيل عرض الأرقام الزرقاء (30 ثانية)
+  | "blindMode";      // تعطيل عرض الأرقام الزرقاء
+
+// إعدادات البطاقات
+export interface CardSettings {
+  revealNumberShowPosition: boolean; // true = إظهار في الخانات، false = إشعار فقط
+  burnNumberCount: number; // عدد الأرقام المحروقة (افتراضي 1)
+  revealParitySlots: number; // عدد الخانات المكشوفة (افتراضي = عدد الأرقام)
+  freezeDuration: number; // مدة التجميد بالثواني (افتراضي 30)
+  shieldDuration: number; // مدة الدرع بالثواني (افتراضي 120)
+  roundDuration: number; // مدة الجولة بالدقائق (افتراضي 5)
+}
+
+const DEFAULT_CARD_SETTINGS: CardSettings = {
+  revealNumberShowPosition: true,
+  burnNumberCount: 1,
+  revealParitySlots: 4,
+  freezeDuration: 30,
+  shieldDuration: 120,
+  roundDuration: 5,
+};
 
 export type CardIconType = "eye" | "x-circle" | "hash" | "snowflake" | "shield" | "eye-off";
 
@@ -44,19 +63,28 @@ export interface PlayerCards {
 interface CardState {
   cardsEnabled: boolean;
   playerCards: PlayerCards[];
+  cardSettings: CardSettings;
+  revealedDigits: { position: number; digit: number }[]; // الأرقام المكشوفة الثابتة في الخانات
+  burnedNumbers: number[]; // الأرقام المحروقة
   
   enableCards: () => void;
   disableCards: () => void;
+  setCardSettings: (settings: Partial<CardSettings>) => void;
   
   initializePlayerCards: (playerId: string) => void;
   awardWinnerCard: (playerId: string, allowedTypes?: CardType[]) => Card | null;
   drawCard: (playerId: string, allowedTypes?: CardType[]) => Card | null;
-  useCard: (playerId: string, cardId: string, targetPlayerId?: string, secretNumber?: number[]) => boolean;
+  useCard: (playerId: string, cardId: string, targetPlayerId?: string, secretNumber?: number[], numDigits?: number) => boolean;
   
   addActiveEffect: (playerId: string, effect: ActiveCardEffect) => void;
   removeExpiredEffects: () => void;
   hasActiveEffect: (playerId: string, cardType: CardType) => boolean;
   getActiveEffect: (playerId: string, cardType: CardType) => ActiveCardEffect | null;
+  clearAllActiveEffects: () => void; // تنظيف جميع التأثيرات
+  
+  addRevealedDigit: (position: number, digit: number) => void;
+  addBurnedNumber: (num: number) => void;
+  clearRevealedAndBurned: () => void;
   
   resetCards: () => void;
   getPlayerCards: (playerId: string) => Card[];
@@ -148,9 +176,15 @@ function createRandomCard(allowedTypes?: CardType[]): Card {
 const useCards = create<CardState>((set, get) => ({
   cardsEnabled: false,
   playerCards: [],
+  cardSettings: { ...DEFAULT_CARD_SETTINGS },
+  revealedDigits: [],
+  burnedNumbers: [],
 
   enableCards: () => set({ cardsEnabled: true }),
   disableCards: () => set({ cardsEnabled: false }),
+  setCardSettings: (settings) => set((state) => ({ 
+    cardSettings: { ...state.cardSettings, ...settings } 
+  })),
 
   initializePlayerCards: (playerId: string) => {
     const { playerCards } = get();
@@ -237,8 +271,8 @@ const useCards = create<CardState>((set, get) => ({
     return null;
   },
 
-  useCard: (playerId: string, cardId: string, targetPlayerId?: string, secretNumber?: number[]) => {
-    const { playerCards } = get();
+  useCard: (playerId: string, cardId: string, targetPlayerId?: string, secretNumber?: number[], numDigits?: number) => {
+    const { playerCards, cardSettings, revealedDigits, burnedNumbers } = get();
     const playerIndex = playerCards.findIndex((p) => p.playerId === playerId);
     
     if (playerIndex === -1) return false;
@@ -249,7 +283,7 @@ const useCards = create<CardState>((set, get) => ({
     const card = playerCards[playerIndex].cards[cardIndex];
     if (card.isUsed || card.cooldown > 0) return false;
     
-    // Check if target has shield for attack cards
+    // Check if target has shield for attack cards (only if shield was activated BEFORE the attack)
     const attackCards: CardType[] = ["freeze", "blindMode"];
     const targetPlayer = targetPlayerId 
       ? playerCards.find((p) => p.playerId === targetPlayerId) 
@@ -292,53 +326,79 @@ const useCards = create<CardState>((set, get) => ({
     
     switch (card.type) {
       case "revealNumber":
-        // Reveal one random position and its value
+        // Reveal one random position and its value (excluding already revealed positions)
         if (secretNumber && secretNumber.length > 0) {
-          const randomPos = Math.floor(Math.random() * secretNumber.length);
-          effectValue = [randomPos, secretNumber[randomPos]];
-          effectDuration = 60000; // Show for 60 seconds
+          const alreadyRevealedPositions = revealedDigits.map(r => r.position);
+          const availablePositions = Array.from({ length: secretNumber.length }, (_, i) => i)
+            .filter(pos => !alreadyRevealedPositions.includes(pos));
+          
+          if (availablePositions.length > 0) {
+            const randomPos = availablePositions[Math.floor(Math.random() * availablePositions.length)];
+            effectValue = [randomPos, secretNumber[randomPos]];
+            effectDuration = 600000; // Show for 10 minutes (effectively permanent for the round)
+            
+            // إضافة الرقم المكشوف للخانات إذا كان الإعداد مفعل
+            if (cardSettings.revealNumberShowPosition) {
+              get().addRevealedDigit(randomPos, secretNumber[randomPos]);
+            }
+          }
         }
         break;
         
       case "burnNumber":
-        // Find a number that's NOT in the secret
+        // Find numbers that are NOT in the secret (based on settings)
         if (secretNumber) {
           const possibleNumbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-          const notInSecret = possibleNumbers.filter(n => !secretNumber.includes(n));
+          const alreadyBurned = burnedNumbers;
+          const notInSecret = possibleNumbers.filter(n => 
+            !secretNumber.includes(n) && !alreadyBurned.includes(n)
+          );
+          
           if (notInSecret.length > 0) {
-            effectValue = notInSecret[Math.floor(Math.random() * notInSecret.length)];
-            effectDuration = 60000;
+            const burnCount = Math.min(cardSettings.burnNumberCount, notInSecret.length);
+            const burnedNums: number[] = [];
+            
+            for (let i = 0; i < burnCount; i++) {
+              const idx = Math.floor(Math.random() * (notInSecret.length - i));
+              const num = notInSecret.splice(idx, 1)[0];
+              burnedNums.push(num);
+              get().addBurnedNumber(num);
+            }
+            
+            effectValue = burnedNums.length === 1 ? burnedNums[0] : burnedNums;
+            effectDuration = 600000;
           }
         }
         break;
         
       case "revealParity":
-        // Reveal even/odd for 2 random positions
-        if (secretNumber && secretNumber.length >= 2) {
-          const positions = [];
-          const usedPositions: number[] = [];
-          for (let i = 0; i < 2 && i < secretNumber.length; i++) {
-            let pos;
-            do {
-              pos = Math.floor(Math.random() * secretNumber.length);
-            } while (usedPositions.includes(pos));
-            usedPositions.push(pos);
+        // Reveal even/odd for ALL positions (based on settings)
+        if (secretNumber && secretNumber.length >= 1) {
+          const slotsToReveal = Math.min(
+            cardSettings.revealParitySlots || secretNumber.length, 
+            secretNumber.length
+          );
+          const positions: ParityInfo[] = [];
+          
+          // إظهار جميع الخانات بالترتيب
+          for (let i = 0; i < slotsToReveal; i++) {
             positions.push({
-              position: pos,
-              isEven: secretNumber[pos] % 2 === 0
+              position: i,
+              isEven: secretNumber[i] % 2 === 0
             });
           }
+          
           effectValue = positions;
-          effectDuration = 60000;
+          effectDuration = 600000;
         }
         break;
         
       case "freeze":
-        effectDuration = 30000; // 30 seconds freeze
+        effectDuration = cardSettings.freezeDuration * 1000;
         break;
         
       case "shield":
-        effectDuration = 120000; // Shield lasts 2 minutes
+        effectDuration = cardSettings.shieldDuration * 1000;
         break;
         
       case "blindMode":
@@ -432,12 +492,48 @@ const useCards = create<CardState>((set, get) => ({
     return player?.cards || [];
   },
 
+  clearAllActiveEffects: () => {
+    const { playerCards } = get();
+    const updatedPlayerCards = playerCards.map((player) => ({
+      ...player,
+      activeEffects: [],
+    }));
+    set({ playerCards: updatedPlayerCards });
+    console.log("[Cards] Cleared all active effects");
+  },
+
+  addRevealedDigit: (position: number, digit: number) => {
+    const { revealedDigits } = get();
+    // لا تضيف نفس الموضع مرتين
+    if (!revealedDigits.some(r => r.position === position)) {
+      set({ revealedDigits: [...revealedDigits, { position, digit }] });
+      console.log(`[Cards] Added revealed digit: position ${position}, digit ${digit}`);
+    }
+  },
+
+  addBurnedNumber: (num: number) => {
+    const { burnedNumbers } = get();
+    if (!burnedNumbers.includes(num)) {
+      set({ burnedNumbers: [...burnedNumbers, num] });
+      console.log(`[Cards] Added burned number: ${num}`);
+    }
+  },
+
+  clearRevealedAndBurned: () => {
+    set({ revealedDigits: [], burnedNumbers: [] });
+    console.log("[Cards] Cleared revealed digits and burned numbers");
+  },
+
   resetCards: () => {
     set({
       cardsEnabled: false,
       playerCards: [],
+      revealedDigits: [],
+      burnedNumbers: [],
+      cardSettings: { ...DEFAULT_CARD_SETTINGS },
     });
+    console.log("[Cards] Full reset completed");
   },
 }));
 
-export { useCards, CARD_DEFINITIONS, ALL_CARD_TYPES };
+export { useCards, CARD_DEFINITIONS, ALL_CARD_TYPES, DEFAULT_CARD_SETTINGS };

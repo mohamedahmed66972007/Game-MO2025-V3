@@ -113,11 +113,22 @@ export function MultiplayerGame2D() {
     }
   };
 
-  const { hasActiveEffect, removeExpiredEffects } = useCards();
+  const { hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers } = useCards();
   
   const isPlayerFrozen = () => {
     removeExpiredEffects();
     return hasActiveEffect(multiplayer.playerId, "freeze");
+  };
+
+  // الحصول على الرقم المكشوف في خانة معينة
+  const getRevealedDigitAtPosition = (position: number): number | null => {
+    const revealed = revealedDigits.find(r => r.position === position);
+    return revealed ? revealed.digit : null;
+  };
+
+  // التحقق إذا كان رقم محروق
+  const isBurnedNumber = (num: number): boolean => {
+    return burnedNumbers.includes(num);
   };
 
   const handleNumberInput = (num: string) => {
@@ -125,6 +136,23 @@ export function MultiplayerGame2D() {
     if (focusedIndex >= numDigits) return;
     
     if (isPlayerFrozen()) {
+      playError();
+      return;
+    }
+
+    // لا يمكن إدخال رقم محروق
+    if (isBurnedNumber(parseInt(num))) {
+      playError();
+      return;
+    }
+
+    // تخطي الخانات المكشوفة تلقائياً
+    let targetIndex = focusedIndex;
+    while (targetIndex < numDigits && getRevealedDigitAtPosition(targetIndex) !== null) {
+      targetIndex++;
+    }
+    
+    if (targetIndex >= numDigits) {
       playError();
       return;
     }
@@ -591,30 +619,59 @@ export function MultiplayerGame2D() {
               <h3 className="text-lg font-bold text-gray-800 mb-3 text-center">أدخل {numDigits} أرقام</h3>
               
               <div className="flex gap-3 justify-center mb-4" dir="ltr">
-                {input.map((digit, idx) => (
-                  <div
-                    key={idx}
-                    className={`w-14 h-16 md:w-16 md:h-18 xl:w-14 xl:h-16 border-2 rounded-xl flex items-center justify-center text-2xl md:text-3xl xl:text-2xl font-bold transition-all ${
-                      focusedIndex === idx
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-300 bg-white"
-                    }`}
-                  >
-                    {digit}
-                  </div>
-                ))}
+                {input.map((digit, idx) => {
+                  const revealedDigit = getRevealedDigitAtPosition(idx);
+                  const isRevealed = revealedDigit !== null;
+                  
+                  return (
+                    <div
+                      key={idx}
+                      className={`relative w-14 h-16 md:w-16 md:h-18 xl:w-14 xl:h-16 border-2 rounded-xl flex items-center justify-center text-2xl md:text-3xl xl:text-2xl font-bold transition-all ${
+                        isRevealed
+                          ? "border-purple-500 bg-purple-100 text-purple-700"
+                          : focusedIndex === idx
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-300 bg-white"
+                      }`}
+                      title={isRevealed ? "رقم مكشوف (ثابت)" : undefined}
+                    >
+                      {isRevealed ? revealedDigit : digit}
+                      {isRevealed && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
+                          <Eye className="w-2.5 h-2.5 text-white" />
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
+              {/* إظهار الأرقام المحروقة */}
+              {burnedNumbers.length > 0 && (
+                <div className="flex items-center justify-center gap-1 mb-3 text-sm text-red-600">
+                  <X className="w-4 h-4" />
+                  <span>أرقام محروقة: {burnedNumbers.join("، ")}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto" dir="ltr">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                  <button
-                    key={num}
-                    onClick={() => handleNumberInput(num.toString())}
-                    className="h-14 md:h-16 xl:h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
-                  >
-                    {num}
-                  </button>
-                ))}
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => {
+                  const isBurned = isBurnedNumber(num);
+                  return (
+                    <button
+                      key={num}
+                      onClick={() => handleNumberInput(num.toString())}
+                      disabled={isBurned}
+                      className={`h-14 md:h-16 xl:h-14 text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all ${
+                        isBurned
+                          ? "bg-gradient-to-br from-red-300 to-red-400 text-red-100 cursor-not-allowed line-through"
+                          : "bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  );
+                })}
                 <button
                   onClick={handleBackspace}
                   className="h-14 md:h-16 xl:h-14 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
@@ -623,13 +680,18 @@ export function MultiplayerGame2D() {
                 </button>
                 <button
                   onClick={() => handleNumberInput("0")}
-                  className="h-14 md:h-16 xl:h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                  disabled={isBurnedNumber(0)}
+                  className={`h-14 md:h-16 xl:h-14 text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all ${
+                    isBurnedNumber(0)
+                      ? "bg-gradient-to-br from-red-300 to-red-400 text-red-100 cursor-not-allowed line-through"
+                      : "bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                  }`}
                 >
                   0
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={input.some(val => val === "")}
+                  disabled={input.some((val, idx) => val === "" && getRevealedDigitAtPosition(idx) === null)}
                   className="h-14 md:h-16 xl:h-14 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
                 >
                   <Check className="w-6 h-6" />
