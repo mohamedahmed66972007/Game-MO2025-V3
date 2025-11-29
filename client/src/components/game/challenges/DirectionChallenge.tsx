@@ -303,10 +303,12 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
       {/* Game Area - Grid layout for perfect alignment */}
       <div className="flex-1 flex items-center justify-center w-full z-10 px-4">
         <div 
-          className="grid gap-6 md:gap-8"
+          className="grid"
           style={{
-            gridTemplateColumns: 'auto auto auto',
-            gridTemplateRows: 'auto auto auto',
+            gridTemplateColumns: '70px 150px 70px',
+            gridTemplateRows: '70px 150px 70px',
+            gap: '24px',
+            placeItems: 'center',
             width: 'fit-content',
           }}
         >
@@ -397,36 +399,6 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
               {getDisplayText()}
             </span>
 
-            {/* Feedback overlay */}
-            <AnimatePresence>
-              {showFeedback && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1.5, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                >
-                  <div className={`w-full h-full rounded-2xl flex items-center justify-center ${
-                    showFeedback === "correct"
-                      ? "bg-gradient-to-br from-green-400 to-emerald-600 shadow-2xl shadow-green-500/50"
-                      : "bg-gradient-to-br from-red-400 to-rose-600 shadow-2xl shadow-red-500/50"
-                  }`}>
-                    <motion.div
-                      initial={{ rotate: -45, scale: 0 }}
-                      animate={{ rotate: 0, scale: 1 }}
-                      transition={{ type: "spring", stiffness: 300 }}
-                    >
-                      {showFeedback === "correct" ? (
-                        <Check className="w-10 h-10 text-white" />
-                      ) : (
-                        <X className="w-10 h-10 text-white" />
-                      )}
-                    </motion.div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
           
           {/* Right Arrow - Grid position: row 1, col 0 (RTL swap) */}
