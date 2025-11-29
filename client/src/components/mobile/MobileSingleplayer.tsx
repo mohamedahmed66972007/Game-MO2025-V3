@@ -34,10 +34,12 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
   }, [numDigits]);
 
   useEffect(() => {
-    if (singleplayer.phase === "won" && hasWonChallenge && !hint && singleplayer.secretCode) {
-      generateHint(singleplayer.secretCode);
+    if (singleplayer.phase === "won" && hasWonChallenge && singleplayer.secretCode) {
+      if (!hint) {
+        generateHint(singleplayer.secretCode);
+      }
     }
-  }, [singleplayer.phase, hasWonChallenge, hint, singleplayer.secretCode, generateHint]);
+  }, [singleplayer.phase, hasWonChallenge, singleplayer.secretCode, hint, generateHint]);
 
   const handleNumberInput = (num: string) => {
     if (focusedIndex >= numDigits) return;
@@ -141,15 +143,6 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
     setMode("menu");
   };
 
-  useEffect(() => {
-    if (singleplayer.phase === "won") {
-      console.log("🏆 Player won - hasWonChallenge:", hasWonChallenge, "hint:", hint);
-      if (hasWonChallenge && !hint && singleplayer.secretCode) {
-        console.log("📝 Generating hint on win...");
-        generateHint(singleplayer.secretCode);
-      }
-    }
-  }, [singleplayer.phase, hasWonChallenge, hint, singleplayer.secretCode, generateHint]);
 
   const hintText = hint
     ? hint.type === "digit"

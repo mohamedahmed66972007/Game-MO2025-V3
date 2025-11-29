@@ -1,36 +1,53 @@
-import { useChallenges, type ChallengeType } from "@/lib/stores/useChallenges";
-import { ArrowLeft, Brain, Zap, Target } from "lucide-react";
-import { useState } from "react";
-import { GuessChallenge } from "../game/challenges/GuessChallenge";
-import { MemoryChallenge } from "../game/challenges/MemoryChallenge";
-import { ReactionChallenge } from "../game/challenges/ReactionChallenge";
+import { useChallenges, type ChallengeType, type ChallengeCategory } from "@/lib/stores/useChallenges";
+import { ArrowLeft, Brain, Target, Zap } from "lucide-react";
+import { GuessChallenge } from "./challenges/GuessChallenge";
+import { MemoryChallenge } from "./challenges/MemoryChallenge";
+import { DirectionChallenge } from "./challenges/DirectionChallenge";
 
-const challengeInfo = {
+interface ChallengeInfo {
+  id: ChallengeType;
+  name: string;
+  description: string;
+  icon: typeof Brain;
+  color: string;
+  borderColor: string;
+  category: ChallengeCategory;
+}
+
+const challengeInfo: Record<ChallengeType, ChallengeInfo> = {
   guess: {
-    id: "guess" as ChallengeType,
-    name: "تحدي التخمين",
-    description: "تذكر التسلسل الصحيح من الألوان",
+    id: "guess",
+    name: "تحدي تسلسل الأضواء",
+    description: "تذكر التسلسل الصحيح من الألوان وأعده",
     icon: Brain,
     color: "from-blue-500 to-blue-600",
     borderColor: "border-blue-500",
+    category: "memory",
   },
   memory: {
-    id: "memory" as ChallengeType,
-    name: "اختبار الذاكرة",
+    id: "memory",
+    name: "لوحة الذاكرة",
     description: "تذكر المربعات المضيئة واضغط عليها",
     icon: Target,
     color: "from-purple-500 to-purple-600",
     borderColor: "border-purple-500",
+    category: "memory",
   },
-  reaction: {
-    id: "reaction" as ChallengeType,
-    name: "لعبة رد الفعل",
-    description: "اضغط على المربعات قبل اختفائها",
+  direction: {
+    id: "direction",
+    name: "ترتيب الاتجاهات",
+    description: "حرك المكعب حسب الاتجاه المطلوب بسرعة",
     icon: Zap,
     color: "from-orange-500 to-orange-600",
     borderColor: "border-orange-500",
+    category: "reaction",
   },
 };
+
+const categories: { id: ChallengeCategory; name: string; icon: typeof Brain }[] = [
+  { id: "memory", name: "الذاكرة", icon: Brain },
+  { id: "reaction", name: "رد الفعل", icon: Zap },
+];
 
 export function ChallengesHub({ onExit }: { onExit: () => void }) {
   const {
@@ -50,7 +67,7 @@ export function ChallengesHub({ onExit }: { onExit: () => void }) {
         <div className="fixed inset-0 bg-slate-950 flex items-center justify-center">
           {selectedChallenge === "guess" && <GuessChallenge />}
           {selectedChallenge === "memory" && <MemoryChallenge />}
-          {selectedChallenge === "reaction" && <ReactionChallenge />}
+          {selectedChallenge === "direction" && <DirectionChallenge />}
         </div>
       );
     }
@@ -124,6 +141,10 @@ export function ChallengesHub({ onExit }: { onExit: () => void }) {
   const remainingAttempts = getRemainingAttempts();
   const hasWon = hasWonAnyChallenge();
 
+  const getChallengesByCategory = (categoryId: ChallengeCategory) => {
+    return Object.values(challengeInfo).filter(c => c.category === categoryId);
+  };
+
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6 overflow-y-auto">
       <div className="w-full max-w-6xl my-auto">
@@ -164,60 +185,73 @@ export function ChallengesHub({ onExit }: { onExit: () => void }) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {Object.values(challengeInfo).map((challenge) => {
-            const canPlay = canPlayChallenge(challenge.id);
-            const Icon = challenge.icon;
-            
-            return (
-              <div
-                key={challenge.id}
-                className={`bg-slate-800/50 backdrop-blur-xl rounded-2xl border-2 ${
-                  challenge.borderColor
-                } p-6 transition-all transform ${
-                  canPlay && !hasWon
-                    ? "hover:scale-105 cursor-pointer shadow-xl"
-                    : "opacity-50 cursor-not-allowed"
-                }`}
-                onClick={() => {
-                  if (canPlay && !hasWon) {
-                    selectChallenge(challenge.id);
-                    startChallenge();
-                  }
-                }}
-              >
-                <div
-                  className={`w-20 h-20 bg-gradient-to-br ${challenge.color} rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg`}
-                >
-                  <Icon className="w-10 h-10 text-white" />
-                </div>
+        {categories.map((category) => {
+          const categoryChallenges = getChallengesByCategory(category.id);
+          if (categoryChallenges.length === 0) return null;
 
-                <h3 className="text-2xl font-bold text-white mb-2 text-center">
-                  {challenge.name}
-                </h3>
-
-                <p className="text-gray-300 text-center mb-4">
-                  {challenge.description}
-                </p>
-
-                <button
-                  disabled={!canPlay || hasWon}
-                  className={`w-full py-3 rounded-xl font-bold transition-all shadow-lg ${
-                    canPlay && !hasWon
-                      ? `bg-gradient-to-r ${challenge.color} text-white hover:shadow-2xl`
-                      : "bg-gray-700 text-gray-400 cursor-not-allowed"
-                  }`}
-                >
-                  {hasWon
-                    ? "فزت بالفعل"
-                    : !canPlay
-                    ? "لا يمكن اللعب"
-                    : "ابدأ التحدي"}
-                </button>
+          return (
+            <div key={category.id} className="mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <category.icon className="w-6 h-6 text-white" />
+                <h2 className="text-2xl font-bold text-white">{category.name}</h2>
               </div>
-            );
-          })}
-        </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {categoryChallenges.map((challenge) => {
+                  const canPlay = canPlayChallenge(challenge.id);
+                  const Icon = challenge.icon;
+                  
+                  return (
+                    <div
+                      key={challenge.id}
+                      className={`bg-slate-800/50 backdrop-blur-xl rounded-2xl border-2 ${
+                        challenge.borderColor
+                      } p-6 transition-all transform ${
+                        canPlay && !hasWon
+                          ? "hover:scale-105 cursor-pointer shadow-xl"
+                          : "opacity-50 cursor-not-allowed"
+                      }`}
+                      onClick={() => {
+                        if (canPlay && !hasWon) {
+                          selectChallenge(challenge.id);
+                          startChallenge();
+                        }
+                      }}
+                    >
+                      <div
+                        className={`w-20 h-20 bg-gradient-to-br ${challenge.color} rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg`}
+                      >
+                        <Icon className="w-10 h-10 text-white" />
+                      </div>
+
+                      <h3 className="text-2xl font-bold text-white mb-2 text-center">
+                        {challenge.name}
+                      </h3>
+
+                      <p className="text-gray-300 text-center mb-4">
+                        {challenge.description}
+                      </p>
+
+                      <button
+                        disabled={!canPlay || hasWon}
+                        className={`w-full py-3 rounded-xl font-bold transition-all shadow-lg ${
+                          canPlay && !hasWon
+                            ? `bg-gradient-to-r ${challenge.color} text-white hover:shadow-2xl`
+                            : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                        }`}
+                      >
+                        {hasWon
+                          ? "فزت بالفعل"
+                          : !canPlay
+                          ? "لا يمكن اللعب"
+                          : "ابدأ التحدي"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

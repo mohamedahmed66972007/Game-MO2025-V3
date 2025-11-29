@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-export type ChallengeType = "guess" | "memory" | "reaction";
+export type ChallengeType = "guess" | "memory" | "direction";
+export type ChallengeCategory = "memory" | "reaction";
 export type ChallengePhase = "menu" | "playing" | "won" | "lost";
 export type HintType = "digit" | "description";
 
@@ -29,15 +30,33 @@ interface MemoryChallenge {
   flashedCells: number[];
   selectedCells: number[];
   isShowingCells: boolean;
+  showingScanner: boolean;
+  showingSuccess: boolean;
 }
 
-interface ReactionChallenge {
-  timeRemaining: number;
+export type DirectionType = "right" | "left" | "up" | "down" | "notRight" | "notLeft" | "notUp" | "notDown" | "nothing";
+export type ColorDirection = "green" | "yellow" | "blue" | "red";
+export type ColorPosition = {
+  yellow: 'left' | 'right' | 'top' | 'bottom';
+  green: 'left' | 'right' | 'top' | 'bottom';
+  blue: 'left' | 'right' | 'top' | 'bottom';
+  red: 'left' | 'right' | 'top' | 'bottom';
+};
+
+interface DirectionChallenge {
+  currentDirection: DirectionType | null;
+  currentColor: ColorDirection | null;
+  useColors: boolean;
+  colorPositions: ColorPosition | null;
   score: number;
   errors: number;
-  currentTarget: number | null;
-  gridSize: number;
-  speed: number;
+  maxErrors: number;
+  timePerRound: number;
+  roundStartTime: number | null;
+  isWaiting: boolean;
+  gameTime: number;
+  totalRounds: number;
+  currentRound: number;
 }
 
 interface ChallengesState {
@@ -49,7 +68,7 @@ interface ChallengesState {
   
   guessChallenge: GuessChallenge;
   memoryChallenge: MemoryChallenge;
-  reactionChallenge: ReactionChallenge;
+  directionChallenge: DirectionChallenge;
 
   selectChallenge: (challengeId: ChallengeType) => void;
   startChallenge: () => void;
@@ -69,11 +88,13 @@ interface ChallengesState {
   memorySelectCell: (cell: number) => void;
   memoryCheckSelection: () => boolean;
   memoryNextLevel: () => void;
+  memorySetScanner: (showing: boolean) => void;
+  memorySetSuccess: (showing: boolean) => void;
 
-  reactionStartGame: () => void;
-  reactionClickCell: (cell: number) => void;
-  reactionUpdateTimer: () => void;
-  reactionSpawnTarget: () => void;
+  directionStartGame: () => void;
+  directionNextRound: () => void;
+  directionHandleInput: (input: "right" | "left" | "up" | "down" | "none") => boolean;
+  directionTimeOut: () => void;
 }
 
 const generateSequence = (level: number): number[] => {
@@ -104,7 +125,6 @@ const generateRandomHint = (secretCode: number[]): Hint => {
       value: `الخانة ${position + 1} رقم ${parity}`,
     };
   } else {
-    const positions = [];
     const availablePositions = Array.from({ length: numDigits }, (_, i) => i);
     
     const pos1Index = Math.floor(Math.random() * availablePositions.length);
@@ -129,6 +149,40 @@ const generateRandomHint = (secretCode: number[]): Hint => {
   }
 };
 
+const generateRandomDirection = (): { direction: DirectionType; color: ColorDirection | null; useColors: boolean } => {
+  const useColors = Math.random() > 0.6;
+  const simpleDirections: DirectionType[] = ["right", "left", "up", "down"];
+  const allDirections: DirectionType[] = ["right", "left", "up", "down", "notRight", "notLeft", "notUp", "notDown", "nothing"];
+  const colors: ColorDirection[] = ["green", "yellow", "blue", "red"];
+  
+  if (useColors) {
+    const direction = simpleDirections[Math.floor(Math.random() * simpleDirections.length)];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    return { direction, color, useColors: true };
+  }
+  
+  const direction = allDirections[Math.floor(Math.random() * allDirections.length)];
+  return { direction, color: null, useColors: false };
+};
+
+const generateColorPositions = (): ColorPosition => {
+  const positions: ('left' | 'right' | 'top' | 'bottom')[] = ['left', 'right', 'top', 'bottom'];
+  const shuffled = [...positions].sort(() => Math.random() - 0.5);
+  return {
+    yellow: shuffled[0],
+    green: shuffled[1],
+    blue: shuffled[2],
+    red: shuffled[3],
+  };
+};
+
+const positionToDirection = {
+  'left': 'left' as const,
+  'right': 'right' as const,
+  'top': 'up' as const,
+  'bottom': 'down' as const,
+};
+
 export const useChallenges = create<ChallengesState>()((set, get) => ({
   maxAttempts: 3,
   attempts: [],
@@ -149,15 +203,24 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
     flashedCells: [],
     selectedCells: [],
     isShowingCells: false,
+    showingScanner: false,
+    showingSuccess: false,
   },
   
-  reactionChallenge: {
-    timeRemaining: 45,
+  directionChallenge: {
+    currentDirection: null,
+    currentColor: null,
+    useColors: false,
+    colorPositions: null,
     score: 0,
     errors: 0,
-    currentTarget: null,
-    gridSize: 5,
-    speed: 2000,
+    maxErrors: 3,
+    timePerRound: 2500,
+    roundStartTime: null,
+    isWaiting: false,
+    gameTime: 60,
+    totalRounds: 25,
+    currentRound: 0,
   },
 
   selectChallenge: (challengeId) => {
@@ -188,19 +251,12 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
           flashedCells: [],
           selectedCells: [],
           isShowingCells: false,
+          showingScanner: false,
+          showingSuccess: false,
         },
       });
-    } else if (selectedChallenge === "reaction") {
-      set({
-        reactionChallenge: {
-          timeRemaining: 45,
-          score: 0,
-          errors: 0,
-          currentTarget: null,
-          gridSize: 5,
-          speed: 2000,
-        },
-      });
+    } else if (selectedChallenge === "direction") {
+      get().directionStartGame();
     }
   },
 
@@ -228,12 +284,15 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
   },
 
   resetChallengesHub: () => {
+    const { hint, attempts } = get();
+    const hasWon = attempts.some(a => a.success);
+    
     set({
       maxAttempts: 3,
       attempts: [],
       selectedChallenge: null,
       currentPhase: "menu",
-      hint: null,
+      hint: hasWon ? hint : null,
       guessChallenge: {
         sequence: [],
         playerSequence: [],
@@ -246,14 +305,23 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
         flashedCells: [],
         selectedCells: [],
         isShowingCells: false,
+        showingScanner: false,
+        showingSuccess: false,
       },
-      reactionChallenge: {
-        timeRemaining: 45,
+      directionChallenge: {
+        currentDirection: null,
+        currentColor: null,
+        useColors: false,
+        colorPositions: null,
         score: 0,
         errors: 0,
-        currentTarget: null,
-        gridSize: 5,
-        speed: 2000,
+        maxErrors: 3,
+        timePerRound: 500,
+        roundStartTime: null,
+        isWaiting: false,
+        gameTime: 60,
+        totalRounds: 30,
+        currentRound: 0,
       },
     });
   },
@@ -269,7 +337,7 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
   },
 
   canPlayChallenge: (challengeId) => {
-    const { attempts, maxAttempts, hasWonAnyChallenge, getRemainingAttempts } = get();
+    const { attempts, hasWonAnyChallenge, getRemainingAttempts } = get();
     
     if (hasWonAnyChallenge()) return false;
     
@@ -353,6 +421,8 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
         flashedCells: cells,
         selectedCells: [],
         isShowingCells: true,
+        showingScanner: false,
+        showingSuccess: false,
       },
     });
   },
@@ -402,82 +472,161 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
         flashedCells: [],
         selectedCells: [],
         isShowingCells: false,
+        showingScanner: false,
+        showingSuccess: false,
       },
     });
   },
 
-  reactionStartGame: () => {
+  memorySetScanner: (showing) => {
+    const { memoryChallenge } = get();
     set({
-      reactionChallenge: {
-        timeRemaining: 45,
+      memoryChallenge: {
+        ...memoryChallenge,
+        showingScanner: showing,
+      },
+    });
+  },
+
+  memorySetSuccess: (showing) => {
+    const { memoryChallenge } = get();
+    set({
+      memoryChallenge: {
+        ...memoryChallenge,
+        showingSuccess: showing,
+      },
+    });
+  },
+
+  directionStartGame: () => {
+    const { direction, color, useColors } = generateRandomDirection();
+    const colorPositions = useColors ? generateColorPositions() : null;
+    set({
+      directionChallenge: {
+        currentDirection: direction,
+        currentColor: color,
+        useColors,
+        colorPositions,
         score: 0,
         errors: 0,
-        currentTarget: null,
-        gridSize: 5,
-        speed: 1500,
+        maxErrors: 3,
+        timePerRound: 1700,
+        roundStartTime: Date.now(),
+        isWaiting: false,
+        gameTime: 60,
+        totalRounds: 25,
+        currentRound: 1,
       },
     });
   },
 
-  reactionClickCell: (cell) => {
-    const { reactionChallenge } = get();
-    if (reactionChallenge.currentTarget === cell) {
+  directionNextRound: () => {
+    const { directionChallenge } = get();
+    const newRound = directionChallenge.currentRound + 1;
+    
+    if (newRound > directionChallenge.totalRounds) {
+      get().completeChallenge(true);
+      return;
+    }
+
+    const { direction, color, useColors } = generateRandomDirection();
+    const colorPositions = useColors ? generateColorPositions() : null;
+    set({
+      directionChallenge: {
+        ...directionChallenge,
+        currentDirection: direction,
+        currentColor: color,
+        useColors,
+        colorPositions,
+        roundStartTime: Date.now(),
+        isWaiting: false,
+        currentRound: newRound,
+      },
+    });
+  },
+
+  directionHandleInput: (input) => {
+    const { directionChallenge } = get();
+    const { currentDirection, currentColor, useColors, colorPositions, errors, maxErrors } = directionChallenge;
+    
+    if (!currentDirection) return false;
+
+    let expectedInput: "right" | "left" | "up" | "down" | "none";
+    let isCorrect = false;
+    
+    if (currentDirection === "nothing") {
+      expectedInput = "none";
+      isCorrect = input === "none";
+    } else if (useColors && currentColor && colorPositions) {
+      const position = colorPositions[currentColor];
+      expectedInput = positionToDirection[position];
+      isCorrect = input === expectedInput;
+    } else if (currentDirection === "right") {
+      isCorrect = input === "right";
+    } else if (currentDirection === "left") {
+      isCorrect = input === "left";
+    } else if (currentDirection === "up") {
+      isCorrect = input === "up";
+    } else if (currentDirection === "down") {
+      isCorrect = input === "down";
+    } else if (currentDirection === "notRight") {
+      isCorrect = input !== "right" && input !== "none";
+    } else if (currentDirection === "notLeft") {
+      isCorrect = input !== "left" && input !== "none";
+    } else if (currentDirection === "notUp") {
+      isCorrect = input !== "up" && input !== "none";
+    } else if (currentDirection === "notDown") {
+      isCorrect = input !== "down" && input !== "none";
+    }
+
+    if (isCorrect) {
       set({
-        reactionChallenge: {
-          ...reactionChallenge,
-          score: reactionChallenge.score + 1,
-          currentTarget: null,
+        directionChallenge: {
+          ...directionChallenge,
+          score: directionChallenge.score + 1,
         },
       });
+      return true;
     } else {
-      const newErrors = reactionChallenge.errors + 1;
-      if (newErrors >= 5) {
+      const newErrors = errors + 1;
+      if (newErrors >= maxErrors) {
         get().completeChallenge(false);
       } else {
         set({
-          reactionChallenge: {
-            ...reactionChallenge,
+          directionChallenge: {
+            ...directionChallenge,
             errors: newErrors,
           },
         });
       }
+      return false;
     }
   },
 
-  reactionUpdateTimer: () => {
-    const { reactionChallenge } = get();
-    const newTime = reactionChallenge.timeRemaining - 1;
-
-    if (newTime <= 0) {
-      const totalSpawns = Math.floor(45 / (reactionChallenge.speed / 1000));
-      const maxAllowedMisses = 5;
-      const minScore = totalSpawns - maxAllowedMisses;
-      
-      if (reactionChallenge.errors < 5 && reactionChallenge.score >= minScore) {
-        get().completeChallenge(true);
-      } else {
-        get().completeChallenge(false);
-      }
+  directionTimeOut: () => {
+    const { directionChallenge } = get();
+    const { currentDirection, errors, maxErrors } = directionChallenge;
+    
+    if (currentDirection === "nothing") {
+      set({
+        directionChallenge: {
+          ...directionChallenge,
+          score: directionChallenge.score + 1,
+        },
+      });
+      return;
+    }
+    
+    const newErrors = errors + 1;
+    if (newErrors >= maxErrors) {
+      get().completeChallenge(false);
     } else {
       set({
-        reactionChallenge: {
-          ...reactionChallenge,
-          timeRemaining: newTime,
+        directionChallenge: {
+          ...directionChallenge,
+          errors: newErrors,
         },
       });
     }
-  },
-
-  reactionSpawnTarget: () => {
-    const { reactionChallenge } = get();
-    const totalCells = reactionChallenge.gridSize * reactionChallenge.gridSize;
-    const randomCell = Math.floor(Math.random() * totalCells);
-
-    set({
-      reactionChallenge: {
-        ...reactionChallenge,
-        currentTarget: randomCell,
-      },
-    });
   },
 }));

@@ -2,6 +2,11 @@ import { useNumberGame } from "./stores/useNumberGame";
 import { toast } from "sonner";
 
 let socket: WebSocket | null = null;
+let reconnectAttempts = 0;
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let isManualDisconnect = false;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY = 2000;
 
 const saveSessionToStorage = (playerName: string, playerId: string, roomId: string) => {
   const store = useNumberGame.getState();
@@ -53,14 +58,53 @@ const getSessionFromStorage = () => {
   return null;
 };
 
+const attemptReconnect = () => {
+  const session = getSessionFromStorage();
+  if (!session || isManualDisconnect) {
+    console.log("No session to reconnect or manual disconnect");
+    return;
+  }
+
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.log("Max reconnect attempts reached");
+    toast.error("فشل الاتصال بالخادم. يرجى المحاولة مرة أخرى.", {
+      duration: 5000,
+    });
+    useNumberGame.getState().setConnectionError("فشل إعادة الاتصال");
+    clearSession();
+    return;
+  }
+
+  reconnectAttempts++;
+  console.log(`Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+  
+  toast.loading(`جاري إعادة الاتصال... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`, {
+    id: "reconnect-toast",
+    duration: RECONNECT_DELAY,
+  });
+
+  reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+};
+
 export const connectWebSocket = (playerName: string, roomId?: string) => {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}/game`;
+
+  isManualDisconnect = false;
+  reconnectAttempts = 0;
+  
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
 
   socket = new WebSocket(wsUrl);
 
   socket.onopen = () => {
     console.log("WebSocket connected");
+    reconnectAttempts = 0;
+    toast.dismiss("reconnect-toast");
+    
     if (roomId) {
       send({ type: "join_room", roomId, playerName });
     } else {
@@ -73,8 +117,16 @@ export const connectWebSocket = (playerName: string, roomId?: string) => {
     handleMessage(message);
   };
 
-  socket.onclose = () => {
-    console.log("WebSocket disconnected");
+  socket.onclose = (event) => {
+    console.log("WebSocket disconnected", event.code, event.reason);
+    
+    if (!isManualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      const session = getSessionFromStorage();
+      if (session) {
+        console.log("Connection lost, attempting reconnect in", RECONNECT_DELAY, "ms");
+        reconnectTimeout = setTimeout(attemptReconnect, RECONNECT_DELAY);
+      }
+    }
   };
 
   socket.onerror = (error) => {
@@ -118,11 +170,17 @@ export const getLastRoomSession = () => {
 };
 
 export const disconnect = () => {
+  isManualDisconnect = true;
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
   if (socket) {
     socket.close();
     socket = null;
   }
   clearSession();
+  toast.dismiss("reconnect-toast");
 };
 
 export const reconnectToSession = () => {
@@ -141,6 +199,12 @@ export const reconnectWithRetry = (playerName: string, playerId: string, roomId:
 
   socket.onopen = () => {
     console.log("WebSocket connected - attempting reconnect");
+    reconnectAttempts = 0;
+    toast.dismiss("reconnect-toast");
+    toast.success("تم إعادة الاتصال بنجاح!", {
+      duration: 3000,
+    });
+    
     send({ 
       type: "reconnect", 
       playerId, 
@@ -154,8 +218,16 @@ export const reconnectWithRetry = (playerName: string, playerId: string, roomId:
     handleMessage(message);
   };
 
-  socket.onclose = () => {
-    console.log("WebSocket disconnected");
+  socket.onclose = (event) => {
+    console.log("WebSocket disconnected during reconnect", event.code, event.reason);
+    
+    if (!isManualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      const session = getSessionFromStorage();
+      if (session) {
+        console.log("Connection lost during reconnect, retrying in", RECONNECT_DELAY, "ms");
+        reconnectTimeout = setTimeout(attemptReconnect, RECONNECT_DELAY);
+      }
+    }
   };
 
   socket.onerror = (error) => {
