@@ -175,7 +175,7 @@ export function MultiplayerChallenge({ onComplete }: MultiplayerChallengeProps) 
       <div className="fixed inset-0 bg-slate-950 z-50">
         {actualChallenge === "guess" && <GuessChallenge />}
         {actualChallenge === "memory" && <MemoryChallenge />}
-        {actualChallenge === "direction" && <DirectionChallenge />}
+        {actualChallenge === "direction" && <DirectionChallenge isMultiplayer={true} />}
         {actualChallenge === "raindrops" && <RainDropsChallenge />}
       </div>
     );

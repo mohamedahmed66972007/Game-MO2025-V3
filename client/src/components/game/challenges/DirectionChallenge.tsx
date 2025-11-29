@@ -48,7 +48,7 @@ const colorValues: Record<ColorDirection, string> = {
   red: "#ef4444",
 };
 
-export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
+export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?: () => void; isMultiplayer?: boolean } = {}) {
   const {
     directionChallenge,
     directionNextRound,
@@ -342,12 +342,12 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
             </span>
           </motion.button>
           
-          {/* Left Arrow - Grid position varies by device */}
+          {/* Left Arrow - Grid position varies by device and mode */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("left")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: isMobile ? '3' : '1',
+              gridColumn: isMultiplayer ? (isMobile ? '1' : '1') : (isMobile ? '3' : '1'),
               gridRow: '2',
               width: '70px',
               height: '70px',
@@ -401,12 +401,12 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
 
           </motion.div>
           
-          {/* Right Arrow - Grid position varies by device */}
+          {/* Right Arrow - Grid position varies by device and mode */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("right")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: isMobile ? '1' : '3',
+              gridColumn: isMultiplayer ? (isMobile ? '3' : '3') : (isMobile ? '1' : '3'),
               gridRow: '2',
               width: '70px',
               height: '70px',
