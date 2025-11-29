@@ -1,5 +1,6 @@
 import { useNumberGame } from "./stores/useNumberGame";
 import { useCards } from "./stores/useCards";
+import { useChallenges } from "./stores/useChallenges";
 import { toast } from "sonner";
 
 let socket: WebSocket | null = null;
@@ -283,6 +284,11 @@ const handleMessage = (message: any) => {
 
     case "settings_updated":
       store.setMultiplayerSettings(message.settings);
+      // Update card settings for all players when host changes settings
+      if (message.settings.cardSettings) {
+        const cardsStore = useCards.getState();
+        cardsStore.setCardSettings(message.settings.cardSettings);
+      }
       break;
 
     case "game_started":
@@ -324,10 +330,20 @@ const handleMessage = (message: any) => {
       const cardAwardKeyToClear = `card_awarded_${store.multiplayer.roomId}_${store.multiplayer.playerId}`;
       sessionStorage.removeItem(cardAwardKeyToClear);
       
+      // Reset challenges state to prevent incorrect card awards from previous game
+      const challengesStore = useChallenges.getState();
+      challengesStore.resetChallengesHub();
+      console.log("Challenges state reset for new game");
+      
       // Initialize cards system if enabled
       const cardsStore = useCards.getState();
       // دائماً امسح الأرقام المكشوفة والمحروقة عند بداية لعبة جديدة
       cardsStore.clearRevealedAndBurned();
+      
+      // Sync card settings from server for all players
+      if (message.settings?.cardSettings) {
+        cardsStore.setCardSettings(message.settings.cardSettings);
+      }
       
       if (cardsEnabled) {
         cardsStore.enableCards();
@@ -551,7 +567,10 @@ const handleMessage = (message: any) => {
       // Reset cards system for rematch - clear all cards from previous game
       const cardsStoreRematch = useCards.getState();
       cardsStoreRematch.resetCards();
-      console.log("Rematch starting - game and cards reset");
+      // Reset challenges state to prevent incorrect card awards
+      const challengesStoreRematch = useChallenges.getState();
+      challengesStoreRematch.resetChallengesHub();
+      console.log("Rematch starting - game, cards, and challenges reset");
       break;
 
     case "card_used": {

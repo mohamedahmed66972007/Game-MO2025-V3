@@ -267,10 +267,19 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
     }
   };
 
+  // Filter out burnNumber effects - they work in the background without notifications
+  const displayableEffects = playerData.activeEffects.filter(
+    effect => effect.cardType !== "burnNumber"
+  );
+
+  if (displayableEffects.length === 0) {
+    return null;
+  }
+
   return (
     <div className="fixed top-20 right-4 z-40 space-y-2">
       <AnimatePresence>
-        {playerData.activeEffects.map((effect, index) => {
+        {displayableEffects.map((effect, index) => {
           const cardDef = CARD_DEFINITIONS.find((c) => c.type === effect.cardType);
           if (!cardDef) return null;
 

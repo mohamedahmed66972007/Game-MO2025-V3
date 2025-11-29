@@ -88,10 +88,11 @@ export function MultiplayerChallenge({ onComplete }: MultiplayerChallengeProps) 
   const challengeInfo = challengeInfoMap[actualChallenge] || challengeInfoMap.guess;
 
   // Watch for challenge phase changes (won/lost)
+  // Only award cards if: playing phase, challenge actually started (hasStartedRef), and not already completed
   useEffect(() => {
-    if (phase === "playing" && !hasCompletedRef.current) {
+    if (phase === "playing" && hasStartedRef.current && !hasCompletedRef.current) {
       if (currentPhase === "won") {
-        console.log("Challenge won!");
+        console.log("Challenge won! Awarding card...");
         hasCompletedRef.current = true;
         setHasWon(true);
         const allowedCards = multiplayer.settings.allowedCards;
