@@ -305,10 +305,15 @@ const handleMessage = (message: any) => {
             countdown: null,
             votes: [],
           },
+          settings: message.settings ? {
+            ...state.multiplayer.settings,
+            ...message.settings,
+            cardsEnabled: message.settings.cardsEnabled ?? state.multiplayer.settings.cardsEnabled
+          } : state.multiplayer.settings,
         },
       }));
       saveSessionToStorage(store.multiplayer.playerName, store.multiplayer.playerId, store.multiplayer.roomId);
-      console.log("Game started with shared secret, startTime:", Date.now(), "phase: playing");
+      console.log("Game started with shared secret, cardsEnabled:", message.settings?.cardsEnabled ?? store.multiplayer.settings.cardsEnabled);
       break;
 
     case "room_rejoined":

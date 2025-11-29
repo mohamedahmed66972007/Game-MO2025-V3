@@ -3,26 +3,31 @@ import { Button } from "./button";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send } from "@/lib/websocket";
-import { Sliders } from "lucide-react";
+import { Sliders, Sparkles } from "lucide-react";
 
-export function GameSettings({ onConfirm, isMultiplayer = false }: { onConfirm: (settings: { numDigits: number; maxAttempts: number }) => void; isMultiplayer?: boolean }) {
+interface GameSettingsProps {
+  onConfirm: (settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean }) => void;
+  isMultiplayer?: boolean;
+}
+
+export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsProps) {
   const { singleplayer, multiplayer, setSingleplayerSettings, setMultiplayerSettings } = useNumberGame();
   const currentSettings = isMultiplayer ? multiplayer.settings : singleplayer.settings;
   
   const [numDigits, setNumDigits] = useState(currentSettings.numDigits);
   const [maxAttempts, setMaxAttempts] = useState(currentSettings.maxAttempts);
+  const [cardsEnabled, setCardsEnabled] = useState(currentSettings.cardsEnabled || false);
 
   const handleConfirm = () => {
-    const settings = { numDigits, maxAttempts };
+    const settings = { numDigits, maxAttempts, cardsEnabled: isMultiplayer ? cardsEnabled : undefined };
     if (isMultiplayer) {
-      setMultiplayerSettings(settings);
-      // Send settings to all players in the room
+      setMultiplayerSettings({ numDigits, maxAttempts, cardsEnabled });
       send({
         type: "update_settings",
-        settings,
+        settings: { numDigits, maxAttempts, cardsEnabled },
       });
     } else {
-      setSingleplayerSettings(settings);
+      setSingleplayerSettings({ numDigits, maxAttempts });
     }
     onConfirm(settings);
   };
@@ -100,12 +105,57 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: { onConfirm: 
             </div>
           </div>
 
+          {isMultiplayer && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-4 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl border border-yellow-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-md">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm">وضع البطاقات</p>
+                    <p className="text-xs text-gray-600">استخدم بطاقات خاصة أثناء اللعب</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCardsEnabled(!cardsEnabled)}
+                  className={`relative w-14 h-7 rounded-full transition-all duration-300 ${
+                    cardsEnabled 
+                      ? "bg-gradient-to-r from-green-400 to-green-500" 
+                      : "bg-gray-300"
+                  }`}
+                >
+                  <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${
+                    cardsEnabled ? "right-0.5" : "left-0.5"
+                  }`} />
+                </button>
+              </div>
+              
+              {cardsEnabled && (
+                <div className="p-3 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+                  <p className="text-xs text-gray-700 font-medium mb-2">📦 البطاقات المتاحة:</p>
+                  <div className="flex flex-wrap gap-1.5 text-xs">
+                    <span className="px-2 py-0.5 bg-purple-100 rounded text-purple-700">👁️ تلميح</span>
+                    <span className="px-2 py-0.5 bg-green-100 rounded text-green-700">⏱️ وقت إضافي</span>
+                    <span className="px-2 py-0.5 bg-blue-100 rounded text-blue-700">🛡️ درع</span>
+                    <span className="px-2 py-0.5 bg-orange-100 rounded text-orange-700">🔄 تبديل</span>
+                    <span className="px-2 py-0.5 bg-cyan-100 rounded text-cyan-700">❄️ تجميد</span>
+                    <span className="px-2 py-0.5 bg-yellow-100 rounded text-yellow-700">✨ نقاط مضاعفة</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-4 rounded-xl border border-blue-200">
             <p className="text-sm text-gray-700 font-semibold mb-2">ملخص الإعدادات:</p>
             <ul className="text-sm text-gray-600 space-y-1">
               <li>🎯 سيتم توليد رقم سري من <span className="font-bold">{numDigits} أرقام</span></li>
               <li>📝 لديك <span className="font-bold">{maxAttempts} محاولات</span> للتخمين</li>
               <li>✓ يجب تخمين جميع الأرقام في أماكنها الصحيحة للفوز</li>
+              {isMultiplayer && cardsEnabled && (
+                <li>✨ البطاقات: <span className="font-bold text-yellow-600">مفعّلة</span></li>
+              )}
             </ul>
           </div>
 

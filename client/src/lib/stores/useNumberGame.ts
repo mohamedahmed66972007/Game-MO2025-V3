@@ -15,6 +15,7 @@ interface Attempt {
 interface GameSettings {
   numDigits: number;
   maxAttempts: number;
+  cardsEnabled?: boolean;
 }
 
 interface SingleplayerState {
@@ -64,7 +65,7 @@ interface MultiplayerState {
     countdown: number | null;
     votes: RematchVote[];
   };
-  settings: GameSettings;
+  settings: GameSettings & { cardsEnabled: boolean };
 }
 
 interface NumberGameState {
@@ -188,7 +189,7 @@ export const useNumberGame = create<NumberGameState>()(
         countdown: null,
         votes: [],
       },
-      settings: { numDigits: 4, maxAttempts: 20 },
+      settings: { numDigits: 4, maxAttempts: 20, cardsEnabled: false },
     },
 
     setMode: (mode) => set({ mode }),
@@ -452,7 +453,16 @@ export const useNumberGame = create<NumberGameState>()(
         },
       })),
 
-    setMultiplayerSettings: (settings) => set((state) => ({ multiplayer: { ...state.multiplayer, settings } })),
+    setMultiplayerSettings: (settings) => set((state) => ({ 
+      multiplayer: { 
+        ...state.multiplayer, 
+        settings: { 
+          ...state.multiplayer.settings, 
+          ...settings,
+          cardsEnabled: settings.cardsEnabled ?? state.multiplayer.settings.cardsEnabled ?? false 
+        } 
+      } 
+    })),
 
     updateStillPlayingAttempt: (playerId, attempt) => {
       const { multiplayer } = get();

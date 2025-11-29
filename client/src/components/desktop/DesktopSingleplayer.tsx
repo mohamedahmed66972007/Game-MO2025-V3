@@ -258,9 +258,9 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
   const attemptsLeft = singleplayer.settings.maxAttempts - singleplayer.attempts.length;
 
   return (
-    <div className="min-h-screen p-6 pb-safe">
-      <div className="max-w-7xl mx-auto w-full h-[calc(100vh-3rem)]">
-        <div className="grid lg:grid-cols-2 gap-6 h-full">
+    <div className="min-h-screen p-6 pb-safe overflow-y-auto">
+      <div className="max-w-7xl mx-auto w-full min-h-[calc(100vh-3rem)]">
+        <div className="grid lg:grid-cols-2 gap-6">
           {/* لوحة المحاولات - على اليسار */}
           <div className="bg-white rounded-xl p-6 shadow-md overflow-hidden flex flex-col">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">

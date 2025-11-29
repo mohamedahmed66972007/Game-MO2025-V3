@@ -655,49 +655,77 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
   },
 
   directionHandleInput: (input) => {
-    const { directionChallenge } = get();
-    const { currentDirection, currentColor, useColors, colorPositions, errors, maxErrors } = directionChallenge;
+    const state = get();
+    const { directionChallenge } = state;
+    const { currentDirection, currentColor, useColors, colorPositions, errors, maxErrors, score } = directionChallenge;
     
-    if (!currentDirection) return false;
+    if (!currentDirection) {
+      console.log("[Direction] No current direction, returning false");
+      return false;
+    }
 
-    let expectedInput: "right" | "left" | "up" | "down" | "none";
     let isCorrect = false;
+    let expectedInput: string = "";
     
     if (currentDirection === "nothing") {
-      expectedInput = "none";
+      expectedInput = "none (timeout)";
       isCorrect = input === "none";
     } else if (useColors && currentColor && colorPositions) {
       const position = colorPositions[currentColor];
       expectedInput = positionToDirection[position];
       isCorrect = input === expectedInput;
-    } else if (currentDirection === "right") {
-      isCorrect = input === "right";
-    } else if (currentDirection === "left") {
-      isCorrect = input === "left";
-    } else if (currentDirection === "up") {
-      isCorrect = input === "up";
-    } else if (currentDirection === "down") {
-      isCorrect = input === "down";
-    } else if (currentDirection === "notRight") {
-      isCorrect = input !== "right" && input !== "none";
-    } else if (currentDirection === "notLeft") {
-      isCorrect = input !== "left" && input !== "none";
-    } else if (currentDirection === "notUp") {
-      isCorrect = input !== "up" && input !== "none";
-    } else if (currentDirection === "notDown") {
-      isCorrect = input !== "down" && input !== "none";
+      console.log(`[Direction Color Mode] Color: ${currentColor}, Position: ${position}, Expected: ${expectedInput}, Got: ${input}, Correct: ${isCorrect}`);
+    } else {
+      switch (currentDirection) {
+        case "right":
+          expectedInput = "right";
+          isCorrect = input === "right";
+          break;
+        case "left":
+          expectedInput = "left";
+          isCorrect = input === "left";
+          break;
+        case "up":
+          expectedInput = "up";
+          isCorrect = input === "up";
+          break;
+        case "down":
+          expectedInput = "down";
+          isCorrect = input === "down";
+          break;
+        case "notRight":
+          expectedInput = "left, up, or down";
+          isCorrect = input === "left" || input === "up" || input === "down";
+          break;
+        case "notLeft":
+          expectedInput = "right, up, or down";
+          isCorrect = input === "right" || input === "up" || input === "down";
+          break;
+        case "notUp":
+          expectedInput = "left, right, or down";
+          isCorrect = input === "left" || input === "right" || input === "down";
+          break;
+        case "notDown":
+          expectedInput = "left, right, or up";
+          isCorrect = input === "left" || input === "right" || input === "up";
+          break;
+      }
+      console.log(`[Direction] Direction: ${currentDirection}, Expected: ${expectedInput}, Got: ${input}, Correct: ${isCorrect}`);
     }
 
     if (isCorrect) {
+      const newScore = score + 1;
       set({
         directionChallenge: {
           ...directionChallenge,
-          score: directionChallenge.score + 1,
+          score: newScore,
         },
       });
+      console.log(`[Direction] Correct! Score: ${score} -> ${newScore}`);
       return true;
     } else {
       const newErrors = errors + 1;
+      console.log(`[Direction] Wrong! Errors: ${errors} -> ${newErrors}`);
       if (newErrors >= maxErrors) {
         get().completeChallenge(false);
       } else {

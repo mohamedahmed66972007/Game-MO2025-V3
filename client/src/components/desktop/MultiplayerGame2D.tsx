@@ -453,8 +453,8 @@ export function MultiplayerGame2D() {
   // Show game while playing
   if (multiplayer.gameStatus === "playing" && multiplayer.sharedSecret.length > 0) {
     return (
-      <div className="min-h-screen p-4 pb-safe flex flex-col">
-        <div className="max-w-2xl mx-auto w-full space-y-4 flex-1 flex flex-col overflow-hidden">
+      <div className="min-h-screen p-4 pb-safe flex flex-col overflow-y-auto">
+        <div className="max-w-2xl mx-auto w-full space-y-4 flex-1 flex flex-col">
           <div className="flex flex-row-reverse items-center justify-between bg-white rounded-xl p-4 shadow-md flex-shrink-0 gap-4">
             <div className="flex gap-2">
               <button

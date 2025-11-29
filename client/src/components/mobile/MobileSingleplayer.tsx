@@ -229,8 +229,8 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
   const attemptsLeft = singleplayer.settings.maxAttempts - singleplayer.attempts.length;
 
   return (
-    <div className="min-h-screen p-4 pb-safe flex flex-col">
-      <div className="max-w-2xl mx-auto w-full space-y-4 flex-1 flex flex-col overflow-hidden">
+    <div className="min-h-screen p-4 pb-safe flex flex-col overflow-y-auto">
+      <div className="max-w-2xl mx-auto w-full space-y-4 flex-1 flex flex-col">
         <div className="flex flex-row-reverse items-center justify-between bg-white rounded-xl p-4 shadow-md flex-shrink-0">
           <button
             onClick={handleHome}

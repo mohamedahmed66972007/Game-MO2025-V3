@@ -41,7 +41,11 @@ export function MultiplayerLobby() {
         onConfirm={(settings) => {
           send({ 
             type: "update_settings", 
-            settings: { numDigits: settings.numDigits, maxAttempts: settings.maxAttempts }
+            settings: { 
+              numDigits: settings.numDigits, 
+              maxAttempts: settings.maxAttempts,
+              cardsEnabled: settings.cardsEnabled || false 
+            }
           });
           setShowSettings(false);
         }}
@@ -98,7 +102,7 @@ export function MultiplayerLobby() {
         </div>
 
         {/* Settings Info */}
-        <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-200 flex items-center justify-center gap-4 flex-shrink-0">
+        <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-200 flex items-center justify-center gap-4 flex-wrap flex-shrink-0">
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-600">عدد الأرقام:</span>
             <span className="bg-white px-2 py-0.5 rounded font-bold text-blue-600 border border-blue-300">
@@ -109,6 +113,16 @@ export function MultiplayerLobby() {
             <span className="text-gray-600">المحاولات:</span>
             <span className="bg-white px-2 py-0.5 rounded font-bold text-blue-600 border border-blue-300">
               {multiplayer.settings.maxAttempts}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-600">البطاقات:</span>
+            <span className={`px-2 py-0.5 rounded font-bold border ${
+              multiplayer.settings.cardsEnabled 
+                ? "bg-green-100 text-green-700 border-green-300" 
+                : "bg-gray-100 text-gray-600 border-gray-300"
+            }`}>
+              {multiplayer.settings.cardsEnabled ? "مفعّلة ✨" : "معطّلة"}
             </span>
           </div>
         </div>

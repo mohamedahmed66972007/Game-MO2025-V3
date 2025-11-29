@@ -1,13 +1,13 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { useChallenges, type RainDrop } from "@/lib/stores/useChallenges";
 import { useAudio } from "@/lib/stores/useAudio";
-import { Pause, X, Play } from "lucide-react";
+import { Pause, X, Play, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 function RainBackground() {
   const rainDrops = useMemo(() => {
     const drops = [];
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 80; i++) {
       drops.push({
         id: i,
         left: Math.random() * 100,
@@ -24,10 +24,10 @@ function RainBackground() {
       {rainDrops.map((drop) => (
         <motion.div
           key={drop.id}
-          className="absolute w-[1px] bg-gradient-to-b from-white/30 to-transparent"
+          className="absolute w-[2px] bg-gradient-to-b from-white/40 to-transparent"
           style={{
             left: `${drop.left}%`,
-            height: '15px',
+            height: '20px',
             opacity: drop.opacity,
           }}
           animate={{
@@ -83,14 +83,15 @@ function WaterWaves() {
 interface EquationBubbleProps {
   drop: RainDrop;
   containerHeight: number;
+  containerWidth: number;
 }
 
-function EquationBubble({ drop, containerHeight }: EquationBubbleProps) {
+function EquationBubble({ drop, containerHeight, containerWidth }: EquationBubbleProps) {
   const parts = drop.equation.match(/(\d+)\s*([+\-×÷])\s*(\d+)/);
   
   if (!parts) {
     return (
-      <div className="bg-slate-900/95 rounded-full w-16 h-16 md:w-20 md:h-20 flex items-center justify-center shadow-2xl border-2 border-slate-700">
+      <div className="bg-slate-900/95 rounded-full w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 flex items-center justify-center shadow-2xl border-2 border-slate-700">
         <span className="text-white font-bold text-lg">{drop.equation}</span>
       </div>
     );
@@ -110,12 +111,12 @@ function EquationBubble({ drop, containerHeight }: EquationBubbleProps) {
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0, opacity: 0 }}
     >
-      <div className="bg-slate-900/95 rounded-full w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center shadow-2xl border-2 border-slate-700/50 backdrop-blur-sm">
-        <span className="text-white font-bold text-sm md:text-base leading-none">{num1}</span>
+      <div className="bg-slate-900/95 rounded-full w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 flex flex-col items-center justify-center shadow-2xl border-2 border-slate-700/50 backdrop-blur-sm">
+        <span className="text-white font-bold text-sm md:text-base lg:text-lg leading-none">{num1}</span>
         <div className="flex items-center gap-0.5 my-0.5">
-          <span className="text-cyan-400 font-bold text-lg md:text-xl leading-none">{operator}</span>
+          <span className="text-cyan-400 font-bold text-lg md:text-xl lg:text-2xl leading-none">{operator}</span>
         </div>
-        <span className="text-white font-bold text-sm md:text-base leading-none">{num2}</span>
+        <span className="text-white font-bold text-sm md:text-base lg:text-lg leading-none">{num2}</span>
       </div>
     </motion.div>
   );
@@ -144,20 +145,27 @@ export function RainDropsChallenge() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(400);
+  const [containerWidth, setContainerWidth] = useState(400);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
-    if (containerRef.current) {
-      setContainerHeight(containerRef.current.clientHeight);
-    }
-    
-    const handleResize = () => {
+    const updateDimensions = () => {
       if (containerRef.current) {
         setContainerHeight(containerRef.current.clientHeight);
+        setContainerWidth(containerRef.current.clientWidth);
       }
+      const isLandscape = window.innerHeight < window.innerWidth;
+      const isLargeScreen = window.innerWidth >= 1024;
+      setIsDesktop(isLargeScreen || (window.innerWidth >= 768 && !isLandscape));
     };
     
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    window.addEventListener('orientationchange', updateDimensions);
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+      window.removeEventListener('orientationchange', updateDimensions);
+    };
   }, []);
 
   const handleSubmit = useCallback(() => {
@@ -272,97 +280,57 @@ export function RainDropsChallenge() {
   }, [raindropsChallenge.isGameActive, raindropsUpdateTime, completeChallenge, isPaused]);
 
   return (
-    <div className="w-full h-full flex flex-col bg-gradient-to-b from-indigo-600 via-purple-600 to-indigo-900 select-none overflow-hidden relative">
+    <div className="w-full h-full flex flex-col md:flex-row bg-gradient-to-b from-indigo-600 via-purple-600 to-indigo-900 select-none overflow-hidden relative">
       <RainBackground />
       
-      <div className="flex items-center justify-between p-3 z-20 relative">
-        <button
-          onClick={togglePause}
-          className="w-10 h-10 bg-white/20 backdrop-blur-xl hover:bg-white/30 text-white rounded-full flex items-center justify-center transition-all shadow-lg"
-        >
-          {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
-        </button>
-
-        <div className="bg-slate-800/80 backdrop-blur-xl px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
-          <span className="text-white/70 text-sm">النتيجة</span>
-          <span className="text-lg font-bold text-white">{raindropsChallenge.score}</span>
+      {/* Desktop: Side panel for controls */}
+      <div className={`${isDesktop ? 'w-80 order-2 flex flex-col' : 'hidden'} bg-slate-900/95 backdrop-blur-xl z-20 relative`}>
+        {/* Header for desktop */}
+        <div className="flex items-center justify-between p-4 border-b border-purple-500/30">
+          <button
+            onClick={resetToMenu}
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="font-bold">رجوع</span>
+          </button>
+          <button
+            onClick={togglePause}
+            className="w-12 h-12 bg-white/20 backdrop-blur-xl hover:bg-white/30 text-white rounded-full flex items-center justify-center transition-all shadow-lg"
+          >
+            {isPaused ? <Play className="w-6 h-6" /> : <Pause className="w-6 h-6" />}
+          </button>
         </div>
-      </div>
 
-      <div 
-        ref={containerRef}
-        className="flex-1 relative overflow-hidden z-10"
-        style={{ minHeight: '55vh' }}
-      >
-        <AnimatePresence>
-          {raindropsChallenge.drops.map((drop) => (
-            <EquationBubble 
-              key={drop.id} 
-              drop={drop} 
-              containerHeight={containerHeight}
-            />
-          ))}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {showFeedback && (
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1.2, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full flex items-center justify-center z-30 ${
-                showFeedback === "correct"
-                  ? "bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-green-500/50"
-                  : "bg-gradient-to-br from-red-400 to-red-600 shadow-lg shadow-red-500/50"
-              }`}
-            >
-              {showFeedback === "correct" ? (
-                <span className="text-white text-2xl">✓</span>
-              ) : (
-                <X className="w-8 h-8 text-white" />
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {isPaused && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-40">
-            <div className="bg-slate-800/90 backdrop-blur-xl rounded-2xl p-8 text-center">
-              <h2 className="text-2xl font-bold text-white mb-4">إيقاف مؤقت</h2>
-              <div className="flex gap-4">
-                <button
-                  onClick={togglePause}
-                  className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition-all"
-                >
-                  استمرار
-                </button>
-                <button
-                  onClick={resetToMenu}
-                  className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-all"
-                >
-                  خروج
-                </button>
-              </div>
-            </div>
+        {/* Stats for desktop */}
+        <div className="p-4 space-y-4">
+          <div className="bg-gradient-to-br from-purple-600/50 to-indigo-600/50 rounded-2xl p-4 text-center border border-purple-400/30">
+            <span className="text-white/70 text-sm block mb-1">النتيجة</span>
+            <span className="text-4xl font-bold text-white">{raindropsChallenge.score}</span>
           </div>
-        )}
-      </div>
+          <div className="bg-gradient-to-br from-cyan-600/50 to-blue-600/50 rounded-2xl p-4 text-center border border-cyan-400/30">
+            <span className="text-white/70 text-sm block mb-1">الوقت المتبقي</span>
+            <span className="text-4xl font-bold text-white">{raindropsChallenge.timeRemaining}s</span>
+          </div>
+          <div className="bg-gradient-to-br from-red-600/50 to-orange-600/50 rounded-2xl p-4 text-center border border-red-400/30">
+            <span className="text-white/70 text-sm block mb-1">الأخطاء</span>
+            <span className="text-4xl font-bold text-white">{raindropsChallenge.errors}/{raindropsChallenge.maxErrors}</span>
+          </div>
+        </div>
 
-      <WaterWaves />
-
-      <div className="bg-slate-900/95 backdrop-blur-xl p-3 z-20 relative">
-        <div className="max-w-sm mx-auto">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex-1 bg-purple-300/30 rounded-xl px-4 py-3 text-center border border-purple-400/30">
-              <span className="text-2xl font-bold text-white font-mono">
-                {raindropsChallenge.currentInput || ''}
+        {/* Desktop numpad */}
+        <div className="flex-1 p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex-1 bg-purple-300/30 rounded-xl px-4 py-4 text-center border border-purple-400/30">
+              <span className="text-3xl font-bold text-white font-mono">
+                {raindropsChallenge.currentInput || '‎'}
               </span>
             </div>
             <button
               onClick={handleDelete}
-              className="w-12 h-12 bg-purple-400/30 hover:bg-purple-400/50 text-white font-bold rounded-xl transition-all flex items-center justify-center border border-purple-400/30"
+              className="w-14 h-14 bg-purple-400/30 hover:bg-purple-400/50 text-white font-bold rounded-xl transition-all flex items-center justify-center border border-purple-400/30"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
           </div>
 
@@ -371,7 +339,7 @@ export function RainDropsChallenge() {
               <button
                 key={num}
                 onClick={() => handleNumberPress(num.toString())}
-                className="h-14 bg-purple-600/80 hover:bg-purple-500/80 text-white text-2xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
+                className="h-16 bg-purple-600/80 hover:bg-purple-500/80 text-white text-2xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
               >
                 {num}
               </button>
@@ -381,20 +349,158 @@ export function RainDropsChallenge() {
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => handleNumberPress('0')}
-              className="h-14 bg-purple-600/80 hover:bg-purple-500/80 text-white text-2xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
+              className="h-16 bg-purple-600/80 hover:bg-purple-500/80 text-white text-2xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
             >
               0
             </button>
             <button
               onClick={handleSubmit}
               disabled={!raindropsChallenge.currentInput}
-              className="h-14 bg-indigo-500/80 hover:bg-indigo-400/80 disabled:bg-gray-600/50 disabled:cursor-not-allowed text-white text-lg font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-indigo-400/30"
+              className="h-16 bg-indigo-500/80 hover:bg-indigo-400/80 disabled:bg-gray-600/50 disabled:cursor-not-allowed text-white text-lg font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-indigo-400/30"
             >
               إدخال
             </button>
           </div>
         </div>
       </div>
+
+      {/* Main game area */}
+      <div className={`flex-1 flex flex-col ${isDesktop ? 'order-1' : ''}`}>
+        {/* Mobile header */}
+        {!isDesktop && (
+          <div className="flex items-center justify-between p-3 z-20 relative">
+            <button
+              onClick={togglePause}
+              className="w-10 h-10 bg-white/20 backdrop-blur-xl hover:bg-white/30 text-white rounded-full flex items-center justify-center transition-all shadow-lg"
+            >
+              {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-800/80 backdrop-blur-xl px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
+                <span className="text-white/70 text-xs">النتيجة</span>
+                <span className="text-base font-bold text-white">{raindropsChallenge.score}</span>
+              </div>
+              <div className="bg-slate-800/80 backdrop-blur-xl px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
+                <span className="text-white/70 text-xs">الوقت</span>
+                <span className="text-base font-bold text-cyan-400">{raindropsChallenge.timeRemaining}s</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Game container - larger on desktop */}
+        <div 
+          ref={containerRef}
+          className={`flex-1 relative overflow-hidden z-10 ${isDesktop ? 'min-h-[70vh]' : ''}`}
+          style={{ minHeight: isDesktop ? '70vh' : '50vh' }}
+        >
+          <AnimatePresence>
+            {raindropsChallenge.drops.map((drop) => (
+              <EquationBubble 
+                key={drop.id} 
+                drop={drop} 
+                containerHeight={containerHeight}
+                containerWidth={containerWidth}
+              />
+            ))}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {showFeedback && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1.2, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center z-30 ${
+                  showFeedback === "correct"
+                    ? "bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-green-500/50"
+                    : "bg-gradient-to-br from-red-400 to-red-600 shadow-lg shadow-red-500/50"
+                }`}
+              >
+                {showFeedback === "correct" ? (
+                  <span className="text-white text-2xl md:text-3xl">✓</span>
+                ) : (
+                  <X className="w-8 h-8 md:w-10 md:h-10 text-white" />
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {isPaused && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-40">
+              <div className="bg-slate-800/90 backdrop-blur-xl rounded-2xl p-8 text-center">
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">إيقاف مؤقت</h2>
+                <div className="flex gap-4">
+                  <button
+                    onClick={togglePause}
+                    className="px-6 py-3 md:px-8 md:py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition-all text-lg"
+                  >
+                    استمرار
+                  </button>
+                  <button
+                    onClick={resetToMenu}
+                    className="px-6 py-3 md:px-8 md:py-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-all text-lg"
+                  >
+                    خروج
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <WaterWaves />
+      </div>
+
+      {/* Mobile numpad */}
+      {!isDesktop && (
+        <div className="bg-slate-900/95 backdrop-blur-xl p-3 z-20 relative">
+          <div className="max-w-sm mx-auto">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex-1 bg-purple-300/30 rounded-xl px-4 py-3 text-center border border-purple-400/30">
+                <span className="text-2xl font-bold text-white font-mono">
+                  {raindropsChallenge.currentInput || ''}
+                </span>
+              </div>
+              <button
+                onClick={handleDelete}
+                className="w-12 h-12 bg-purple-400/30 hover:bg-purple-400/50 text-white font-bold rounded-xl transition-all flex items-center justify-center border border-purple-400/30"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <button
+                  key={num}
+                  onClick={() => handleNumberPress(num.toString())}
+                  className="h-12 bg-purple-600/80 hover:bg-purple-500/80 text-white text-xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleNumberPress('0')}
+                className="h-12 bg-purple-600/80 hover:bg-purple-500/80 text-white text-xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
+              >
+                0
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={!raindropsChallenge.currentInput}
+                className="h-12 bg-indigo-500/80 hover:bg-indigo-400/80 disabled:bg-gray-600/50 disabled:cursor-not-allowed text-white text-base font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-indigo-400/30"
+              >
+                إدخال
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
