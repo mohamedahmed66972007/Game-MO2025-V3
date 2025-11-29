@@ -1,109 +1,129 @@
-# Overview
+# لعبة تخمين الأرقام العربية
 
-This project is a 3D guessing game built with React and Three.js, where players guess a secret numerical code. It features single-player and real-time multiplayer modes via WebSockets, an immersive 3D environment, a challenge mini-game, and mobile responsiveness. Key capabilities include Arabic language support, a live timer with a 5-minute game timeout, and a reconnection system that preserves game state for disconnected players for up to 5 minutes. The game aims to provide an engaging and competitive experience with intuitive UI for both desktop and mobile users.
+## نظرة عامة
 
-# User Preferences
+لعبة تخمين أرقام تفاعلية عربية مع واجهة 2D حديثة. اللاعبون يخمنون رقماً سرياً ويتلقون تعليقات على دقة التخمين. تدعم اللعبة الوضع الفردي والجماعي مع تواصل فوري عبر WebSocket وتحديات صغيرة للحصول على تلميحات. اللعبة مصممة للعمل على الهاتف والحاسوب بسلاسة.
 
-Preferred communication style: Simple, everyday language.
+## تفضيلات المستخدم
 
-# System Architecture
+أسلوب التواصل المفضل: لغة بسيطة وسهلة الفهم.
 
-## Frontend Architecture
+## البنية المعمارية
 
-**Technology Stack:**
-- React 18 with TypeScript
-- React Three Fiber and Drei for 3D rendering
-- Vite for build and development
-- TailwindCSS for styling
-- Radix UI for accessible components
-- Zustand for client-side state management
+### الواجهة الأمامية (Frontend)
 
-**Rendering Strategy:**
-- **Desktop:** Full 3D first-person environment with pointer lock.
-- **Mobile:** 2D touch-optimized interface with a custom number pad, detected via `useIsMobile` hook (768px breakpoint).
+**مجموعة التقنيات:**
+- React 18 مع TypeScript
+- Vite للبناء والتطوير
+- TailwindCSS للتصميم
+- Radix UI للمكونات الأساسية
+- Zustand لإدارة الحالة
 
-**Key 3D Components:**
-- `FirstPersonControls`: Custom FPS camera.
-- `NumberPanel`: Interactive 3D number input.
-- `AttemptsHistory`: 3D display of past guesses.
-- `ChallengeDoor` & `ChallengeRoom`: For mini-game integration.
+**استراتيجية العرض:**
+- **ديسكتوب**: واجهة كاملة مع لوحة المحاولات السابقة على الجانب
+- **موبايل**: واجهة محسنة مع لوحة أرقام مخصصة، كشف تلقائي عند 768px
 
-**State Management:**
-- `useNumberGame`: Manages main game state (single-player and multiplayer).
-- `useChallenge`: Manages challenge mini-game state.
-- `useAudio`: Handles audio feedback.
+**المكونات الرئيسية:**
+- `MobileSingleplayer` و `DesktopSingleplayer`: واجهات اللعب الفردي
+- `MultiplayerLobby`: غرفة انتظار اللعب الجماعي
+- `MultiplayerGame2D`: واجهة اللعب الجماعي
+- `RainDropsChallenge`, `DirectionChallenge`, `MemoryChallenge`, `PatternChallenge`: التحديات الأربعة
+- `CardSystem`: نظام البطاقات الحصري للعب الجماعي
 
-**Client-Server Communication:**
-- Real-time multiplayer via WebSocket.
-- Session persistence via sessionStorage for reconnection.
+**إدارة الحالة:**
+- `useNumberGame`: الحالة الرئيسية للعبة (وضع فردي وجماعي)
+- `useChallenges`: حالة التحديات والتلميحات
+- `useCards`: نظام البطاقات الخاص
+- `useAudio`: إدارة المؤثرات الصوتية
 
-## Backend Architecture
+**التواصل بين العميل والخادم:**
+- WebSocket للعب الجماعي الفوري
+- حفظ الجلسة عبر sessionStorage للاتصال المفقود
+- رسائل: challenge_player, set_secret_code, make_guess, turn_timeout, وغيرها
 
-**Technology Stack:**
-- Express.js with TypeScript
-- `ws` library for WebSocket communication
-- Neon serverless PostgreSQL with Drizzle ORM (for future use)
+### الخادم (Backend)
 
-**Server Structure:**
-- `server/index.ts`: Express app and middleware.
-- `server/routes.ts`: WebSocket server and game logic.
-- `server/db.ts`: Database connection setup.
-- `server/storage.ts`: Storage interface (currently in-memory).
+**مجموعة التقنيات:**
+- Express.js مع TypeScript
+- WebSocket (ws) للتواصل الفوري
+- Neon PostgreSQL مع Drizzle ORM (متوفر للاستخدام المستقبلي)
 
-**Game Logic:**
-- Room-based multiplayer with unique IDs.
-- Independent, simultaneous guessing.
-- Auto-generated shared secret codes.
-- Comprehensive reconnection system:
-  - Disconnected players stored with a 5-minute timeout.
-  - Game data (attempts, score) preserved.
-  - Automatic cleanup of abandoned rooms and player timeouts.
+**بنية الخادم:**
+- `server/index.ts`: إعداد Express والـ middleware
+- `server/routes.ts`: خادم WebSocket ومنطق اللعبة
+- `server/db.ts`: اتصال قاعدة البيانات
+- `server/storage.ts`: واجهة التخزين (في الذاكرة حالياً)
 
-## Data Storage
+**منطق اللعبة:**
+- نظام غرف مع معرفات فريدة
+- لعب مستقل وفوري (الاثنان يلعبان بنفس الوقت)
+- أكواز سرية مشتركة تولد تلقائياً
+- نظام إعادة اتصال شامل:
+  - تخزين اللاعبين المقطوعين مع timeout 5 دقائق
+  - حفظ بيانات اللعبة (المحاولات والنقاط)
+  - تنظيف تلقائي للغرف المهجورة
+  - مزامنة حالة اللعبة بين جميع العملاء
 
-**Database:**
-- PostgreSQL via Neon serverless (configured but not fully implemented for authentication).
-- Drizzle ORM for type-safe queries.
+## تخزين البيانات
 
-**Session Management:**
-- WebSocket connections tracked per player.
-- Room state maintained in server memory (Map structures).
-- Client-side session storage for reconnection after refresh (30-minute expiry).
-- 5-minute timeout for disconnected players in active games.
+**قاعدة البيانات:**
+- PostgreSQL عبر Neon (مُعد لكن لم يُستخدم بالكامل بعد)
+- Drizzle ORM لاستعلامات آمنة
 
-## System Design Choices
+**إدارة الجلسات:**
+- تتبع اتصالات WebSocket لكل لاعب
+- حالة الغرفة محفوظة في ذاكرة الخادم (Map)
+- تخزين الجلسة محلي للاتصال بعد التحديث (انتهاء الصلاحية بعد 30 دقيقة)
+- انقطاع 5 دقائق للاعبين المقطوعين في الألعاب النشطة
 
-**UI/UX:**
-- Responsive design for both desktop (3D immersive) and mobile (2D touch-optimized).
-- Arabic language support with right-to-left layouts.
-- Rematch voting system with responsive UI and instant game start upon approval.
-- Redesigned results screen with ranking and confetti animations.
+## اختيارات التصميم النظامي
 
-**Technical Implementations:**
-- Live timer with 100ms updates and a 5-minute game timeout.
-- Immediate loss detection when max attempts are reached.
-- Robust reconnection system that restores full game state.
-- Challenge mini-games: "Light Sequence Challenge," "Memory Board," and a "Direction Sorting Challenge" with visual/audio feedback and input variations for mobile/desktop.
+**تجربة المستخدم:**
+- تصميم متجاوب لكل من ديسكتوب وموبايل
+- واجهة عربية كاملة مع تخطيط من اليمين لليسار
+- نظام التصويت على إعادة اللعب مع بدء لحظي عند الموافقة
+- شاشة نتائج محسنة مع رتب وحركات احتفال
 
-# External Dependencies
+**التطبيقات التقنية:**
+- مؤقت حي مع تحديثات 100ms وTimeout 5 دقائق
+- كشف الخسارة الفوري عند الوصول لأقصى عدد محاولات
+- نظام إعادة اتصال قوي يستعيد كل حالة اللعبة
+- تحديات صغيرة: "تحدي الذاكرة" و"تحدي الاتجاهات" و"تحدي حبات المطر" و"تحدي التخمين" مع تعليقات بصرية وسمعية وتنويعات موبايل/ديسكتوب
+- نظام بطاقات فريد مع 6 أنواع وتأثيرات خاصة
 
-**3D Graphics & Rendering:**
-- `@react-three/fiber`, `@react-three/drei`, `three`, `@react-three/postprocessing`, `vite-plugin-glsl`.
+## التبعيات الخارجية
 
-**UI Component Library:**
-- `@radix-ui/*` (for accessible primitives).
+**مكتبة مكونات الواجهة:**
+- `@radix-ui/*`: مجموعة شاملة من العناصر الآمنة
 
-**Database & Backend:**
-- `@neondatabase/serverless`, `drizzle-orm`, `drizzle-kit`, `ws`.
+**قاعدة البيانات والخادم:**
+- `@neondatabase/serverless`, `drizzle-orm`, `drizzle-kit`, `ws`
 
-**Styling:**
-- `tailwindcss`, `class-variance-authority`, `clsx`, `tailwind-merge`.
+**التصميم:**
+- `tailwindcss`, `class-variance-authority`, `clsx`, `tailwind-merge`
 
-**State & Data Fetching:**
-- `@tanstack/react-query` (server state), `zustand` (client state).
+**إدارة الحالة والبيانات:**
+- `@tanstack/react-query`, `zustand`
 
-**Fonts & Assets:**
-- `@fontsource/inter`, custom font JSON for 3D text.
+**الوسائط والأصوات:**
+- `@fontsource/inter`, `howler`, `react-confetti`
 
-**Development Tools:**
-- `@replit/vite-plugin-runtime-error-modal`, `tsx`, `esbuild`, `vite`.
+**أدوات التطوير:**
+- `@replit/vite-plugin-runtime-error-modal`, `tsx`, `esbuild`, `vite`
+
+## ملاحظات التطوير
+
+### نقاط مهمة:
+1. تأكد من أن الواجهات يمكن تمريرها عند اللعب
+2. الأسهم في تحدي الاتجاهات معكوسة على الكمبيوتر (RTL) لكن صحيحة على الموبايل
+3. الأخطاء تنقص الفرص من 3 إلى 2 إلى 1
+4. نظام البطاقات حصري للعب الجماعي فقط
+5. جميع النصوص يجب أن تكون بالعربية
+
+### الملفات المهمة:
+- `client/src/components/mobile/MobileSingleplayer.tsx`
+- `client/src/components/desktop/DesktopSingleplayer.tsx`
+- `client/src/components/game/challenges/`
+- `client/src/lib/stores/useChallenges.ts`
+- `client/src/lib/stores/useCards.ts`
+- `server/routes.ts`

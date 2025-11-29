@@ -61,7 +61,7 @@ interface Room {
   players: Player[];
   disconnectedPlayers: Map<string, { player: Player; disconnectTime: number; timeoutHandle: NodeJS.Timeout }>;
   game: GameSession | null;
-  settings: { numDigits: number; maxAttempts: number };
+  settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean };
   roomTimeoutHandle?: NodeJS.Timeout;
 }
 
