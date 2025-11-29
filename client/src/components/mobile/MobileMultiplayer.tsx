@@ -31,6 +31,7 @@ export function MobileMultiplayer() {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [expandedAttempts, setExpandedAttempts] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -141,6 +142,13 @@ export function MobileMultiplayer() {
     navigator.clipboard.writeText(multiplayer.roomId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyLink = () => {
+    const roomLink = `${window.location.origin}/room/${multiplayer.roomId}`;
+    navigator.clipboard.writeText(roomLink);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   const handleRematchVote = (accepted: boolean) => {
@@ -644,29 +652,13 @@ export function MobileMultiplayer() {
         <div className="max-w-2xl mx-auto space-y-4">
           {/* Header */}
           <div className="bg-white rounded-xl p-4 shadow-md">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               <button
                 onClick={handleHome}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <Home className="w-6 h-6 text-gray-700" />
               </button>
-              <div className="text-center flex-1">
-                <h3 className="text-sm text-gray-600">رمز الغرفة</h3>
-                <div className="flex items-center justify-center gap-2">
-                  <button
-                    onClick={handleCopyRoomId}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    {copied ? (
-                      <Check className="w-5 h-5 text-green-600" />
-                    ) : (
-                      <Copy className="w-5 h-5 text-gray-600" />
-                    )}
-                  </button>
-                  <p className="text-3xl font-mono font-bold text-blue-600">{multiplayer.roomId}</p>
-                </div>
-              </div>
               {multiplayer.isHost && (
                 <button
                   onClick={() => setShowSettings(true)}
@@ -677,8 +669,38 @@ export function MobileMultiplayer() {
               )}
             </div>
 
+            {/* Room ID and Copy Link */}
+            <div className="space-y-3">
+              <div className="text-center">
+                <h3 className="text-sm text-gray-600 mb-2">رمز الغرفة</h3>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={handleCopyRoomId}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="نسخ رمز الغرفة"
+                  >
+                    {copied ? (
+                      <Check className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <Copy className="w-5 h-5 text-gray-600" />
+                    )}
+                  </button>
+                  <p className="text-2xl font-mono font-bold text-blue-600">{multiplayer.roomId}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleCopyLink}
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 text-sm"
+                title="نسخ رابط الغرفة"
+              >
+                <Copy className="w-4 h-4" />
+                {linkCopied ? "✓ تم نسخ الرابط" : "نسخ رابط الغرفة"}
+              </button>
+            </div>
+
             {/* Settings Display */}
-            <div className="bg-gray-100 rounded-lg p-3 text-center text-sm text-gray-600">
+            <div className="bg-gray-100 rounded-lg p-3 text-center text-sm text-gray-600 mt-3">
               أرقام: <span className="font-bold text-gray-800">{multiplayer.settings.numDigits}</span> · محاولات: <span className="font-bold text-gray-800">{multiplayer.settings.maxAttempts}</span>
             </div>
           </div>
