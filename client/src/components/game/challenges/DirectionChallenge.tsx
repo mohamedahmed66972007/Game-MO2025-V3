@@ -239,7 +239,7 @@ export function DirectionChallenge() {
 
   return (
     <div 
-      className="w-full h-full flex flex-col items-center justify-between p-4 md:p-6 lg:p-8 bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 select-none overflow-auto"
+      className="w-full h-full flex flex-col items-center justify-center p-4 md:p-6 lg:p-8 bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 select-none overflow-hidden relative"
       style={{ touchAction: 'none' }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -250,7 +250,8 @@ export function DirectionChallenge() {
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
 
-      <div className="w-full max-w-2xl z-10">
+      {/* Header - Back button and stats */}
+      <div className="w-full max-w-3xl z-10 mb-4">
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={resetToMenu}
@@ -303,9 +304,10 @@ export function DirectionChallenge() {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center w-full z-10 py-4">
+      {/* Game Area */}
+      <div className="flex-1 flex items-center justify-center w-full z-10">
         <div className="relative" style={{ width: 'min(75vw, 280px)', height: 'min(75vw, 280px)' }}>
-          {/* Center - Display text (larger than arrows) */}
+          {/* Center - Display text */}
           <motion.div
             className="absolute rounded-2xl flex items-center justify-center overflow-hidden bg-slate-800/95 border-2 border-white/30 shadow-2xl"
             style={{
@@ -366,7 +368,7 @@ export function DirectionChallenge() {
             </span>
           </motion.button>
           
-          {/* Right arrow - positioned on the RIGHT side for RTL */}
+          {/* Right arrow */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("right")}
             className="absolute rounded-xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
@@ -398,7 +400,7 @@ export function DirectionChallenge() {
             </span>
           </motion.button>
           
-          {/* Left arrow - positioned on the LEFT side for RTL */}
+          {/* Left arrow */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("left")}
             className="absolute rounded-xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
@@ -495,7 +497,8 @@ export function DirectionChallenge() {
         </div>
       </div>
 
-      <div className="w-full max-w-lg z-10">
+      {/* Instructions */}
+      <div className="w-full max-w-lg z-10 mt-4">
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 md:p-6">
           <div className="flex items-center gap-3 justify-center text-white/70 text-sm md:text-base">
             {isMobile ? (
