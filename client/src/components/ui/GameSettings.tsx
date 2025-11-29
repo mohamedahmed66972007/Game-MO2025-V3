@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useCards, DEFAULT_CARD_SETTINGS, CardSettings } from "@/lib/stores/useCards";
 import { send } from "@/lib/websocket";
-import { Sliders, Sparkles, Eye, XCircle, Hash, Snowflake, Shield, EyeOff, Gamepad2, Shuffle, Brain, Zap, CloudRain, Lightbulb, Check, Clock, Settings2 } from "lucide-react";
+import { Sliders, Sparkles, Eye, XCircle, Hash, Snowflake, Shield, Gamepad2, Shuffle, Brain, Zap, CloudRain, Lightbulb, Check, Clock, Settings2 } from "lucide-react";
 
 type ChallengeType = "guess" | "memory" | "direction" | "raindrops" | "random";
-type CardTypeId = "revealNumber" | "burnNumber" | "revealParity" | "freeze" | "shield" | "blindMode";
+type CardTypeId = "revealNumber" | "burnNumber" | "revealParity" | "freeze" | "shield";
 
 interface GameSettingsProps {
   onConfirm: (settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean; selectedChallenge?: ChallengeType; allowedCards?: CardTypeId[] }) => void;
@@ -28,10 +28,9 @@ const cardTypes: { id: CardTypeId; name: string; icon: React.ReactNode; color: s
   { id: "revealParity", name: "زوجي/فردي", icon: <Hash className="w-3 h-3" />, color: "green" },
   { id: "freeze", name: "تجميد", icon: <Snowflake className="w-3 h-3" />, color: "cyan" },
   { id: "shield", name: "درع", icon: <Shield className="w-3 h-3" />, color: "blue" },
-  { id: "blindMode", name: "تعطيل العرض", icon: <EyeOff className="w-3 h-3" />, color: "orange" },
 ];
 
-const allCardIds: CardTypeId[] = ["revealNumber", "burnNumber", "revealParity", "freeze", "shield", "blindMode"];
+const allCardIds: CardTypeId[] = ["revealNumber", "burnNumber", "revealParity", "freeze", "shield"];
 
 export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsProps) {
   const { singleplayer, multiplayer, setSingleplayerSettings, setMultiplayerSettings } = useNumberGame();
@@ -77,7 +76,7 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
     };
     
     // حفظ إعدادات البطاقات
-    if (isMultiplayer && cardsEnabled) {
+    if (isMultiplayer) {
       setCardSettings({
         roundDuration,
         revealNumberShowPosition,
@@ -86,9 +85,7 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
         freezeDuration,
         shieldDuration,
       });
-    }
-    
-    if (isMultiplayer) {
+      
       setMultiplayerSettings({ 
         numDigits, 
         maxAttempts, 
@@ -104,14 +101,14 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
           cardsEnabled, 
           selectedChallenge, 
           allowedCards,
-          cardSettings: cardsEnabled ? {
+          cardSettings: {
             roundDuration,
             revealNumberShowPosition,
             burnNumberCount,
             revealParitySlots: Math.min(revealParitySlots, numDigits),
             freezeDuration,
             shieldDuration,
-          } : undefined
+          }
         },
       });
     } else {
@@ -206,6 +203,33 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
 
           {isMultiplayer && (
             <div className="space-y-3">
+              {/* مدة الجولة - تظهر دائماً في اللعب الجماعي */}
+              <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
+                <label className="block text-gray-700 font-semibold mb-3 text-sm flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  مدة الجولة: <span className="text-blue-600 text-lg">{roundDuration} دقائق</span>
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="15"
+                  value={roundDuration}
+                  onChange={(e) => setRoundDuration(Number(e.target.value))}
+                  className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-2">
+                  <span>1 دقيقة</span>
+                  <span>15 دقيقة</span>
+                </div>
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-gray-700">
+                    الوقت: <span className="font-semibold">
+                      {roundDuration <= 3 ? "قصير" : roundDuration <= 7 ? "متوسط" : "طويل"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+              
               <div className="flex items-center justify-between p-4 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl border border-yellow-200">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-md">
@@ -329,26 +353,6 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
                     
                     {showCardSettings && (
                       <div className="mt-4 space-y-4">
-                        {/* مدة الجولة */}
-                        <div>
-                          <label className="block text-xs text-gray-600 mb-1 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            مدة الجولة: <span className="text-blue-600 font-bold">{roundDuration} دقائق</span>
-                          </label>
-                          <input
-                            type="range"
-                            min="1"
-                            max="15"
-                            value={roundDuration}
-                            onChange={(e) => setRoundDuration(Number(e.target.value))}
-                            className="w-full h-1.5 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                          />
-                          <div className="flex justify-between text-xs text-gray-400 mt-1">
-                            <span>1 دقيقة</span>
-                            <span>15 دقيقة</span>
-                          </div>
-                        </div>
-
                         {/* إعداد بطاقة إظهار رقم */}
                         {allowedCards.includes("revealNumber") && (
                           <div className="p-2 bg-purple-50 rounded-lg border border-purple-200">

@@ -5,8 +5,7 @@ export type CardType =
   | "burnNumber"      // حرق رقم (رقم غير موجود)
   | "revealParity"    // إظهار زوجي/فردي لجميع الخانات
   | "freeze"          // تجميد الخصم
-  | "shield"          // درع الدفاع
-  | "blindMode";      // تعطيل عرض الأرقام الزرقاء
+  | "shield";         // درع الدفاع
 
 // إعدادات البطاقات
 export interface CardSettings {
@@ -27,7 +26,7 @@ const DEFAULT_CARD_SETTINGS: CardSettings = {
   roundDuration: 5,
 };
 
-export type CardIconType = "eye" | "x-circle" | "hash" | "snowflake" | "shield" | "eye-off";
+export type CardIconType = "eye" | "x-circle" | "hash" | "snowflake" | "shield";
 
 export interface Card {
   id: string;
@@ -136,22 +135,13 @@ const CARD_DEFINITIONS: Omit<Card, "id" | "isUsed" | "cooldown">[] = [
     icon: "shield",
     color: "from-blue-500 to-blue-700",
   },
-  {
-    type: "blindMode",
-    name: "Blind Mode",
-    nameAr: "تعطيل العرض",
-    description: "For 30 seconds, opponent only sees green indicators (correct position) but not blue (correct number wrong position)",
-    descriptionAr: "لمدة 30 ثانية، الخصم يرى فقط الأرقام الخضراء (المكان الصحيح) ولا يرى الزرقاء (الرقم صحيح بمكان خاطئ)",
-    icon: "eye-off",
-    color: "from-orange-500 to-orange-700",
-  },
 ];
 
 function generateUniqueId(): string {
   return `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-const ALL_CARD_TYPES: CardType[] = ["revealNumber", "burnNumber", "revealParity", "freeze", "shield", "blindMode"];
+const ALL_CARD_TYPES: CardType[] = ["revealNumber", "burnNumber", "revealParity", "freeze", "shield"];
 
 function createRandomCard(allowedTypes?: CardType[]): Card {
   let availableDefinitions = CARD_DEFINITIONS;
@@ -284,7 +274,7 @@ const useCards = create<CardState>((set, get) => ({
     if (card.isUsed || card.cooldown > 0) return false;
     
     // Check if target has shield for attack cards (only if shield was activated BEFORE the attack)
-    const attackCards: CardType[] = ["freeze", "blindMode"];
+    const attackCards: CardType[] = ["freeze"];
     const targetPlayer = targetPlayerId 
       ? playerCards.find((p) => p.playerId === targetPlayerId) 
       : null;
@@ -400,10 +390,6 @@ const useCards = create<CardState>((set, get) => ({
       case "shield":
         effectDuration = cardSettings.shieldDuration * 1000;
         break;
-        
-      case "blindMode":
-        effectDuration = 30000; // 30 seconds blind mode
-        break;
     }
     
     const newEffect: ActiveCardEffect = {
@@ -413,9 +399,9 @@ const useCards = create<CardState>((set, get) => ({
       value: effectValue,
     };
     
-    // For attack cards (freeze, blindMode), apply to target
+    // For attack cards (freeze), apply to target
     // For self cards (shield, reveal), apply to self
-    const effectTargetId = ["freeze", "blindMode"].includes(card.type) && targetPlayerId 
+    const effectTargetId = ["freeze"].includes(card.type) && targetPlayerId 
       ? targetPlayerId 
       : playerId;
     

@@ -13,7 +13,7 @@ interface Attempt {
 }
 
 type ChallengeType = "memory" | "direction" | "raindrops" | "pattern" | "random";
-type CardTypeId = "revealNumber" | "burnNumber" | "revealParity" | "freeze" | "shield" | "blindMode";
+type CardTypeId = "revealNumber" | "burnNumber" | "revealParity" | "freeze" | "shield";
 
 interface GameSettings {
   numDigits: number;
@@ -201,7 +201,7 @@ export const useNumberGame = create<NumberGameState>()(
         countdown: null,
         votes: [],
       },
-      settings: { numDigits: 4, maxAttempts: 20, cardsEnabled: false, selectedChallenge: "random", allowedCards: ["revealNumber", "burnNumber", "revealParity", "freeze", "shield", "blindMode"] },
+      settings: { numDigits: 4, maxAttempts: 20, cardsEnabled: false, selectedChallenge: "random", allowedCards: ["revealNumber", "burnNumber", "revealParity", "freeze", "shield"] },
     },
 
     setMode: (mode) => set({ mode }),
@@ -477,7 +477,7 @@ export const useNumberGame = create<NumberGameState>()(
           ...settings,
           cardsEnabled: settings.cardsEnabled ?? state.multiplayer.settings.cardsEnabled ?? false,
           selectedChallenge: settings.selectedChallenge ?? state.multiplayer.settings.selectedChallenge ?? "random",
-          allowedCards: settings.allowedCards ?? state.multiplayer.settings.allowedCards ?? ["revealNumber", "burnNumber", "revealParity", "freeze", "shield", "blindMode"]
+          allowedCards: settings.allowedCards ?? state.multiplayer.settings.allowedCards ?? ["revealNumber", "burnNumber", "revealParity", "freeze", "shield"]
         } 
       } 
     })),

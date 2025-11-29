@@ -561,7 +561,7 @@ const handleMessage = (message: any) => {
       console.log(`[Cards WS] Card used: ${message.cardType} from ${message.fromPlayerName} to ${message.targetPlayerName || "self"}`);
       
       // Determine who receives the effect
-      const isAttackCard = ["freeze", "blindMode"].includes(message.cardType);
+      const isAttackCard = ["freeze"].includes(message.cardType);
       const effectRecipientId = isAttackCard && message.targetPlayerId
         ? message.targetPlayerId
         : message.fromPlayerId;
@@ -589,8 +589,6 @@ const handleMessage = (message: any) => {
         // Card was used against me
         if (message.cardType === "freeze") {
           toast.error(`${message.fromPlayerName} جمّدك لمدة 30 ثانية! ❄️`, { duration: 5000 });
-        } else if (message.cardType === "blindMode") {
-          toast.warning(`${message.fromPlayerName} عطّل رؤيتك للأرقام الزرقاء! 👁️`, { duration: 5000 });
         }
       }
       break;
