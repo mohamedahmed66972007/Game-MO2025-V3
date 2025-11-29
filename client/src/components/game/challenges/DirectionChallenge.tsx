@@ -303,10 +303,10 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
       {/* Game Area - Grid layout for perfect alignment */}
       <div className="flex-1 flex items-center justify-center w-full z-10 px-4">
         <div 
-          className="grid gap-4"
+          className="grid gap-6 md:gap-8"
           style={{
-            gridTemplateColumns: '80px 100px 80px',
-            gridTemplateRows: '80px 100px 80px',
+            gridTemplateColumns: 'auto auto auto',
+            gridTemplateRows: 'auto auto auto',
             width: 'fit-content',
           }}
         >
@@ -317,8 +317,8 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
             style={{
               gridColumn: '2',
               gridRow: '1',
-              width: '80px',
-              height: '80px',
+              width: '70px',
+              height: '70px',
               backgroundColor: directionChallenge.useColors && getColorForPosition('top') 
                 ? `${colorValues[getColorForPosition('top')!]}30` 
                 : 'rgba(255,255,255,0.1)',
@@ -340,15 +340,15 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
             </span>
           </motion.button>
           
-          {/* Left Arrow - Grid position: row 1, col 0 */}
+          {/* Left Arrow - Grid position: row 1, col 2 (RTL swap) */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("left")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: '1',
+              gridColumn: '3',
               gridRow: '2',
-              width: '80px',
-              height: '80px',
+              width: '70px',
+              height: '70px',
               backgroundColor: directionChallenge.useColors && getColorForPosition('left') 
                 ? `${colorValues[getColorForPosition('left')!]}30` 
                 : 'rgba(255,255,255,0.1)',
@@ -376,8 +376,8 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
             style={{
               gridColumn: '2',
               gridRow: '2',
-              width: '100px',
-              height: '100px',
+              width: '150px',
+              height: '150px',
               boxShadow: '0 0 50px rgba(139, 92, 246, 0.4), inset 0 0 80px rgba(139, 92, 246, 0.2)',
             }}
             animate={{
@@ -429,15 +429,15 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
             </AnimatePresence>
           </motion.div>
           
-          {/* Right Arrow - Grid position: row 1, col 2 */}
+          {/* Right Arrow - Grid position: row 1, col 0 (RTL swap) */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("right")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: '3',
+              gridColumn: '1',
               gridRow: '2',
-              width: '80px',
-              height: '80px',
+              width: '70px',
+              height: '70px',
               backgroundColor: directionChallenge.useColors && getColorForPosition('right') 
                 ? `${colorValues[getColorForPosition('right')!]}30` 
                 : 'rgba(255,255,255,0.1)',
@@ -466,8 +466,8 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
             style={{
               gridColumn: '2',
               gridRow: '3',
-              width: '80px',
-              height: '80px',
+              width: '70px',
+              height: '70px',
               backgroundColor: directionChallenge.useColors && getColorForPosition('bottom') 
                 ? `${colorValues[getColorForPosition('bottom')!]}30` 
                 : 'rgba(255,255,255,0.1)',
