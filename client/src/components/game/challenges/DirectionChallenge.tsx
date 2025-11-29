@@ -347,7 +347,7 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
             onClick={() => !hasInputRef.current && handleInput("left")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: isMultiplayer ? (isMobile ? '1' : '1') : (isMobile ? '3' : '1'),
+              gridColumn: isMultiplayer ? (isMobile ? '3' : '1') : (isMobile ? '3' : '1'),
               gridRow: '2',
               width: '70px',
               height: '70px',
@@ -406,7 +406,7 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
             onClick={() => !hasInputRef.current && handleInput("right")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: isMultiplayer ? (isMobile ? '3' : '3') : (isMobile ? '1' : '3'),
+              gridColumn: isMultiplayer ? (isMobile ? '1' : '3') : (isMobile ? '1' : '3'),
               gridRow: '2',
               width: '70px',
               height: '70px',
