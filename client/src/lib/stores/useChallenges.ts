@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
-export type ChallengeType = "guess" | "memory" | "direction";
-export type ChallengeCategory = "memory" | "reaction";
+export type ChallengeType = "guess" | "memory" | "direction" | "raindrops";
+export type ChallengeCategory = "memory" | "reaction" | "math";
 export type ChallengePhase = "menu" | "playing" | "won" | "lost";
 export type HintType = "digit" | "description";
 
@@ -59,6 +59,27 @@ interface DirectionChallenge {
   currentRound: number;
 }
 
+export interface RainDrop {
+  id: string;
+  equation: string;
+  answer: number;
+  x: number;
+  y: number;
+  speed: number;
+}
+
+interface RainDropsChallenge {
+  drops: RainDrop[];
+  score: number;
+  errors: number;
+  maxErrors: number;
+  gameTime: number;
+  timeRemaining: number;
+  currentInput: string;
+  isGameActive: boolean;
+  difficulty: number;
+}
+
 interface ChallengesState {
   maxAttempts: number;
   attempts: ChallengeAttempt[];
@@ -69,6 +90,7 @@ interface ChallengesState {
   guessChallenge: GuessChallenge;
   memoryChallenge: MemoryChallenge;
   directionChallenge: DirectionChallenge;
+  raindropsChallenge: RainDropsChallenge;
 
   selectChallenge: (challengeId: ChallengeType) => void;
   startChallenge: () => void;
@@ -95,11 +117,73 @@ interface ChallengesState {
   directionNextRound: () => void;
   directionHandleInput: (input: "right" | "left" | "up" | "down" | "none") => boolean;
   directionTimeOut: () => void;
+
+  raindropsStartGame: () => void;
+  raindropsAddDrop: () => void;
+  raindropsUpdateDrops: (deltaTime: number) => void;
+  raindropsSetInput: (input: string) => void;
+  raindropsSubmitAnswer: () => boolean;
+  raindropsRemoveDrop: (dropId: string) => void;
+  raindropsMissedDrop: () => void;
+  raindropsUpdateTime: (time: number) => void;
 }
 
 const generateSequence = (level: number): number[] => {
   const length = 3 + level;
   return Array.from({ length }, () => Math.floor(Math.random() * 8));
+};
+
+const generateMathEquation = (difficulty: number): { equation: string; answer: number } => {
+  const operations = ['+', '-', '*', '/'];
+  let num1: number, num2: number, operation: string, answer: number;
+  
+  const maxNum = Math.min(10 + difficulty * 3, 20);
+  
+  do {
+    operation = operations[Math.floor(Math.random() * operations.length)];
+    
+    switch (operation) {
+      case '+':
+        num1 = Math.floor(Math.random() * maxNum) + 1;
+        num2 = Math.floor(Math.random() * maxNum) + 1;
+        answer = num1 + num2;
+        break;
+      case '-':
+        num1 = Math.floor(Math.random() * maxNum) + 2;
+        num2 = Math.floor(Math.random() * (num1 - 1)) + 1;
+        answer = num1 - num2;
+        break;
+      case '*':
+        num1 = Math.floor(Math.random() * Math.min(10, maxNum)) + 1;
+        num2 = Math.floor(Math.random() * Math.min(10, maxNum)) + 1;
+        answer = num1 * num2;
+        break;
+      case '/':
+        num2 = Math.floor(Math.random() * 8) + 2;
+        answer = Math.floor(Math.random() * 10) + 2;
+        num1 = num2 * answer;
+        break;
+      default:
+        num1 = 1;
+        num2 = 1;
+        answer = 2;
+    }
+  } while (answer < 1 || !Number.isInteger(answer));
+  
+  const opSymbol = operation === '*' ? '×' : operation === '/' ? '÷' : operation;
+  return { equation: `${num1} ${opSymbol} ${num2}`, answer };
+};
+
+const generateRainDrop = (difficulty: number): RainDrop => {
+  const { equation, answer } = generateMathEquation(difficulty);
+  return {
+    id: Math.random().toString(36).substr(2, 9),
+    equation,
+    answer,
+    x: Math.random() * 70 + 15,
+    y: 0,
+    speed: 0.5 + difficulty * 0.08,
+  };
 };
 
 const generateRandomHint = (secretCode: number[]): Hint => {
@@ -223,6 +307,18 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
     currentRound: 0,
   },
 
+  raindropsChallenge: {
+    drops: [],
+    score: 0,
+    errors: 0,
+    maxErrors: 3,
+    gameTime: 90,
+    timeRemaining: 90,
+    currentInput: '',
+    isGameActive: false,
+    difficulty: 0,
+  },
+
   selectChallenge: (challengeId) => {
     set({ selectedChallenge: challengeId });
   },
@@ -257,6 +353,8 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
       });
     } else if (selectedChallenge === "direction") {
       get().directionStartGame();
+    } else if (selectedChallenge === "raindrops") {
+      get().raindropsStartGame();
     }
   },
 
@@ -322,6 +420,17 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
         gameTime: 60,
         totalRounds: 30,
         currentRound: 0,
+      },
+      raindropsChallenge: {
+        drops: [],
+        score: 0,
+        errors: 0,
+        maxErrors: 3,
+        gameTime: 90,
+        timeRemaining: 90,
+        currentInput: '',
+        isGameActive: false,
+        difficulty: 0,
       },
     });
   },
@@ -628,5 +737,168 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
         },
       });
     }
+  },
+
+  raindropsStartGame: () => {
+    const initialDrop = generateRainDrop(0);
+    set({
+      raindropsChallenge: {
+        drops: [initialDrop],
+        score: 0,
+        errors: 0,
+        maxErrors: 3,
+        gameTime: 90,
+        timeRemaining: 90,
+        currentInput: '',
+        isGameActive: true,
+        difficulty: 0,
+      },
+    });
+  },
+
+  raindropsAddDrop: () => {
+    const { raindropsChallenge } = get();
+    if (!raindropsChallenge.isGameActive) return;
+    
+    const newDrop = generateRainDrop(raindropsChallenge.difficulty);
+    set({
+      raindropsChallenge: {
+        ...raindropsChallenge,
+        drops: [...raindropsChallenge.drops, newDrop],
+      },
+    });
+  },
+
+  raindropsUpdateDrops: (deltaTime: number) => {
+    const { raindropsChallenge } = get();
+    if (!raindropsChallenge.isGameActive) return;
+    
+    const updatedDrops = raindropsChallenge.drops.map(drop => ({
+      ...drop,
+      y: drop.y + drop.speed * deltaTime * 0.025,
+    }));
+    
+    set({
+      raindropsChallenge: {
+        ...raindropsChallenge,
+        drops: updatedDrops,
+      },
+    });
+  },
+
+  raindropsSetInput: (input: string) => {
+    const { raindropsChallenge } = get();
+    set({
+      raindropsChallenge: {
+        ...raindropsChallenge,
+        currentInput: input,
+      },
+    });
+  },
+
+  raindropsSubmitAnswer: () => {
+    const { raindropsChallenge } = get();
+    const answer = parseInt(raindropsChallenge.currentInput);
+    
+    if (isNaN(answer)) return false;
+    
+    const matchingDrop = raindropsChallenge.drops.find(drop => drop.answer === answer);
+    
+    if (matchingDrop) {
+      const newScore = raindropsChallenge.score + 1;
+      const newDifficulty = Math.floor(newScore / 5);
+      
+      set({
+        raindropsChallenge: {
+          ...raindropsChallenge,
+          drops: raindropsChallenge.drops.filter(d => d.id !== matchingDrop.id),
+          score: newScore,
+          currentInput: '',
+          difficulty: newDifficulty,
+        },
+      });
+      return true;
+    } else {
+      const newErrors = raindropsChallenge.errors + 1;
+      if (newErrors >= raindropsChallenge.maxErrors) {
+        set({
+          raindropsChallenge: {
+            ...raindropsChallenge,
+            errors: newErrors,
+            isGameActive: false,
+            currentInput: '',
+          },
+        });
+        get().completeChallenge(false);
+      } else {
+        set({
+          raindropsChallenge: {
+            ...raindropsChallenge,
+            errors: newErrors,
+            currentInput: '',
+          },
+        });
+      }
+      return false;
+    }
+  },
+
+  raindropsRemoveDrop: (dropId: string) => {
+    const { raindropsChallenge } = get();
+    set({
+      raindropsChallenge: {
+        ...raindropsChallenge,
+        drops: raindropsChallenge.drops.filter(d => d.id !== dropId),
+      },
+    });
+  },
+
+  raindropsMissedDrop: () => {
+    const { raindropsChallenge } = get();
+    const newErrors = raindropsChallenge.errors + 1;
+    
+    if (newErrors >= raindropsChallenge.maxErrors) {
+      set({
+        raindropsChallenge: {
+          ...raindropsChallenge,
+          errors: newErrors,
+          isGameActive: false,
+        },
+      });
+      get().completeChallenge(false);
+    } else {
+      set({
+        raindropsChallenge: {
+          ...raindropsChallenge,
+          errors: newErrors,
+        },
+      });
+    }
+  },
+
+  raindropsUpdateTime: (time: number) => {
+    const { raindropsChallenge } = get();
+    
+    if (time <= 0) {
+      set({
+        raindropsChallenge: {
+          ...raindropsChallenge,
+          timeRemaining: 0,
+          isGameActive: false,
+        },
+      });
+      get().completeChallenge(true);
+      return;
+    }
+    
+    const newDifficulty = Math.floor((90 - time) / 15);
+    
+    set({
+      raindropsChallenge: {
+        ...raindropsChallenge,
+        timeRemaining: time,
+        difficulty: newDifficulty,
+      },
+    });
   },
 }));

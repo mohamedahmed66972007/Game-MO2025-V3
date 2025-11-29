@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useChallenges, type DirectionType, type ColorDirection } from "@/lib/stores/useChallenges";
 import { useAudio } from "@/lib/stores/useAudio";
-import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, X, Check, Clock, AlertTriangle, Smartphone, Monitor } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, X, Check, Clock, AlertTriangle, Hand } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const useIsMobile = () => {
@@ -31,7 +31,7 @@ const directionLabels: Record<DirectionType, string> = {
   notLeft: "ليس يسار",
   notUp: "ليس فوق",
   notDown: "ليس تحت",
-  nothing: "لا شيء",
+  nothing: "لا تتحرك",
 };
 
 const colorLabels: Record<ColorDirection, string> = {
@@ -41,33 +41,12 @@ const colorLabels: Record<ColorDirection, string> = {
   red: "أحمر",
 };
 
-const colorToDirection: Record<ColorDirection, string> = {
-  green: "يمين",
-  yellow: "يسار",
-  blue: "فوق",
-  red: "تحت",
-};
-
-const colorStyles: Record<ColorDirection, string> = {
-  green: "bg-white border-slate-300",
-  yellow: "bg-white border-slate-300",
-  blue: "bg-white border-slate-300",
-  red: "bg-white border-slate-300",
-};
-
-const colorToColorValue: Record<ColorDirection, string> = {
+const colorValues: Record<ColorDirection, string> = {
   green: "#22c55e",
   yellow: "#eab308",
   blue: "#3b82f6",
   red: "#ef4444",
 };
-
-interface ColorPosition {
-  yellow: 'left' | 'right' | 'top' | 'bottom';
-  green: 'left' | 'right' | 'top' | 'bottom';
-  blue: 'left' | 'right' | 'top' | 'bottom';
-  red: 'left' | 'right' | 'top' | 'bottom';
-}
 
 export function DirectionChallenge() {
   const {
@@ -82,13 +61,12 @@ export function DirectionChallenge() {
   const isMobile = useIsMobile();
   const [progress, setProgress] = useState(100);
   const [showFeedback, setShowFeedback] = useState<"correct" | "wrong" | null>(null);
-  const [cardTransform, setCardTransform] = useState({ x: 0, y: 0, z: 0 });
+  const [pulseDirection, setPulseDirection] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const hasInputRef = useRef(false);
 
-  // Use color positions from store
   const colorPositions = directionChallenge.colorPositions;
 
   const handleInput = useCallback((input: "right" | "left" | "up" | "down" | "none") => {
@@ -97,20 +75,10 @@ export function DirectionChallenge() {
 
     const isCorrect = directionHandleInput(input);
     
-    if (directionChallenge.useColors && directionChallenge.currentColor && colorPositions) {
-      const position = colorPositions[directionChallenge.currentColor];
-      const expectedDir = position === 'top' ? 'up' : position === 'bottom' ? 'down' : position;
-      console.log(`[Direction] Color: ${directionChallenge.currentColor} at ${position}, Expected: ${expectedDir}, Input: ${input}, Correct: ${isCorrect}`);
-    }
-    
     if (isCorrect) {
       playConfirm();
       setShowFeedback("correct");
-      
-      if (input === "right") setCardTransform({ x: 50, y: 0, z: 0 });
-      else if (input === "left") setCardTransform({ x: -50, y: 0, z: 0 });
-      else if (input === "up") setCardTransform({ x: 0, y: -50, z: 0 });
-      else if (input === "down") setCardTransform({ x: 0, y: 50, z: 0 });
+      setPulseDirection(input);
     } else {
       playError();
       setShowFeedback("wrong");
@@ -121,7 +89,7 @@ export function DirectionChallenge() {
 
     setTimeout(() => {
       setShowFeedback(null);
-      setCardTransform({ x: 0, y: 0, z: 0 });
+      setPulseDirection(null);
       hasInputRef.current = false;
       directionNextRound();
     }, 400);
@@ -251,284 +219,291 @@ export function DirectionChallenge() {
     return "";
   };
 
-  const getCubeStyle = () => {
-    return "bg-transparent";
+  const getDirectionIcon = (dir: "up" | "down" | "left" | "right") => {
+    const iconClass = "w-8 h-8 md:w-10 md:h-10";
+    switch (dir) {
+      case "up": return <ArrowUp className={iconClass} />;
+      case "down": return <ArrowDown className={iconClass} />;
+      case "left": return <ArrowLeft className={iconClass} />;
+      case "right": return <ArrowRight className={iconClass} />;
+    }
   };
 
-  const getCubeTextColor = () => {
-    return "text-white";
+  const getColorForPosition = (position: 'top' | 'bottom' | 'left' | 'right') => {
+    if (!colorPositions) return null;
+    for (const [color, pos] of Object.entries(colorPositions)) {
+      if (pos === position) return color as ColorDirection;
+    }
+    return null;
   };
 
-  // Calculate border and glow colors
-  const colorMap: Record<ColorDirection, string> = {
-    red: "rgba(239, 68, 68, 0.8)",
-    green: "rgba(34, 197, 94, 0.8)",
-    blue: "rgba(59, 130, 246, 0.8)",
-    yellow: "rgba(234, 179, 8, 0.8)",
-  };
-
-  const glowColorMap: Record<ColorDirection, string> = {
-    red: "rgba(239, 68, 68, 0.4)",
-    green: "rgba(34, 197, 94, 0.4)",
-    blue: "rgba(59, 130, 246, 0.4)",
-    yellow: "rgba(234, 179, 8, 0.4)",
-  };
-
-  const borderColor = directionChallenge.useColors && directionChallenge.currentColor
-    ? colorMap[directionChallenge.currentColor] || "rgba(255, 255, 255, 0.5)"
-    : "rgba(255, 255, 255, 0.5)";
-
-  const glowColor = directionChallenge.useColors && directionChallenge.currentColor
-    ? glowColorMap[directionChallenge.currentColor] || "rgba(255, 255, 255, 0.3)"
-    : "rgba(255, 255, 255, 0.3)";
+  const arrowSize = "w-16 h-16 md:w-20 md:h-20";
+  const arrowOffset = "24";
 
   return (
     <div 
-      className="w-full h-full flex flex-col items-center justify-center p-4 sm:p-8 bg-gradient-to-b from-purple-900 to-slate-950 select-none overflow-hidden"
+      className="w-full h-full flex flex-col items-center justify-between p-4 md:p-8 bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 select-none overflow-hidden"
       style={{ touchAction: 'none' }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="w-full max-w-lg">
-        <div className="flex items-center justify-between mb-6">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      </div>
+
+      <div className="w-full max-w-2xl z-10">
+        <div className="flex items-center justify-between mb-4">
           <button
             onClick={resetToMenu}
-            className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-700/80 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-xl transition-all shadow-lg"
+            className="flex items-center gap-2 bg-white/10 backdrop-blur-xl hover:bg-white/20 text-white px-4 py-2 md:px-6 md:py-3 rounded-2xl transition-all shadow-lg border border-white/10"
           >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="font-bold text-sm sm:text-base">رجوع</span>
+            <ArrowLeft className="w-4 h-4 md:w-5 md:h-5" />
+            <span className="font-bold text-sm md:text-base">رجوع</span>
           </button>
 
-          <div className="text-center flex-1 mx-4">
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-1">
-              ترتيب الاتجاهات
-            </h2>
-          </div>
+          <div className="flex items-center gap-2 md:gap-4">
+            <motion.div 
+              className="bg-white/10 backdrop-blur-xl px-3 py-2 md:px-4 md:py-3 rounded-2xl shadow-lg border border-white/10 flex items-center gap-2"
+              animate={{ scale: directionChallenge.errors > 0 ? [1, 1.1, 1] : 1 }}
+            >
+              <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-red-400" />
+              <span className="text-base md:text-lg font-bold text-white">
+                {directionChallenge.errors}/{directionChallenge.maxErrors}
+              </span>
+            </motion.div>
 
-          <div className="w-16 sm:w-24"></div>
-        </div>
-
-        <div className="flex items-center justify-center gap-4 sm:gap-8 mb-20 flex-wrap">
-          <div className="bg-slate-800/80 backdrop-blur-xl px-3 sm:px-4 py-2 sm:py-3 rounded-xl shadow-lg">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
-              <div className="text-center">
-                <p className="text-gray-400 text-xs">الجولة</p>
-                <p className="text-lg sm:text-xl font-bold text-white">
-                  {directionChallenge.currentRound} / {directionChallenge.totalRounds}
-                </p>
-              </div>
+            <div className="bg-white/10 backdrop-blur-xl px-3 py-2 md:px-4 md:py-3 rounded-2xl shadow-lg border border-white/10 flex items-center gap-2">
+              <Check className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
+              <span className="text-base md:text-lg font-bold text-white">
+                {directionChallenge.score}
+              </span>
             </div>
-          </div>
 
-          <div className="bg-slate-800/80 backdrop-blur-xl px-3 sm:px-4 py-2 sm:py-3 rounded-xl shadow-lg">
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
-              <div className="text-center">
-                <p className="text-gray-400 text-xs">النقاط</p>
-                <p className="text-lg sm:text-xl font-bold text-white">
-                  {directionChallenge.score}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-800/80 backdrop-blur-xl px-3 sm:px-4 py-2 sm:py-3 rounded-xl shadow-lg">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
-              <div className="text-center">
-                <p className="text-gray-400 text-xs">الأخطاء</p>
-                <p className="text-lg sm:text-xl font-bold text-white">
-                  {directionChallenge.errors} / {directionChallenge.maxErrors}
-                </p>
-              </div>
+            <div className="bg-white/10 backdrop-blur-xl px-3 py-2 md:px-4 md:py-3 rounded-2xl shadow-lg border border-white/10 flex items-center gap-2">
+              <Clock className="w-4 h-4 md:w-5 md:h-5 text-cyan-400" />
+              <span className="text-base md:text-lg font-bold text-white">
+                {directionChallenge.currentRound}/{directionChallenge.totalRounds}
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="relative flex flex-col items-center justify-center my-8">
+        <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-xl">
+          <motion.div
+            className="h-full rounded-full"
+            style={{
+              width: `${progress}%`,
+              background: progress > 50 
+                ? 'linear-gradient(90deg, #06b6d4, #8b5cf6)' 
+                : progress > 25 
+                  ? 'linear-gradient(90deg, #eab308, #f97316)' 
+                  : 'linear-gradient(90deg, #ef4444, #dc2626)',
+            }}
+            transition={{ duration: 0.1 }}
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center w-full z-10">
+        <div className="relative flex items-center justify-center" style={{ width: '320px', height: '320px' }}>
+          
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("up")}
+            className={`absolute ${arrowSize} rounded-2xl flex items-center justify-center transition-all border-2`}
+            style={{
+              top: 0,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('top') 
+                ? `${colorValues[getColorForPosition('top')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('top')
+                ? colorValues[getColorForPosition('top')!]
+                : 'rgba(255,255,255,0.2)',
+              boxShadow: pulseDirection === 'up' 
+                ? `0 0 30px rgba(139, 92, 246, 0.5)`
+                : 'none',
+            }}
+            animate={{
+              scale: pulseDirection === 'up' ? 1.2 : 1,
+              opacity: pulseDirection === 'up' ? 1 : 0.8,
+            }}
+            whileHover={{ scale: 1.1, opacity: 1 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('top') ? colorValues[getColorForPosition('top')!] : 'white' }}>
+              {getDirectionIcon('up')}
+            </span>
+          </motion.button>
+
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("down")}
+            className={`absolute ${arrowSize} rounded-2xl flex items-center justify-center transition-all border-2`}
+            style={{
+              bottom: 0,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('bottom') 
+                ? `${colorValues[getColorForPosition('bottom')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('bottom')
+                ? colorValues[getColorForPosition('bottom')!]
+                : 'rgba(255,255,255,0.2)',
+              boxShadow: pulseDirection === 'down' 
+                ? `0 0 30px rgba(139, 92, 246, 0.5)`
+                : 'none',
+            }}
+            animate={{
+              scale: pulseDirection === 'down' ? 1.2 : 1,
+              opacity: pulseDirection === 'down' ? 1 : 0.8,
+            }}
+            whileHover={{ scale: 1.1, opacity: 1 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('bottom') ? colorValues[getColorForPosition('bottom')!] : 'white' }}>
+              {getDirectionIcon('down')}
+            </span>
+          </motion.button>
+
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("left")}
+            className={`absolute ${arrowSize} rounded-2xl flex items-center justify-center transition-all border-2`}
+            style={{
+              left: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('left') 
+                ? `${colorValues[getColorForPosition('left')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('left')
+                ? colorValues[getColorForPosition('left')!]
+                : 'rgba(255,255,255,0.2)',
+              boxShadow: pulseDirection === 'left' 
+                ? `0 0 30px rgba(139, 92, 246, 0.5)`
+                : 'none',
+            }}
+            animate={{
+              scale: pulseDirection === 'left' ? 1.2 : 1,
+              opacity: pulseDirection === 'left' ? 1 : 0.8,
+            }}
+            whileHover={{ scale: 1.1, opacity: 1 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('left') ? colorValues[getColorForPosition('left')!] : 'white' }}>
+              {getDirectionIcon('left')}
+            </span>
+          </motion.button>
+
+          <motion.button
+            onClick={() => !hasInputRef.current && handleInput("right")}
+            className={`absolute ${arrowSize} rounded-2xl flex items-center justify-center transition-all border-2`}
+            style={{
+              right: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              backgroundColor: directionChallenge.useColors && getColorForPosition('right') 
+                ? `${colorValues[getColorForPosition('right')!]}30` 
+                : 'rgba(255,255,255,0.1)',
+              borderColor: directionChallenge.useColors && getColorForPosition('right')
+                ? colorValues[getColorForPosition('right')!]
+                : 'rgba(255,255,255,0.2)',
+              boxShadow: pulseDirection === 'right' 
+                ? `0 0 30px rgba(139, 92, 246, 0.5)`
+                : 'none',
+            }}
+            animate={{
+              scale: pulseDirection === 'right' ? 1.2 : 1,
+              opacity: pulseDirection === 'right' ? 1 : 0.8,
+            }}
+            whileHover={{ scale: 1.1, opacity: 1 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span style={{ color: directionChallenge.useColors && getColorForPosition('right') ? colorValues[getColorForPosition('right')!] : 'white' }}>
+              {getDirectionIcon('right')}
+            </span>
+          </motion.button>
+
+          <motion.div
+            className="w-36 h-36 md:w-44 md:h-44 rounded-3xl flex items-center justify-center overflow-hidden bg-slate-800/90 border-3 border-white/20"
+            style={{
+              boxShadow: '0 0 40px rgba(139, 92, 246, 0.2), inset 0 0 60px rgba(139, 92, 246, 0.1)',
+            }}
+            animate={{
+              scale: showFeedback ? 1.05 : 1,
+              rotate: showFeedback === "wrong" ? [0, -5, 5, -5, 5, 0] : 0,
+            }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
+            
+            <span 
+              className="text-3xl md:text-4xl lg:text-5xl font-black text-white z-10"
+              style={{
+                textShadow: '0 0 20px rgba(255,255,255,0.3)',
+              }}
+            >
+              {getDisplayText()}
+            </span>
+          </motion.div>
+
           <AnimatePresence>
             {showFeedback && (
               <motion.div
-                initial={{ scale: 0, opacity: 0, y: 20 }}
-                animate={{ scale: 1.2, opacity: 1, y: 0 }}
-                exit={{ scale: 0, opacity: 0, y: -20 }}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1.5, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                className={`absolute -top-32 z-50 w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center ${
-                  showFeedback === "correct" 
-                    ? "bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-green-500/50" 
-                    : "bg-gradient-to-br from-red-400 to-red-600 shadow-lg shadow-red-500/50"
-                }`}
+                className={`absolute inset-0 flex items-center justify-center z-50 pointer-events-none`}
               >
-                <motion.div
-                  initial={{ rotate: -45 }}
-                  animate={{ rotate: 0 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  {showFeedback === "correct" ? (
-                    <Check className="w-12 h-12 sm:w-14 sm:h-14 text-white" />
-                  ) : (
-                    <X className="w-12 h-12 sm:w-14 sm:h-14 text-white" />
-                  )}
-                </motion.div>
+                <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center ${
+                  showFeedback === "correct"
+                    ? "bg-gradient-to-br from-green-400 to-emerald-600 shadow-2xl shadow-green-500/50"
+                    : "bg-gradient-to-br from-red-400 to-rose-600 shadow-2xl shadow-red-500/50"
+                }`}>
+                  <motion.div
+                    initial={{ rotate: -45, scale: 0 }}
+                    animate={{ rotate: 0, scale: 1 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    {showFeedback === "correct" ? (
+                      <Check className="w-12 h-12 md:w-16 md:h-16 text-white" />
+                    ) : (
+                      <X className="w-12 h-12 md:w-16 md:h-16 text-white" />
+                    )}
+                  </motion.div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+      </div>
 
-          {/* Progress bar - Wide bar below cube */}
-          <div className="absolute top-80 w-72 h-6 bg-slate-900/60 rounded-lg overflow-hidden z-40 shadow-lg border-2 border-slate-700">
-            <motion.div
-              className="h-full bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 shadow-lg shadow-blue-500/50 rounded-lg"
-              style={{ width: `${progress}%` }}
-              transition={{ type: "linear" }}
-            />
+      <div className="w-full max-w-lg z-10">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 md:p-6">
+          <div className="flex items-center gap-3 justify-center text-white/70 text-sm md:text-base">
+            {isMobile ? (
+              <>
+                <Hand className="w-5 h-5" />
+                <span>اسحب في اتجاه الإجابة الصحيحة</span>
+              </>
+            ) : (
+              <>
+                <span className="flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-white/10 rounded-lg text-xs">W</kbd>
+                  <kbd className="px-2 py-1 bg-white/10 rounded-lg text-xs">A</kbd>
+                  <kbd className="px-2 py-1 bg-white/10 rounded-lg text-xs">S</kbd>
+                  <kbd className="px-2 py-1 bg-white/10 rounded-lg text-xs">D</kbd>
+                </span>
+                <span>أو الأسهم للتحرك</span>
+              </>
+            )}
           </div>
-
-          <div style={{ perspective: '1000px' }} className="relative h-80 flex items-center justify-center">
-            <motion.div
-              style={{
-                width: '200px',
-                height: '200px',
-                boxSizing: 'border-box',
-              }}
-              animate={{
-                x: cardTransform.x,
-                y: cardTransform.y,
-                rotateZ: cardTransform.z,
-                scale: showFeedback ? 1.15 : 1,
-              }}
-              transition={{ 
-                type: "tween",
-                duration: 0.3,
-                ease: "easeInOut"
-              }}
-            >
-              {/* Card Container with colored borders */}
-              <div
-                className={getCubeStyle()}
-                style={{
-                  position: 'absolute',
-                  width: '200px',
-                  height: '200px',
-                  borderRadius: '48px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxSizing: 'border-box',
-                  overflow: 'visible',
-                  backdropFilter: 'blur(8px)',
-                } as React.CSSProperties}
-              >
-                {/* Left border - Dynamic color based on colorPositions */}
-                {(!directionChallenge.useColors || !colorPositions) && (
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#ffffff', borderRadius: '30px 0 0 30px', boxShadow: '0 0 15px rgba(255, 255, 255, 0.8)' }} />
-                )}
-                {directionChallenge.useColors && colorPositions && (
-                  <>
-                    {colorPositions.yellow === 'left' && (
-                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#eab308', borderRadius: '30px 0 0 30px', boxShadow: directionChallenge.currentColor === 'yellow' ? '0 0 20px rgba(234, 179, 8, 1), 0 0 35px rgba(234, 179, 8, 0.6)' : '0 0 10px rgba(234, 179, 8, 0.5)' }} />
-                    )}
-                    {colorPositions.green === 'left' && (
-                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#22c55e', borderRadius: '30px 0 0 30px', boxShadow: directionChallenge.currentColor === 'green' ? '0 0 20px rgba(34, 197, 94, 1), 0 0 35px rgba(34, 197, 94, 0.6)' : '0 0 10px rgba(34, 197, 94, 0.5)' }} />
-                    )}
-                    {colorPositions.blue === 'left' && (
-                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#3b82f6', borderRadius: '30px 0 0 30px', boxShadow: directionChallenge.currentColor === 'blue' ? '0 0 20px rgba(59, 130, 246, 1), 0 0 35px rgba(59, 130, 246, 0.6)' : '0 0 10px rgba(59, 130, 246, 0.5)' }} />
-                    )}
-                    {colorPositions.red === 'left' && (
-                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#ef4444', borderRadius: '30px 0 0 30px', boxShadow: directionChallenge.currentColor === 'red' ? '0 0 20px rgba(239, 68, 68, 1), 0 0 35px rgba(239, 68, 68, 0.6)' : '0 0 10px rgba(239, 68, 68, 0.5)' }} />
-                    )}
-                  </>
-                )}
-
-                {/* Right border - Dynamic color based on colorPositions */}
-                {(!directionChallenge.useColors || !colorPositions) && (
-                  <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#ffffff', borderRadius: '0 30px 30px 0', boxShadow: '0 0 15px rgba(255, 255, 255, 0.8)' }} />
-                )}
-                {directionChallenge.useColors && colorPositions && (
-                  <>
-                    {colorPositions.yellow === 'right' && (
-                      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#eab308', borderRadius: '0 30px 30px 0', boxShadow: directionChallenge.currentColor === 'yellow' ? '0 0 20px rgba(234, 179, 8, 1), 0 0 35px rgba(234, 179, 8, 0.6)' : '0 0 10px rgba(234, 179, 8, 0.5)' }} />
-                    )}
-                    {colorPositions.green === 'right' && (
-                      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#22c55e', borderRadius: '0 30px 30px 0', boxShadow: directionChallenge.currentColor === 'green' ? '0 0 20px rgba(34, 197, 94, 1), 0 0 35px rgba(34, 197, 94, 0.6)' : '0 0 10px rgba(34, 197, 94, 0.5)' }} />
-                    )}
-                    {colorPositions.blue === 'right' && (
-                      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#3b82f6', borderRadius: '0 30px 30px 0', boxShadow: directionChallenge.currentColor === 'blue' ? '0 0 20px rgba(59, 130, 246, 1), 0 0 35px rgba(59, 130, 246, 0.6)' : '0 0 10px rgba(59, 130, 246, 0.5)' }} />
-                    )}
-                    {colorPositions.red === 'right' && (
-                      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '3px', backgroundColor: '#ef4444', borderRadius: '0 30px 30px 0', boxShadow: directionChallenge.currentColor === 'red' ? '0 0 20px rgba(239, 68, 68, 1), 0 0 35px rgba(239, 68, 68, 0.6)' : '0 0 10px rgba(239, 68, 68, 0.5)' }} />
-                    )}
-                  </>
-                )}
-
-                {/* Top border - Dynamic color based on colorPositions */}
-                {(!directionChallenge.useColors || !colorPositions) && (
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', backgroundColor: '#ffffff', borderRadius: '30px 30px 0 0', boxShadow: '0 0 15px rgba(255, 255, 255, 0.8)' }} />
-                )}
-                {directionChallenge.useColors && colorPositions && (
-                  <>
-                    {colorPositions.yellow === 'top' && (
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', backgroundColor: '#eab308', borderRadius: '30px 30px 0 0', boxShadow: directionChallenge.currentColor === 'yellow' ? '0 0 20px rgba(234, 179, 8, 1), 0 0 35px rgba(234, 179, 8, 0.6)' : '0 0 10px rgba(234, 179, 8, 0.5)' }} />
-                    )}
-                    {colorPositions.green === 'top' && (
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', backgroundColor: '#22c55e', borderRadius: '30px 30px 0 0', boxShadow: directionChallenge.currentColor === 'green' ? '0 0 20px rgba(34, 197, 94, 1), 0 0 35px rgba(34, 197, 94, 0.6)' : '0 0 10px rgba(34, 197, 94, 0.5)' }} />
-                    )}
-                    {colorPositions.blue === 'top' && (
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', backgroundColor: '#3b82f6', borderRadius: '30px 30px 0 0', boxShadow: directionChallenge.currentColor === 'blue' ? '0 0 20px rgba(59, 130, 246, 1), 0 0 35px rgba(59, 130, 246, 0.6)' : '0 0 10px rgba(59, 130, 246, 0.5)' }} />
-                    )}
-                    {colorPositions.red === 'top' && (
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', backgroundColor: '#ef4444', borderRadius: '30px 30px 0 0', boxShadow: directionChallenge.currentColor === 'red' ? '0 0 20px rgba(239, 68, 68, 1), 0 0 35px rgba(239, 68, 68, 0.6)' : '0 0 10px rgba(239, 68, 68, 0.5)' }} />
-                    )}
-                  </>
-                )}
-
-                {/* Bottom border - Dynamic color based on colorPositions */}
-                {(!directionChallenge.useColors || !colorPositions) && (
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#ffffff', borderRadius: '0 0 30px 30px', boxShadow: '0 0 15px rgba(255, 255, 255, 0.8)' }} />
-                )}
-                {directionChallenge.useColors && colorPositions && (
-                  <>
-                    {colorPositions.yellow === 'bottom' && (
-                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#eab308', borderRadius: '0 0 30px 30px', boxShadow: directionChallenge.currentColor === 'yellow' ? '0 0 20px rgba(234, 179, 8, 1), 0 0 35px rgba(234, 179, 8, 0.6)' : '0 0 10px rgba(234, 179, 8, 0.5)' }} />
-                    )}
-                    {colorPositions.green === 'bottom' && (
-                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#22c55e', borderRadius: '0 0 30px 30px', boxShadow: directionChallenge.currentColor === 'green' ? '0 0 20px rgba(34, 197, 94, 1), 0 0 35px rgba(34, 197, 94, 0.6)' : '0 0 10px rgba(34, 197, 94, 0.5)' }} />
-                    )}
-                    {colorPositions.blue === 'bottom' && (
-                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#3b82f6', borderRadius: '0 0 30px 30px', boxShadow: directionChallenge.currentColor === 'blue' ? '0 0 20px rgba(59, 130, 246, 1), 0 0 35px rgba(59, 130, 246, 0.6)' : '0 0 10px rgba(59, 130, 246, 0.5)' }} />
-                    )}
-                    {colorPositions.red === 'bottom' && (
-                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#ef4444', borderRadius: '0 0 30px 30px', boxShadow: directionChallenge.currentColor === 'red' ? '0 0 20px rgba(239, 68, 68, 1), 0 0 35px rgba(239, 68, 68, 0.6)' : '0 0 10px rgba(239, 68, 68, 0.5)' }} />
-                    )}
-                  </>
-                )}
-
-                {/* Inner content */}
-                <motion.span 
-                  className={`text-5xl font-black text-center z-10 ${getCubeTextColor()}`}
-                  animate={{
-                    scale: showFeedback ? [1, 1.08, 1] : 1,
-                  }}
-                  transition={{ duration: 0.25 }}
-                >
-                  {getDisplayText()}
-                </motion.span>
-
-              </div>
-            </motion.div>
-          </div>
-
-          {isMobile ? (
-            <div className="flex flex-col items-center gap-4 mt-8">
-              <Smartphone className="w-8 h-8 text-gray-400" />
-              <p className="text-gray-400 text-center text-sm">اسحب بإصبعك يمين أو شمال أو أعلى أو أسفل</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-4 mt-8">
-              <p className="text-gray-300 text-center text-sm font-semibold">استخدم لوحة المفاتيح</p>
-              <p className="text-gray-400 text-center text-sm">W = أعلى | A = يسار | S = أسفل | D = يمين</p>
+          
+          {directionChallenge.useColors && (
+            <div className="mt-3 text-center text-white/50 text-xs md:text-sm">
+              اضغط على السهم الذي يطابق لون الكلمة
             </div>
           )}
         </div>

@@ -214,30 +214,7 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
           <p className="text-sm sm:text-base text-gray-700">
             الرقم السري كان: <span className="font-mono text-lg sm:text-xl lg:text-2xl font-bold text-purple-600">{singleplayer.secretCode.join("")}</span>
           </p>
-          {hint && (
-            <div className="bg-gradient-to-r from-yellow-400 to-amber-500 rounded-xl p-4 shadow-lg">
-              <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2 justify-center">
-                <Lightbulb className="w-5 h-5" />
-                التلميح:
-              </h3>
-              <p className="text-white text-base font-bold">{hintText}</p>
-            </div>
-          )}
           <div className="space-y-3">
-            {!hasWonChallenge && onStartChallenge ? (
-              <button
-                onClick={onStartChallenge}
-                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center gap-2 justify-center"
-              >
-                <Lightbulb className="w-5 h-5" />
-                احصل على تلميح
-              </button>
-            ) : hasWonChallenge ? (
-              <div className="w-full bg-green-100 border-2 border-green-500 text-green-800 font-bold py-3 px-6 rounded-xl flex items-center gap-2 justify-center">
-                <span>✓</span>
-                <span>تم اكمال التحدي</span>
-              </div>
-            ) : null}
             <button
               onClick={handleHome}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors"

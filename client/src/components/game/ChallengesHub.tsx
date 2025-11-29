@@ -1,8 +1,9 @@
 import { useChallenges, type ChallengeType, type ChallengeCategory } from "@/lib/stores/useChallenges";
-import { ArrowLeft, Brain, Target, Zap } from "lucide-react";
+import { ArrowLeft, Brain, Target, Zap, Calculator } from "lucide-react";
 import { GuessChallenge } from "./challenges/GuessChallenge";
 import { MemoryChallenge } from "./challenges/MemoryChallenge";
 import { DirectionChallenge } from "./challenges/DirectionChallenge";
+import { RainDropsChallenge } from "./challenges/RainDropsChallenge";
 
 interface ChallengeInfo {
   id: ChallengeType;
@@ -42,11 +43,21 @@ const challengeInfo: Record<ChallengeType, ChallengeInfo> = {
     borderColor: "border-orange-500",
     category: "reaction",
   },
+  raindrops: {
+    id: "raindrops",
+    name: "حبات المطر",
+    description: "حل المسائل الحسابية قبل أن تصل الحبات للأسفل",
+    icon: Calculator,
+    color: "from-cyan-500 to-blue-600",
+    borderColor: "border-cyan-500",
+    category: "math",
+  },
 };
 
 const categories: { id: ChallengeCategory; name: string; icon: typeof Brain }[] = [
   { id: "memory", name: "الذاكرة", icon: Brain },
   { id: "reaction", name: "رد الفعل", icon: Zap },
+  { id: "math", name: "الرياضيات", icon: Calculator },
 ];
 
 export function ChallengesHub({ onExit }: { onExit: () => void }) {
@@ -68,6 +79,7 @@ export function ChallengesHub({ onExit }: { onExit: () => void }) {
           {selectedChallenge === "guess" && <GuessChallenge />}
           {selectedChallenge === "memory" && <MemoryChallenge />}
           {selectedChallenge === "direction" && <DirectionChallenge />}
+          {selectedChallenge === "raindrops" && <RainDropsChallenge />}
         </div>
       );
     }

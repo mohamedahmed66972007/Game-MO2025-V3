@@ -34,12 +34,12 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
   }, [numDigits]);
 
   useEffect(() => {
-    if (singleplayer.phase === "won" && hasWonChallenge && singleplayer.secretCode) {
+    if (singleplayer.phase === "won" && singleplayer.secretCode) {
       if (!hint) {
         generateHint(singleplayer.secretCode);
       }
     }
-  }, [singleplayer.phase, hasWonChallenge, singleplayer.secretCode, hint, generateHint]);
+  }, [singleplayer.phase, singleplayer.secretCode, hint, generateHint]);
 
   const handleNumberInput = (num: string) => {
     if (focusedIndex >= numDigits) return;
@@ -162,7 +162,7 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
           <p className="text-gray-700">
             الرقم السري كان: <span className="font-mono text-xl font-bold text-purple-600">{singleplayer.secretCode.join("")}</span>
           </p>
-          {hasWonChallenge && hint && (
+          {hint && (
             <div className="bg-gradient-to-r from-yellow-400 to-amber-500 rounded-xl p-4 shadow-lg">
               <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2 justify-center">
                 <Lightbulb className="w-5 h-5" />
@@ -172,7 +172,7 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
             </div>
           )}
           <div className="space-y-3">
-            {!hasWonChallenge && onStartChallenge ? (
+            {!hint && onStartChallenge ? (
               <button
                 onClick={onStartChallenge}
                 className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center gap-2 justify-center"
@@ -180,7 +180,7 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
                 <Lightbulb className="w-5 h-5" />
                 احصل على تلميح
               </button>
-            ) : hasWonChallenge ? (
+            ) : hint ? (
               <div className="w-full bg-green-100 border-2 border-green-500 text-green-800 font-bold py-3 px-6 rounded-xl flex items-center gap-2 justify-center">
                 <span>✓</span>
                 <span>تم اكمال التحدي</span>
@@ -247,7 +247,7 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
 
         {/* زر التحدي أو مربع التلميح في الأعلى */}
         {onStartChallenge && (
-          !hasWonChallenge ? (
+          !hint ? (
             <button
               onClick={onStartChallenge}
               className="w-full flex items-center gap-2 justify-center bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-md flex-shrink-0"
@@ -255,7 +255,7 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
               <Lightbulb className="w-6 h-6" />
               <span className="text-lg">احصل على تلميح</span>
             </button>
-          ) : hint ? (
+          ) : (
             <div className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 rounded-xl p-4 shadow-md flex-shrink-0">
               <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2">
                 <Lightbulb className="w-5 h-5" />
@@ -263,7 +263,7 @@ export function MobileSingleplayer({ onStartChallenge }: { onStartChallenge?: ()
               </h3>
               <p className="text-white text-base font-bold">{hint.type === "digit" ? `في الخانة ${(hint.position || 0) + 1}: رقم ${hint.value}` : String(hint.value)}</p>
             </div>
-          ) : null
+          )
         )}
 
         <div className="bg-white rounded-xl p-6 shadow-md flex-shrink-0">
