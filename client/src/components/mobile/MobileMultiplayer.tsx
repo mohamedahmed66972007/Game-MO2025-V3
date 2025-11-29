@@ -9,6 +9,7 @@ import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Tro
 import { GameSettings } from "../ui/GameSettings";
 import { clearSession } from "@/lib/websocket";
 import { CardHand, CardEffectDisplay } from "../game/cards/CardSystem";
+import { MultiplayerChallenge } from "../game/MultiplayerChallenge";
 
 export function MobileMultiplayer() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export function MobileMultiplayer() {
     addMultiplayerDigit,
     deleteMultiplayerDigit,
     submitMultiplayerGuess,
+    setShowPreGameChallenge,
   } = useNumberGame();
 
   const { playDigit, playDelete, playConfirm, playError, successSound } = useAudio();
@@ -200,6 +202,17 @@ export function MobileMultiplayer() {
 
   if (shouldShowResults) {
     return <MultiplayerResults />;
+  }
+
+  if (multiplayer.gameStatus === "playing" && multiplayer.showPreGameChallenge) {
+    return (
+      <MultiplayerChallenge 
+        onComplete={(won) => {
+          console.log("Challenge completed, won:", won);
+          setShowPreGameChallenge(false);
+        }}
+      />
+    );
   }
 
   if (selectedPlayer && playerDetails) {

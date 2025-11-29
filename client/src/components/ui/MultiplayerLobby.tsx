@@ -2,13 +2,17 @@ import { useState } from "react";
 import { Button } from "./button";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
-import { Users, Copy, LogOut, Settings, Crown, Play } from "lucide-react";
+import { Users, Copy, LogOut, Settings, Crown, Play, Link, Check } from "lucide-react";
 import { GameSettings } from "./GameSettings";
+import { toast } from "sonner";
 
 export function MultiplayerLobby() {
   const { multiplayer, setMode, resetMultiplayer } = useNumberGame();
   const [showSettings, setShowSettings] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const roomLink = `${window.location.origin}/room/${multiplayer.roomId}`;
 
   const handleLeaveRoom = () => {
     send({ type: "leave_room" });
@@ -32,6 +36,13 @@ export function MultiplayerLobby() {
     navigator.clipboard.writeText(multiplayer.roomId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(roomLink);
+    setLinkCopied(true);
+    toast.success("تم نسخ الرابط! شاركه مع أصدقائك 🎮");
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   // Render GameSettings if showSettings is true
@@ -98,6 +109,31 @@ export function MultiplayerLobby() {
                 <Settings className="w-5 h-5 text-blue-600" />
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Room Link */}
+        <div className="px-4 py-3 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-200 flex-shrink-0">
+          <div className="flex items-center justify-center gap-2">
+            <Link className="w-4 h-4 text-green-600" />
+            <span className="text-green-700 font-medium text-sm">رابط الغرفة:</span>
+          </div>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            <div className="flex-1 max-w-md bg-white border border-green-300 rounded-lg px-3 py-2 text-sm text-gray-600 font-mono truncate" dir="ltr">
+              {roomLink}
+            </div>
+            <Button
+              onClick={handleCopyLink}
+              size="sm"
+              className={`${
+                linkCopied 
+                  ? "bg-green-600 hover:bg-green-700" 
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              } text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-all`}
+            >
+              {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {linkCopied ? 'تم النسخ!' : 'نسخ الرابط'}
+            </Button>
           </div>
         </div>
 

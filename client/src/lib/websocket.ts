@@ -288,6 +288,7 @@ const handleMessage = (message: any) => {
     case "game_started":
       // Clear previous game data and start fresh
       const cardsEnabled = message.settings?.cardsEnabled ?? store.multiplayer.settings.cardsEnabled;
+      const selectedChallenge = message.settings?.selectedChallenge ?? store.multiplayer.settings.selectedChallenge;
       
       useNumberGame.setState((state) => ({
         multiplayer: {
@@ -300,6 +301,8 @@ const handleMessage = (message: any) => {
           attempts: [],
           currentGuess: [],
           showResults: false,
+          showPreGameChallenge: cardsEnabled,
+          challengeWinner: null,
           winners: [],
           losers: [],
           stillPlaying: [],
@@ -311,7 +314,8 @@ const handleMessage = (message: any) => {
           settings: message.settings ? {
             ...state.multiplayer.settings,
             ...message.settings,
-            cardsEnabled: cardsEnabled
+            cardsEnabled: cardsEnabled,
+            selectedChallenge: selectedChallenge
           } : state.multiplayer.settings,
         },
       }));
@@ -325,13 +329,13 @@ const handleMessage = (message: any) => {
       if (cardsEnabled) {
         cardsStore.enableCards();
         cardsStore.initializePlayerCards(store.multiplayer.playerId);
-        console.log("Cards system initialized for player:", store.multiplayer.playerId);
+        console.log("Cards system initialized for player:", store.multiplayer.playerId, "Challenge:", selectedChallenge);
       } else {
         cardsStore.resetCards();
       }
       
       saveSessionToStorage(store.multiplayer.playerName, store.multiplayer.playerId, store.multiplayer.roomId);
-      console.log("Game started with shared secret, cardsEnabled:", cardsEnabled);
+      console.log("Game started with shared secret, cardsEnabled:", cardsEnabled, "showPreGameChallenge:", cardsEnabled);
       break;
 
     case "room_rejoined":

@@ -63,6 +63,8 @@ interface MultiplayerState {
   losers: PlayerResult[];
   stillPlaying: PlayerResult[];
   showResults: boolean;
+  showPreGameChallenge: boolean;
+  challengeWinner: string | null;
   rematchState: {
     requested: boolean;
     countdown: number | null;
@@ -117,6 +119,8 @@ interface NumberGameState {
   resetMultiplayerGame: () => void;
   setMultiplayerSettings: (settings: GameSettings) => void;
   updateStillPlayingAttempt: (playerId: string, attempt: Attempt) => void;
+  setShowPreGameChallenge: (show: boolean) => void;
+  setChallengeWinner: (playerId: string | null) => void;
 }
 
 const generateSecretCode = (numDigits: number = 4): number[] => {
@@ -188,6 +192,8 @@ export const useNumberGame = create<NumberGameState>()(
       losers: [],
       stillPlaying: [],
       showResults: false,
+      showPreGameChallenge: false,
+      challengeWinner: null,
       rematchState: {
         requested: false,
         countdown: null,
@@ -424,9 +430,10 @@ export const useNumberGame = create<NumberGameState>()(
           endTime: null,
           winners: [],
           losers: [],
+          stillPlaying: [],
           showResults: false,
-          isWatching: false,
-          watchingPlayerId: null,
+          showPreGameChallenge: false,
+          challengeWinner: null,
           rematchState: {
             requested: false,
             countdown: null,
@@ -450,6 +457,8 @@ export const useNumberGame = create<NumberGameState>()(
           losers: [],
           stillPlaying: [],
           showResults: false,
+          showPreGameChallenge: false,
+          challengeWinner: null,
           rematchState: {
             requested: false,
             countdown: null,
@@ -489,5 +498,19 @@ export const useNumberGame = create<NumberGameState>()(
         },
       });
     },
+
+    setShowPreGameChallenge: (show) => set((state) => ({
+      multiplayer: {
+        ...state.multiplayer,
+        showPreGameChallenge: show,
+      },
+    })),
+
+    setChallengeWinner: (playerId) => set((state) => ({
+      multiplayer: {
+        ...state.multiplayer,
+        challengeWinner: playerId,
+      },
+    })),
   }))
 );

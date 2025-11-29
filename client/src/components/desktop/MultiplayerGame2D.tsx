@@ -8,6 +8,7 @@ import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Tro
 import { GameSettings } from "../ui/GameSettings";
 import { clearSession, clearPersistentRoom } from "@/lib/websocket";
 import { CardHand, CardEffectDisplay } from "../game/cards/CardSystem";
+import { MultiplayerChallenge } from "../game/MultiplayerChallenge";
 
 export function MultiplayerGame2D() {
   const {
@@ -17,6 +18,7 @@ export function MultiplayerGame2D() {
     addMultiplayerDigit,
     deleteMultiplayerDigit,
     submitMultiplayerGuess,
+    setShowPreGameChallenge,
   } = useNumberGame();
 
   const { playDigit, playDelete, playConfirm, playError, successSound } = useAudio();
@@ -233,6 +235,17 @@ export function MultiplayerGame2D() {
 
   if (shouldShowResults) {
     return <MultiplayerResults />;
+  }
+
+  if (multiplayer.gameStatus === "playing" && multiplayer.showPreGameChallenge) {
+    return (
+      <MultiplayerChallenge 
+        onComplete={(won) => {
+          console.log("Challenge completed, won:", won);
+          setShowPreGameChallenge(false);
+        }}
+      />
+    );
   }
 
   // Spectator mode: show list of players still playing when current player finished
@@ -480,52 +493,55 @@ export function MultiplayerGame2D() {
   if (multiplayer.gameStatus === "playing" && multiplayer.sharedSecret.length > 0) {
     return (
       <div className="min-h-screen h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-y-auto">
-        <div className="w-full h-full flex flex-col lg:flex-row gap-4 p-4">
-          {/* Main Game Area */}
-          <div className="flex-1 flex flex-col gap-4 max-w-2xl mx-auto lg:mx-0 lg:max-w-none">
-            {/* Header */}
-            <div className="flex flex-row-reverse items-center justify-between bg-white rounded-xl p-4 shadow-md gap-4">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    handleLeaveRoom();
-                    setMode("menu");
-                  }}
-                  className="p-2 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 text-red-600"
-                  title="الخروج من الغرفة"
-                >
-                  <LogOut className="w-6 h-6" />
-                </button>
-                <button
-                  onClick={() => {
-                    handleLeaveRoom();
-                    setMode("menu");
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-                  title="الصفحة الرئيسية"
-                >
-                  <Home className="w-6 h-6 text-gray-700" />
-                </button>
-              </div>
-              <div className="text-right flex-1">
-                <p className="text-sm text-gray-600">المحاولات المتبقية من {multiplayer.settings.maxAttempts}</p>
-                <p className="text-2xl font-bold text-blue-600">{multiplayer.settings.maxAttempts - multiplayer.attempts.length}</p>
-              </div>
-              <div className="text-right flex-1 border-l-2 border-gray-300 pl-4">
-                <p className="text-sm text-gray-600">الوقت المنقضي</p>
-                <p className="text-2xl font-bold text-green-600">{formatDuration(getCurrentDuration())}</p>
-              </div>
+        <div className="w-full h-full flex flex-col p-4">
+          {/* Header - Same for all devices */}
+          <div className="flex flex-row-reverse items-center justify-between bg-white rounded-xl p-4 shadow-md gap-4 mb-4 max-w-6xl mx-auto w-full">
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  handleLeaveRoom();
+                  setMode("menu");
+                }}
+                className="p-2 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 text-red-600"
+                title="الخروج من الغرفة"
+              >
+                <LogOut className="w-6 h-6" />
+              </button>
+              <button
+                onClick={() => {
+                  handleLeaveRoom();
+                  setMode("menu");
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                title="الصفحة الرئيسية"
+              >
+                <Home className="w-6 h-6 text-gray-700" />
+              </button>
             </div>
+            <div className="text-right flex-1">
+              <p className="text-sm text-gray-600">المحاولات المتبقية من {multiplayer.settings.maxAttempts}</p>
+              <p className="text-2xl font-bold text-blue-600">{multiplayer.settings.maxAttempts - multiplayer.attempts.length}</p>
+            </div>
+            <div className="text-right flex-1 border-l-2 border-gray-300 pl-4">
+              <p className="text-sm text-gray-600">الوقت المنقضي</p>
+              <p className="text-2xl font-bold text-green-600">{formatDuration(getCurrentDuration())}</p>
+            </div>
+          </div>
 
-            {/* Number Input Section */}
-            <div className="bg-white rounded-xl p-4 shadow-md">
+          {/* Main Game Area - Different layouts for desktop vs mobile/tablet */}
+          <div className="flex-1 flex flex-col xl:flex-row gap-4 max-w-6xl mx-auto w-full">
+            {/* Desktop: Attempts on RIGHT (order-2), Number pad on LEFT (order-1) */}
+            {/* Mobile/Tablet: Number pad first, then attempts below */}
+            
+            {/* Number Input Section - LEFT on desktop, TOP on mobile/tablet */}
+            <div className="bg-white rounded-xl p-4 shadow-md xl:flex-1 xl:order-1">
               <h3 className="text-lg font-bold text-gray-800 mb-3 text-center">أدخل {numDigits} أرقام</h3>
               
               <div className="flex gap-3 justify-center mb-4" dir="ltr">
                 {input.map((digit, idx) => (
                   <div
                     key={idx}
-                    className={`w-14 h-16 md:w-16 md:h-18 border-2 rounded-xl flex items-center justify-center text-2xl md:text-3xl font-bold transition-all ${
+                    className={`w-14 h-16 md:w-16 md:h-18 xl:w-14 xl:h-16 border-2 rounded-xl flex items-center justify-center text-2xl md:text-3xl xl:text-2xl font-bold transition-all ${
                       focusedIndex === idx
                         ? "border-blue-500 bg-blue-50"
                         : "border-gray-300 bg-white"
@@ -541,35 +557,35 @@ export function MultiplayerGame2D() {
                   <button
                     key={num}
                     onClick={() => handleNumberInput(num.toString())}
-                    className="h-14 md:h-16 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                    className="h-14 md:h-16 xl:h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
                   >
                     {num}
                   </button>
                 ))}
                 <button
                   onClick={handleBackspace}
-                  className="h-14 md:h-16 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
+                  className="h-14 md:h-16 xl:h-14 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
                 >
                   <X className="w-6 h-6" />
                 </button>
                 <button
                   onClick={() => handleNumberInput("0")}
-                  className="h-14 md:h-16 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                  className="h-14 md:h-16 xl:h-14 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xl font-bold rounded-xl shadow-md active:scale-95 transition-all"
                 >
                   0
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={input.some(val => val === "")}
-                  className="h-14 md:h-16 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
+                  className="h-14 md:h-16 xl:h-14 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
                 >
                   <Check className="w-6 h-6" />
                 </button>
               </div>
             </div>
 
-            {/* Attempts Section - Below keypad on mobile/tablet, side on desktop */}
-            <div className="bg-white rounded-xl p-4 shadow-md flex-1 overflow-hidden flex flex-col min-h-[200px]">
+            {/* Attempts Section - RIGHT on desktop (order-2), BOTTOM on mobile/tablet */}
+            <div className="bg-white rounded-xl p-4 shadow-md flex-1 overflow-hidden flex flex-col min-h-[200px] xl:order-2 xl:min-w-[350px] xl:max-w-[400px]">
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
                 <h3 className="text-lg font-bold text-gray-800">المحاولات ({multiplayer.attempts.length} / {multiplayer.settings.maxAttempts})</h3>
                 {multiplayer.attempts.length > 3 && (

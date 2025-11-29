@@ -1,14 +1,14 @@
 import { create } from "zustand";
 
 export type CardType = 
-  | "peek"           
-  | "extraTime"      
-  | "shield"         
-  | "swap"           
-  | "freeze"         
-  | "doublePoints";  
+  | "revealNumber"    // إظهار رقم ومكانه
+  | "burnNumber"      // حرق رقم (رقم غير موجود)
+  | "revealParity"    // إظهار زوجي/فردي لخانتين
+  | "freeze"          // تجميد الخصم 30 ثانية
+  | "shield"          // درع الدفاع
+  | "blindMode";      // تعطيل عرض الأرقام الزرقاء (30 ثانية)
 
-export type CardIconType = "eye" | "clock" | "shield" | "refresh" | "snowflake" | "sparkles";
+export type CardIconType = "eye" | "x-circle" | "hash" | "snowflake" | "shield" | "eye-off";
 
 export interface Card {
   id: string;
@@ -23,11 +23,16 @@ export interface Card {
   cooldown: number;
 }
 
+export interface ParityInfo {
+  position: number;
+  isEven: boolean;
+}
+
 export interface ActiveCardEffect {
   cardType: CardType;
   targetPlayerId?: string;
   expiresAt: number;
-  value?: number | string;
+  value?: number | string | number[] | ParityInfo[];
 }
 
 export interface PlayerCards {
@@ -46,7 +51,7 @@ interface CardState {
   initializePlayerCards: (playerId: string) => void;
   awardWinnerCard: (playerId: string) => Card | null;
   drawCard: (playerId: string) => Card | null;
-  useCard: (playerId: string, cardId: string, targetPlayerId?: string) => boolean;
+  useCard: (playerId: string, cardId: string, targetPlayerId?: string, secretNumber?: number[]) => boolean;
   
   addActiveEffect: (playerId: string, effect: ActiveCardEffect) => void;
   removeExpiredEffects: () => void;
@@ -54,62 +59,63 @@ interface CardState {
   getActiveEffect: (playerId: string, cardType: CardType) => ActiveCardEffect | null;
   
   resetCards: () => void;
+  getPlayerCards: (playerId: string) => Card[];
 }
 
 const CARD_DEFINITIONS: Omit<Card, "id" | "isUsed" | "cooldown">[] = [
   {
-    type: "peek",
-    name: "Peek",
-    nameAr: "تلميح",
-    description: "Reveal one digit of the secret number",
-    descriptionAr: "كشف رقم واحد من الرقم السري",
+    type: "revealNumber",
+    name: "Reveal Number",
+    nameAr: "إظهار رقم",
+    description: "Reveals one digit and its exact position in the secret number",
+    descriptionAr: "يكشف رقم واحد ومكانه الصحيح في الكود السري",
     icon: "eye",
     color: "from-purple-500 to-purple-700",
   },
   {
-    type: "extraTime",
-    name: "Extra Time",
-    nameAr: "وقت إضافي",
-    description: "Add 30 seconds to your timer",
-    descriptionAr: "أضف 30 ثانية لوقتك",
-    icon: "clock",
+    type: "burnNumber",
+    name: "Burn Number",
+    nameAr: "حرق رقم",
+    description: "Shows a number that is NOT in the secret code",
+    descriptionAr: "يظهر رقم غير موجود نهائياً في الكود السري",
+    icon: "x-circle",
+    color: "from-red-500 to-red-700",
+  },
+  {
+    type: "revealParity",
+    name: "Reveal Parity",
+    nameAr: "كشف الزوجي والفردي",
+    description: "Shows if two positions have even or odd numbers",
+    descriptionAr: "يظهر إذا كانت خانتين تحتوي على أرقام زوجية أو فردية",
+    icon: "hash",
     color: "from-green-500 to-green-700",
-  },
-  {
-    type: "shield",
-    name: "Shield",
-    nameAr: "درع",
-    description: "Block the next card used against you",
-    descriptionAr: "حجب البطاقة القادمة ضدك",
-    icon: "shield",
-    color: "from-blue-500 to-blue-700",
-  },
-  {
-    type: "swap",
-    name: "Swap",
-    nameAr: "تبديل",
-    description: "Swap your progress with another player",
-    descriptionAr: "تبديل تقدمك مع لاعب آخر",
-    icon: "refresh",
-    color: "from-orange-500 to-orange-700",
   },
   {
     type: "freeze",
     name: "Freeze",
-    nameAr: "تجميد",
-    description: "Freeze opponent's input for 10 seconds",
-    descriptionAr: "تجميد إدخال الخصم لـ 10 ثواني",
+    nameAr: "تجميد الخصم",
+    description: "Freeze opponent for 30 seconds - they cannot guess",
+    descriptionAr: "تجميد الخصم لمدة 30 ثانية - لا يمكنه التخمين",
     icon: "snowflake",
     color: "from-cyan-500 to-cyan-700",
   },
   {
-    type: "doublePoints",
-    name: "Double Points",
-    nameAr: "نقاط مضاعفة",
-    description: "Double your score for the next correct guess",
-    descriptionAr: "مضاعفة نقاطك للتخمين الصحيح التالي",
-    icon: "sparkles",
-    color: "from-yellow-500 to-yellow-700",
+    type: "shield",
+    name: "Shield",
+    nameAr: "درع الدفاع",
+    description: "Blocks the next attack card used against you",
+    descriptionAr: "يبطل مفعول البطاقة القادمة التي تُستخدم ضدك",
+    icon: "shield",
+    color: "from-blue-500 to-blue-700",
+  },
+  {
+    type: "blindMode",
+    name: "Blind Mode",
+    nameAr: "تعطيل العرض",
+    description: "For 30 seconds, opponent only sees green indicators (correct position) but not blue (correct number wrong position)",
+    descriptionAr: "لمدة 30 ثانية، الخصم يرى فقط الأرقام الخضراء (المكان الصحيح) ولا يرى الزرقاء (الرقم صحيح بمكان خاطئ)",
+    icon: "eye-off",
+    color: "from-orange-500 to-orange-700",
   },
 ];
 
@@ -125,14 +131,6 @@ function createRandomCard(): Card {
     isUsed: false,
     cooldown: 0,
   };
-}
-
-function createInitialCards(): Card[] {
-  const cards: Card[] = [];
-  for (let i = 0; i < 3; i++) {
-    cards.push(createRandomCard());
-  }
-  return cards;
 }
 
 const useCards = create<CardState>((set, get) => ({
@@ -223,7 +221,7 @@ const useCards = create<CardState>((set, get) => ({
     return null;
   },
 
-  useCard: (playerId: string, cardId: string, targetPlayerId?: string) => {
+  useCard: (playerId: string, cardId: string, targetPlayerId?: string, secretNumber?: number[]) => {
     const { playerCards } = get();
     const playerIndex = playerCards.findIndex((p) => p.playerId === playerId);
     
@@ -235,13 +233,18 @@ const useCards = create<CardState>((set, get) => ({
     const card = playerCards[playerIndex].cards[cardIndex];
     if (card.isUsed || card.cooldown > 0) return false;
     
+    // Check if target has shield for attack cards
+    const attackCards: CardType[] = ["freeze", "blindMode"];
     const targetPlayer = targetPlayerId 
       ? playerCards.find((p) => p.playerId === targetPlayerId) 
       : null;
-    if (targetPlayerId && targetPlayer?.activeEffects.some((e) => e.cardType === "shield")) {
+    
+    if (targetPlayerId && attackCards.includes(card.type) && targetPlayer?.activeEffects.some((e) => e.cardType === "shield" && e.expiresAt > Date.now())) {
+      // Shield blocks the attack
       const targetIndex = playerCards.findIndex((p) => p.playerId === targetPlayerId);
       if (targetIndex !== -1) {
         const updatedPlayerCards = [...playerCards];
+        // Remove shield effect from target
         updatedPlayerCards[targetIndex] = {
           ...updatedPlayerCards[targetIndex],
           activeEffects: updatedPlayerCards[targetIndex].activeEffects.filter(
@@ -249,6 +252,7 @@ const useCards = create<CardState>((set, get) => ({
           ),
         };
         
+        // Remove card from attacker
         updatedPlayerCards[playerIndex] = {
           ...updatedPlayerCards[playerIndex],
           cards: updatedPlayerCards[playerIndex].cards.filter((c) => c.id !== cardId),
@@ -261,34 +265,68 @@ const useCards = create<CardState>((set, get) => ({
     }
     
     const updatedPlayerCards = [...playerCards];
+    // Remove the card after use
     updatedPlayerCards[playerIndex] = {
       ...updatedPlayerCards[playerIndex],
       cards: updatedPlayerCards[playerIndex].cards.filter((c) => c.id !== cardId),
     };
     
     let effectDuration = 0;
-    let effectValue: number | string | undefined;
+    let effectValue: number | string | number[] | ParityInfo[] | undefined;
     
     switch (card.type) {
-      case "peek":
-        effectDuration = 5000;
-        effectValue = Math.floor(Math.random() * 4);
+      case "revealNumber":
+        // Reveal one random position and its value
+        if (secretNumber && secretNumber.length > 0) {
+          const randomPos = Math.floor(Math.random() * secretNumber.length);
+          effectValue = [randomPos, secretNumber[randomPos]];
+          effectDuration = 60000; // Show for 60 seconds
+        }
         break;
-      case "extraTime":
-        effectDuration = 1000;
-        effectValue = 30;
+        
+      case "burnNumber":
+        // Find a number that's NOT in the secret
+        if (secretNumber) {
+          const possibleNumbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+          const notInSecret = possibleNumbers.filter(n => !secretNumber.includes(n));
+          if (notInSecret.length > 0) {
+            effectValue = notInSecret[Math.floor(Math.random() * notInSecret.length)];
+            effectDuration = 60000;
+          }
+        }
         break;
-      case "shield":
-        effectDuration = 60000;
+        
+      case "revealParity":
+        // Reveal even/odd for 2 random positions
+        if (secretNumber && secretNumber.length >= 2) {
+          const positions = [];
+          const usedPositions: number[] = [];
+          for (let i = 0; i < 2 && i < secretNumber.length; i++) {
+            let pos;
+            do {
+              pos = Math.floor(Math.random() * secretNumber.length);
+            } while (usedPositions.includes(pos));
+            usedPositions.push(pos);
+            positions.push({
+              position: pos,
+              isEven: secretNumber[pos] % 2 === 0
+            });
+          }
+          effectValue = positions;
+          effectDuration = 60000;
+        }
         break;
-      case "swap":
-        effectDuration = 1000;
-        break;
+        
       case "freeze":
-        effectDuration = 10000;
+        effectDuration = 30000; // 30 seconds freeze
         break;
-      case "doublePoints":
-        effectDuration = 60000;
+        
+      case "shield":
+        effectDuration = 120000; // Shield lasts 2 minutes
+        break;
+        
+      case "blindMode":
+        effectDuration = 30000; // 30 seconds blind mode
         break;
     }
     
@@ -299,11 +337,13 @@ const useCards = create<CardState>((set, get) => ({
       value: effectValue,
     };
     
-    const effectTargetId = ["freeze", "swap"].includes(card.type) && targetPlayerId 
+    // For attack cards (freeze, blindMode), apply to target
+    // For self cards (shield, reveal), apply to self
+    const effectTargetId = ["freeze", "blindMode"].includes(card.type) && targetPlayerId 
       ? targetPlayerId 
       : playerId;
     
-    const effectTargetIndex = playerCards.findIndex((p) => p.playerId === effectTargetId);
+    const effectTargetIndex = updatedPlayerCards.findIndex((p) => p.playerId === effectTargetId);
     if (effectTargetIndex !== -1) {
       updatedPlayerCards[effectTargetIndex] = {
         ...updatedPlayerCards[effectTargetIndex],
@@ -358,6 +398,12 @@ const useCards = create<CardState>((set, get) => ({
     
     const now = Date.now();
     return player.activeEffects.find((e) => e.cardType === cardType && e.expiresAt > now) || null;
+  },
+
+  getPlayerCards: (playerId: string) => {
+    const { playerCards } = get();
+    const player = playerCards.find((p) => p.playerId === playerId);
+    return player?.cards || [];
   },
 
   resetCards: () => {

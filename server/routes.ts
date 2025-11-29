@@ -986,15 +986,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               won: playerData.won,
             });
             
-            // If player has finished, send them latest results
-            if (playerData.finished && room.game.lastResults) {
+            // If player has finished, send them latest results with fresh stillPlaying data
+            if (playerData.finished) {
+              const freshResults = calculateGameResults(room);
+              const reason = room.game.lastResults?.reason || "player_finished";
               send(ws, {
                 type: "game_results",
-                winners: room.game.lastResults.winners,
-                losers: room.game.lastResults.losers,
-                stillPlaying: room.game.lastResults.stillPlaying,
+                winners: freshResults.winners,
+                losers: freshResults.losers,
+                stillPlaying: freshResults.stillPlaying,
                 sharedSecret: room.game.sharedSecret,
-                reason: room.game.lastResults.reason,
+                reason: reason,
               });
             }
           }

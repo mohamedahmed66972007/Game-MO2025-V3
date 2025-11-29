@@ -3,9 +3,9 @@ import { Button } from "./button";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send } from "@/lib/websocket";
-import { Sliders, Sparkles, Eye, Clock, Shield, RefreshCw, Snowflake, Gamepad2, Shuffle, Brain, ArrowUp, CloudRain, Hash, Check } from "lucide-react";
+import { Sliders, Sparkles, Eye, XCircle, Hash, Snowflake, Shield, EyeOff, Gamepad2, Shuffle, Brain, Zap, CloudRain, Lightbulb, Check } from "lucide-react";
 
-type ChallengeType = "memory" | "direction" | "raindrops" | "pattern" | "random";
+type ChallengeType = "guess" | "memory" | "direction" | "raindrops" | "random";
 
 interface GameSettingsProps {
   onConfirm: (settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean; selectedChallenge?: ChallengeType }) => void;
@@ -13,11 +13,20 @@ interface GameSettingsProps {
 }
 
 const challenges: { id: ChallengeType; name: string; description: string; icon: React.ReactNode; color: string }[] = [
-  { id: "memory", name: "تحدي الذاكرة", description: "تذكر الأرقام المعروضة", icon: <Brain className="w-5 h-5" />, color: "indigo" },
-  { id: "direction", name: "تحدي الاتجاهات", description: "اضغط الاتجاه الصحيح", icon: <ArrowUp className="w-5 h-5" />, color: "blue" },
-  { id: "raindrops", name: "تحدي المطر", description: "اكتب الأرقام المتساقطة", icon: <CloudRain className="w-5 h-5" />, color: "purple" },
-  { id: "pattern", name: "تحدي التخمين", description: "أكمل النمط الرقمي", icon: <Hash className="w-5 h-5" />, color: "green" },
-  { id: "random", name: "عشوائي", description: "يختار النظام تحدي عشوائياً", icon: <Shuffle className="w-5 h-5" />, color: "orange" },
+  { id: "guess", name: "تحدي تسلسل الأضواء", description: "تذكر تسلسل الألوان وأعده بالترتيب", icon: <Lightbulb className="w-5 h-5" />, color: "blue" },
+  { id: "memory", name: "لوحة الذاكرة", description: "تذكر المربعات المضيئة واضغط عليها", icon: <Brain className="w-5 h-5" />, color: "purple" },
+  { id: "direction", name: "ترتيب الاتجاهات", description: "اضغط الاتجاه الصحيح بسرعة", icon: <Zap className="w-5 h-5" />, color: "orange" },
+  { id: "raindrops", name: "حبات المطر", description: "حل المسائل قبل وصول القطرات", icon: <CloudRain className="w-5 h-5" />, color: "cyan" },
+  { id: "random", name: "عشوائي", description: "يختار النظام تحدي عشوائياً", icon: <Shuffle className="w-5 h-5" />, color: "pink" },
+];
+
+const cardTypes = [
+  { name: "إظهار رقم", icon: <Eye className="w-3 h-3" />, color: "purple" },
+  { name: "حرق رقم", icon: <XCircle className="w-3 h-3" />, color: "red" },
+  { name: "زوجي/فردي", icon: <Hash className="w-3 h-3" />, color: "green" },
+  { name: "تجميد", icon: <Snowflake className="w-3 h-3" />, color: "cyan" },
+  { name: "درع", icon: <Shield className="w-3 h-3" />, color: "blue" },
+  { name: "تعطيل العرض", icon: <EyeOff className="w-3 h-3" />, color: "orange" },
 ];
 
 export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsProps) {
@@ -50,16 +59,15 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
 
   const canSave = numDigits >= 3 && numDigits <= 10 && maxAttempts >= 5 && maxAttempts <= 50;
 
-  const getColorClasses = (color: string, isSelected: boolean) => {
-    const colors: Record<string, { bg: string; border: string; text: string; selectedBg: string }> = {
-      indigo: { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700", selectedBg: "bg-indigo-100" },
-      blue: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", selectedBg: "bg-blue-100" },
-      purple: { bg: "bg-purple-50", border: "border-purple-200", text: "text-purple-700", selectedBg: "bg-purple-100" },
-      green: { bg: "bg-green-50", border: "border-green-200", text: "text-green-700", selectedBg: "bg-green-100" },
-      orange: { bg: "bg-orange-50", border: "border-orange-200", text: "text-orange-700", selectedBg: "bg-orange-100" },
+  const getChallengeColors = (color: string, isSelected: boolean) => {
+    const colors: Record<string, { bg: string; selectedBg: string; border: string; text: string; iconBg: string }> = {
+      blue: { bg: "#eff6ff", selectedBg: "#dbeafe", border: "#60a5fa", text: "#1e40af", iconBg: "#3b82f6" },
+      purple: { bg: "#faf5ff", selectedBg: "#f3e8ff", border: "#c084fc", text: "#6b21a8", iconBg: "#a855f7" },
+      orange: { bg: "#fff7ed", selectedBg: "#ffedd5", border: "#fb923c", text: "#9a3412", iconBg: "#f97316" },
+      cyan: { bg: "#ecfeff", selectedBg: "#cffafe", border: "#22d3ee", text: "#155e75", iconBg: "#06b6d4" },
+      pink: { bg: "#fdf2f8", selectedBg: "#fce7f3", border: "#f472b6", text: "#9d174d", iconBg: "#ec4899" },
     };
-    const c = colors[color] || colors.blue;
-    return isSelected ? `${c.selectedBg} ${c.border} ${c.text} ring-2 ring-${color}-400` : `${c.bg} ${c.border} ${c.text}`;
+    return colors[color] || colors.blue;
   };
 
   return (
@@ -171,72 +179,41 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
                     </p>
                     
                     <div className="space-y-2">
-                      {challenges.map((challenge) => (
-                        <button
-                          key={challenge.id}
-                          onClick={() => setSelectedChallenge(challenge.id)}
-                          className={`w-full p-3 rounded-lg border-2 transition-all duration-200 flex items-center gap-3 ${
-                            selectedChallenge === challenge.id
-                              ? `bg-${challenge.color}-100 border-${challenge.color}-400 ring-2 ring-${challenge.color}-300`
-                              : `bg-${challenge.color}-50 border-${challenge.color}-200 hover:bg-${challenge.color}-100`
-                          }`}
-                          style={{
-                            backgroundColor: selectedChallenge === challenge.id 
-                              ? challenge.color === 'indigo' ? '#e0e7ff' 
-                              : challenge.color === 'blue' ? '#dbeafe'
-                              : challenge.color === 'purple' ? '#f3e8ff'
-                              : challenge.color === 'green' ? '#dcfce7'
-                              : '#ffedd5'
-                              : challenge.color === 'indigo' ? '#eef2ff'
-                              : challenge.color === 'blue' ? '#eff6ff'
-                              : challenge.color === 'purple' ? '#faf5ff'
-                              : challenge.color === 'green' ? '#f0fdf4'
-                              : '#fff7ed',
-                            borderColor: selectedChallenge === challenge.id
-                              ? challenge.color === 'indigo' ? '#818cf8'
-                              : challenge.color === 'blue' ? '#60a5fa'
-                              : challenge.color === 'purple' ? '#c084fc'
-                              : challenge.color === 'green' ? '#4ade80'
-                              : '#fb923c'
-                              : challenge.color === 'indigo' ? '#c7d2fe'
-                              : challenge.color === 'blue' ? '#bfdbfe'
-                              : challenge.color === 'purple' ? '#e9d5ff'
-                              : challenge.color === 'green' ? '#bbf7d0'
-                              : '#fed7aa'
-                          }}
-                        >
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                            challenge.color === 'indigo' ? 'bg-indigo-500'
-                            : challenge.color === 'blue' ? 'bg-blue-500'
-                            : challenge.color === 'purple' ? 'bg-purple-500'
-                            : challenge.color === 'green' ? 'bg-green-500'
-                            : 'bg-orange-500'
-                          } text-white`}>
-                            {challenge.icon}
-                          </div>
-                          <div className="flex-1 text-right">
-                            <p className={`font-semibold text-sm ${
-                              challenge.color === 'indigo' ? 'text-indigo-800'
-                              : challenge.color === 'blue' ? 'text-blue-800'
-                              : challenge.color === 'purple' ? 'text-purple-800'
-                              : challenge.color === 'green' ? 'text-green-800'
-                              : 'text-orange-800'
-                            }`}>{challenge.name}</p>
-                            <p className="text-xs text-gray-600">{challenge.description}</p>
-                          </div>
-                          {selectedChallenge === challenge.id && (
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                              challenge.color === 'indigo' ? 'bg-indigo-500'
-                              : challenge.color === 'blue' ? 'bg-blue-500'
-                              : challenge.color === 'purple' ? 'bg-purple-500'
-                              : challenge.color === 'green' ? 'bg-green-500'
-                              : 'bg-orange-500'
-                            } text-white`}>
-                              <Check className="w-4 h-4" />
+                      {challenges.map((challenge) => {
+                        const colors = getChallengeColors(challenge.color, selectedChallenge === challenge.id);
+                        return (
+                          <button
+                            key={challenge.id}
+                            onClick={() => setSelectedChallenge(challenge.id)}
+                            className="w-full p-3 rounded-lg border-2 transition-all duration-200 flex items-center gap-3"
+                            style={{
+                              backgroundColor: selectedChallenge === challenge.id ? colors.selectedBg : colors.bg,
+                              borderColor: selectedChallenge === challenge.id ? colors.border : `${colors.border}50`,
+                            }}
+                          >
+                            <div 
+                              className="w-10 h-10 rounded-lg flex items-center justify-center text-white"
+                              style={{ backgroundColor: colors.iconBg }}
+                            >
+                              {challenge.icon}
                             </div>
-                          )}
-                        </button>
-                      ))}
+                            <div className="flex-1 text-right">
+                              <p className="font-semibold text-sm" style={{ color: colors.text }}>
+                                {challenge.name}
+                              </p>
+                              <p className="text-xs text-gray-600">{challenge.description}</p>
+                            </div>
+                            {selectedChallenge === challenge.id && (
+                              <div 
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-white"
+                                style={{ backgroundColor: colors.iconBg }}
+                              >
+                                <Check className="w-4 h-4" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -245,25 +222,22 @@ export function GameSettings({ onConfirm, isMultiplayer = false }: GameSettingsP
                       <Sparkles className="w-3 h-3" />
                       البطاقات المتاحة للفائز:
                     </p>
-                    <div className="flex flex-wrap gap-1.5 text-xs">
-                      <span className="px-2 py-0.5 bg-purple-100 rounded text-purple-700 flex items-center gap-1">
-                        <Eye className="w-3 h-3" /> تلميح
-                      </span>
-                      <span className="px-2 py-0.5 bg-green-100 rounded text-green-700 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> وقت إضافي
-                      </span>
-                      <span className="px-2 py-0.5 bg-blue-100 rounded text-blue-700 flex items-center gap-1">
-                        <Shield className="w-3 h-3" /> درع
-                      </span>
-                      <span className="px-2 py-0.5 bg-orange-100 rounded text-orange-700 flex items-center gap-1">
-                        <RefreshCw className="w-3 h-3" /> تبديل
-                      </span>
-                      <span className="px-2 py-0.5 bg-cyan-100 rounded text-cyan-700 flex items-center gap-1">
-                        <Snowflake className="w-3 h-3" /> تجميد
-                      </span>
-                      <span className="px-2 py-0.5 bg-yellow-100 rounded text-yellow-700 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" /> نقاط مضاعفة
-                      </span>
+                    <div className="grid grid-cols-2 gap-1.5 text-xs">
+                      {cardTypes.map((card, index) => (
+                        <span 
+                          key={index}
+                          className={`px-2 py-1 rounded flex items-center gap-1 ${
+                            card.color === 'purple' ? 'bg-purple-100 text-purple-700' :
+                            card.color === 'red' ? 'bg-red-100 text-red-700' :
+                            card.color === 'green' ? 'bg-green-100 text-green-700' :
+                            card.color === 'cyan' ? 'bg-cyan-100 text-cyan-700' :
+                            card.color === 'blue' ? 'bg-blue-100 text-blue-700' :
+                            'bg-orange-100 text-orange-700'
+                          }`}
+                        >
+                          {card.icon} {card.name}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
