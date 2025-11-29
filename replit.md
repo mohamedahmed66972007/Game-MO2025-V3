@@ -24,10 +24,10 @@
 - **موبايل**: واجهة محسنة مع لوحة أرقام مخصصة، كشف تلقائي عند 768px
 
 **المكونات الرئيسية:**
-- `MobileSingleplayer` و `DesktopSingleplayer`: واجهات اللعب الفردي
+- `MobileSingleplayer` و `DesktopSingleplayer`: واجهات اللعب الفردي (موحدة التصميم)
 - `MultiplayerLobby`: غرفة انتظار اللعب الجماعي
-- `MultiplayerGame2D`: واجهة اللعب الجماعي
-- `RainDropsChallenge`, `DirectionChallenge`, `MemoryChallenge`, `PatternChallenge`: التحديات الأربعة
+- `MultiplayerGame2D`: واجهة اللعب الجماعي (ديسكتوب) و `MobileMultiplayer` (موبايل)
+- `RainDropsChallenge`, `DirectionChallenge`, `MemoryChallenge`, `GuessChallenge`: التحديات الأربعة
 - `CardSystem`: نظام البطاقات الحصري للعب الجماعي
 
 **إدارة الحالة:**
@@ -39,7 +39,7 @@
 **التواصل بين العميل والخادم:**
 - WebSocket للعب الجماعي الفوري
 - حفظ الجلسة عبر sessionStorage للاتصال المفقود
-- رسائل: challenge_player, set_secret_code, make_guess, turn_timeout, وغيرها
+- رسائل: challenge_completed, start_game, submit_guess, وغيرها
 
 ### الخادم (Backend)
 
@@ -58,6 +58,7 @@
 - نظام غرف مع معرفات فريدة
 - لعب مستقل وفوري (الاثنان يلعبان بنفس الوقت)
 - أكواز سرية مشتركة تولد تلقائياً
+- تحديات ما قبل اللعبة: جميع اللاعبين يكملون التحدي قبل بدء المؤقت
 - نظام إعادة اتصال شامل:
   - تخزين اللاعبين المقطوعين مع timeout 5 دقائق
   - حفظ بيانات اللعبة (المحاولات والنقاط)
@@ -83,18 +84,28 @@
 - واجهة عربية كاملة مع تخطيط من اليمين لليسار
 - نظام التصويت على إعادة اللعب مع بدء لحظي عند الموافقة
 - شاشة نتائج محسنة مع رتب وحركات احتفال
+- شاشة انتظار عندما ينتهي لاعب من التحدي قبل الآخرين
 
 **التطبيقات التقنية:**
 - مؤقت حي مع تحديثات 100ms وTimeout 5 دقائق
 - كشف الخسارة الفوري عند الوصول لأقصى عدد محاولات
 - نظام إعادة اتصال قوي يستعيد كل حالة اللعبة
-- تحديات صغيرة: "تحدي الذاكرة" و"تحدي الاتجاهات" و"تحدي حبات المطر" و"تحدي التخمين" مع تعليقات بصرية وسمعية وتنويعات موبايل/ديسكتوب
-- نظام بطاقات فريد مع 6 أنواع وتأثيرات خاصة
+- تحديات صغيرة: "تحدي الذاكرة" و"تحدي الاتجاهات" و"تحدي حبات المطر" و"تحدي التسلسل" مع تعليقات بصرية وسمعية
+- نظام بطاقات فريد مع 6 أنواع (إظهار رقم، حرق رقم، كشف زوجي/فردي، تجميد، درع، تعطيل عرض)
+
+## التحسينات الأخيرة
+
+### إصلاح 29 نوفمبر:
+1. **تصحيح CardIcon**: الأيقونات الآن مطابقة صحيحة للبطاقات (eye, x-circle, hash, snowflake, shield, eye-off)
+2. **توحيد تصميم UI**: MobileSingleplayer و MobileMultiplayer الآن بنفس الهيكل والتصميم
+3. **شاشة الانتظار**: إضافة رسالة انتظار عندما ينتهي لاعب من التحدي قبل اللاعبين الآخرين
+4. **رسالة challenge_completed**: إرسال رسالة للخادم عند انتهاء لاعب من التحدي
 
 ## التبعيات الخارجية
 
 **مكتبة مكونات الواجهة:**
 - `@radix-ui/*`: مجموعة شاملة من العناصر الآمنة
+- `lucide-react`: أيقونات عالية الجودة
 
 **قاعدة البيانات والخادم:**
 - `@neondatabase/serverless`, `drizzle-orm`, `drizzle-kit`, `ws`
@@ -106,7 +117,7 @@
 - `@tanstack/react-query`, `zustand`
 
 **الوسائط والأصوات:**
-- `@fontsource/inter`, `howler`, `react-confetti`
+- `@fontsource/inter`, `howler`, `react-confetti`, `framer-motion`
 
 **أدوات التطوير:**
 - `@replit/vite-plugin-runtime-error-modal`, `tsx`, `esbuild`, `vite`
@@ -119,11 +130,15 @@
 3. الأخطاء تنقص الفرص من 3 إلى 2 إلى 1
 4. نظام البطاقات حصري للعب الجماعي فقط
 5. جميع النصوص يجب أن تكون بالعربية
+6. شاشة الانتظار تظهر عندما startTime === 0 (الانتظار لجميع اللاعبين)
 
 ### الملفات المهمة:
-- `client/src/components/mobile/MobileSingleplayer.tsx`
+- `client/src/components/mobile/MobileSingleplayer.tsx` (موحد مع المتعدد الآن)
 - `client/src/components/desktop/DesktopSingleplayer.tsx`
+- `client/src/components/mobile/MobileMultiplayer.tsx` (مع شاشة انتظار)
+- `client/src/components/desktop/MultiplayerGame2D.tsx` (مع شاشة انتظار)
 - `client/src/components/game/challenges/`
 - `client/src/lib/stores/useChallenges.ts`
 - `client/src/lib/stores/useCards.ts`
+- `client/src/components/game/cards/CardSystem.tsx` (أيقونات مصححة)
 - `server/routes.ts`

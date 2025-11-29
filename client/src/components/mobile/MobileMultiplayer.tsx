@@ -235,8 +235,46 @@ export function MobileMultiplayer() {
         onComplete={(won) => {
           console.log("Challenge completed, won:", won);
           setShowPreGameChallenge(false);
+          send({ type: "challenge_completed" });
         }}
       />
+    );
+  }
+
+  // Waiting for other players to finish challenges
+  if (multiplayer.gameStatus === "playing" && multiplayer.sharedSecret.length > 0 && multiplayer.startTime === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-y-auto pb-safe">
+        <div className="max-w-lg mx-auto w-full p-4 flex items-center justify-center min-h-screen">
+          <div className="text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="relative w-20 h-20">
+                <div className="absolute inset-0 bg-blue-500 rounded-full animate-pulse"></div>
+                <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center">
+                  <span className="text-3xl">⏳</span>
+                </div>
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800">انتظر قليلاً</h2>
+            <p className="text-gray-600">
+              انتهيت من التحدي! اللعبة ستبدأ عندما ينتهي جميع اللاعبين من التحدياتهم.
+            </p>
+            <div className="space-y-2 mt-6">
+              <p className="text-sm text-gray-500">اللاعبون المتصلون: {multiplayer.players.length}</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {multiplayer.players.map((player) => (
+                  <div
+                    key={player.id}
+                    className="px-3 py-1 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold"
+                  >
+                    {player.name === multiplayer.playerName ? `${player.name} ✓` : player.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 

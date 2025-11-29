@@ -260,8 +260,44 @@ export function MultiplayerGame2D() {
         onComplete={(won) => {
           console.log("Challenge completed, won:", won);
           setShowPreGameChallenge(false);
+          send({ type: "challenge_completed" });
         }}
       />
+    );
+  }
+
+  // Waiting for other players to finish challenges
+  if (multiplayer.gameStatus === "playing" && multiplayer.sharedSecret.length > 0 && multiplayer.startTime === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+        <div className="text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="relative w-32 h-32">
+              <div className="absolute inset-0 bg-blue-500 rounded-full animate-pulse"></div>
+              <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center">
+                <span className="text-6xl">⏳</span>
+              </div>
+            </div>
+          </div>
+          <h2 className="text-4xl font-bold text-gray-800">انتظر قليلاً</h2>
+          <p className="text-xl text-gray-600">
+            انتهيت من التحدي! اللعبة ستبدأ عندما ينتهي جميع اللاعبين من التحدياتهم.
+          </p>
+          <div className="space-y-4 mt-8">
+            <p className="text-lg text-gray-500">اللاعبون المتصلون: {multiplayer.players.length}</p>
+            <div className="flex flex-wrap gap-3 justify-center">
+              {multiplayer.players.map((player) => (
+                <div
+                  key={player.id}
+                  className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg font-semibold text-lg"
+                >
+                  {player.name === multiplayer.playerName ? `${player.name} ✓` : player.name}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 

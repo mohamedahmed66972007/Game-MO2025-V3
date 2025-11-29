@@ -1,15 +1,15 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useCards, Card, CardType, CardIconType, CARD_DEFINITIONS } from "@/lib/stores/useCards";
-import { X, Target, Sparkles, Eye, Clock, Shield, RefreshCw, Snowflake } from "lucide-react";
+import { X, Target, Eye, XCircle, Hash, Snowflake, Shield, EyeOff, Sparkles } from "lucide-react";
 
 const CARD_ICONS: Record<CardIconType, React.FC<{ className?: string }>> = {
   eye: Eye,
-  clock: Clock,
-  shield: Shield,
-  refresh: RefreshCw,
+  "x-circle": XCircle,
+  hash: Hash,
   snowflake: Snowflake,
-  sparkles: Sparkles,
+  shield: Shield,
+  "eye-off": EyeOff,
 };
 
 function CardIcon({ icon, className }: { icon: CardIconType; className?: string }) {
@@ -29,7 +29,7 @@ function CardComponent({ card, onUse, isSelectable, otherPlayers = [], disabled 
   const [showTargetSelector, setShowTargetSelector] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
 
-  const needsTarget = card.type === "freeze" || card.type === "swap";
+  const needsTarget = card.type === "freeze";
 
   const handleClick = () => {
     if (disabled || !isSelectable) return;
