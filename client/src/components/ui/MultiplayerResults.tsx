@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
-import { Trophy, Medal, XCircle, RefreshCw, Home, Eye, Crown, LogOut, Clock, Target, X, Check } from "lucide-react";
+import { Trophy, Medal, XCircle, RefreshCw, Home, Eye, Crown, LogOut, Clock, Target, X, Check, History, ChevronLeft, ChevronRight } from "lucide-react";
 import Confetti from "react-confetti";
 
 export function MultiplayerResults() {
@@ -11,6 +11,8 @@ export function MultiplayerResults() {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(true);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -308,6 +310,19 @@ export function MultiplayerResults() {
               </button>
             )}
 
+            {multiplayer.roundHistory.length > 0 && (
+              <button
+                onClick={() => {
+                  setHistoryIndex(multiplayer.roundHistory.length - 1);
+                  setShowHistory(true);
+                }}
+                className="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-orange-500/25 flex items-center justify-center gap-3 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <History className="w-6 h-6" />
+                <span className="text-lg">سجل الجولات ({multiplayer.roundHistory.length})</span>
+              </button>
+            )}
+
             {multiplayer.roomId && multiplayer.stillPlaying.length === 0 && (
               <button
                 onClick={handleBackToLobby}
@@ -496,6 +511,116 @@ export function MultiplayerResults() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showHistory && multiplayer.roundHistory.length > 0 && (
+        <div 
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4"
+          onClick={() => setShowHistory(false)}
+        >
+          <div 
+            className="bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 max-w-lg w-full p-6 max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <History className="w-5 h-5 text-amber-400" />
+                سجل الجولات
+              </h2>
+              <button 
+                onClick={() => setShowHistory(false)}
+                className="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setHistoryIndex(Math.max(0, historyIndex - 1))}
+                disabled={historyIndex === 0}
+                className="p-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                <ChevronRight className="w-5 h-5 text-white" />
+              </button>
+              <span className="text-white font-bold">
+                جولة {multiplayer.roundHistory[historyIndex]?.roundNumber} من {multiplayer.roundHistory.length}
+              </span>
+              <button
+                onClick={() => setHistoryIndex(Math.min(multiplayer.roundHistory.length - 1, historyIndex + 1))}
+                disabled={historyIndex === multiplayer.roundHistory.length - 1}
+                className="p-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {multiplayer.roundHistory[historyIndex] && (
+              <div className="space-y-4">
+                <div className="bg-slate-700/50 p-4 rounded-xl">
+                  <p className="text-gray-400 text-sm mb-2 text-center">الرقم السري</p>
+                  <div className="flex justify-center gap-2" dir="ltr">
+                    {multiplayer.roundHistory[historyIndex].sharedSecret.map((digit, idx) => (
+                      <div
+                        key={idx}
+                        className="w-12 h-14 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-lg"
+                      >
+                        {digit}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {multiplayer.roundHistory[historyIndex].winners.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-yellow-500" />
+                      <span className="text-yellow-400 font-bold text-sm">الفائزون</span>
+                    </div>
+                    {multiplayer.roundHistory[historyIndex].winners.map((winner) => (
+                      <div key={winner.playerId} className="bg-emerald-600/20 border border-emerald-500/50 p-3 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
+                              winner.rank === 1 ? 'bg-gradient-to-br from-yellow-400 to-amber-500 text-black' :
+                              winner.rank === 2 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-black' :
+                              'bg-gradient-to-br from-orange-400 to-orange-500 text-white'
+                            }`}>
+                              #{winner.rank || 1}
+                            </div>
+                            <span className="text-white font-semibold">{winner.playerName}</span>
+                          </div>
+                          <span className="text-emerald-400 text-sm">{winner.attempts} محاولات</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {multiplayer.roundHistory[historyIndex].losers.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <XCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-red-400 font-bold text-sm">الخاسرون</span>
+                    </div>
+                    {multiplayer.roundHistory[historyIndex].losers.map((loser) => (
+                      <div key={loser.playerId} className="bg-red-600/20 border border-red-500/50 p-3 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <span className="text-white font-semibold">{loser.playerName}</span>
+                          <span className="text-red-400 text-sm">{loser.attempts} محاولات</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="text-center text-gray-500 text-xs mt-4">
+                  {new Date(multiplayer.roundHistory[historyIndex].timestamp).toLocaleString('ar-EG')}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

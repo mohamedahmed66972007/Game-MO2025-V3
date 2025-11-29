@@ -47,6 +47,14 @@ interface RematchVote {
   accepted: boolean;
 }
 
+interface RoundHistoryEntry {
+  roundNumber: number;
+  sharedSecret: number[];
+  winners: PlayerResult[];
+  losers: PlayerResult[];
+  timestamp: number;
+}
+
 interface MultiplayerState {
   roomId: string;
   playerId: string;
@@ -72,6 +80,7 @@ interface MultiplayerState {
     countdown: number | null;
     votes: RematchVote[];
   };
+  roundHistory: RoundHistoryEntry[];
   settings: GameSettings & { cardsEnabled: boolean; selectedChallenge: ChallengeType; allowedCards: CardTypeId[] };
 }
 
@@ -123,6 +132,8 @@ interface NumberGameState {
   updateStillPlayingAttempt: (playerId: string, attempt: Attempt) => void;
   setShowPreGameChallenge: (show: boolean) => void;
   setChallengeWinner: (playerId: string | null) => void;
+  saveRoundToHistory: () => void;
+  clearRoundHistory: () => void;
 }
 
 const generateSecretCode = (numDigits: number = 4): number[] => {
@@ -201,6 +212,7 @@ export const useNumberGame = create<NumberGameState>()(
         countdown: null,
         votes: [],
       },
+      roundHistory: [],
       settings: { numDigits: 4, maxAttempts: 20, cardsEnabled: false, selectedChallenge: "random", allowedCards: ["revealNumber", "burnNumber", "revealParity", "freeze", "shield"] },
     },
 
@@ -441,6 +453,7 @@ export const useNumberGame = create<NumberGameState>()(
             countdown: null,
             votes: [],
           },
+          roundHistory: [],
         },
       })),
     
@@ -513,6 +526,36 @@ export const useNumberGame = create<NumberGameState>()(
       multiplayer: {
         ...state.multiplayer,
         challengeWinner: playerId,
+      },
+    })),
+
+    saveRoundToHistory: () => set((state) => {
+      const { multiplayer } = state;
+      // Only save if there are results
+      if (multiplayer.winners.length === 0 && multiplayer.losers.length === 0) {
+        return state;
+      }
+      
+      const newRound: RoundHistoryEntry = {
+        roundNumber: multiplayer.roundHistory.length + 1,
+        sharedSecret: [...multiplayer.sharedSecret],
+        winners: [...multiplayer.winners],
+        losers: [...multiplayer.losers],
+        timestamp: Date.now(),
+      };
+      
+      return {
+        multiplayer: {
+          ...multiplayer,
+          roundHistory: [...multiplayer.roundHistory, newRound],
+        },
+      };
+    }),
+
+    clearRoundHistory: () => set((state) => ({
+      multiplayer: {
+        ...state.multiplayer,
+        roundHistory: [],
       },
     })),
   }))

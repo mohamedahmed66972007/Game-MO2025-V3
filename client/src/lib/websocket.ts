@@ -533,6 +533,12 @@ const handleMessage = (message: any) => {
           });
         }
       }
+      
+      // Save round to history when game is fully finished (all players finished or time expired)
+      if (message.reason === "time_expired" || message.reason === "all_finished") {
+        store.saveRoundToHistory();
+        console.log("Round saved to history");
+      }
       break;
 
     case "player_details":
@@ -562,6 +568,7 @@ const handleMessage = (message: any) => {
       break;
 
     case "rematch_starting":
+      // Round history is saved in game_results handler when game fully finishes
       store.resetMultiplayerGame();
       store.setPlayers(message.players);
       // Reset cards system for rematch - clear all cards from previous game
@@ -570,7 +577,7 @@ const handleMessage = (message: any) => {
       // Reset challenges state to prevent incorrect card awards
       const challengesStoreRematch = useChallenges.getState();
       challengesStoreRematch.resetChallengesHub();
-      console.log("Rematch starting - game, cards, and challenges reset");
+      console.log("Rematch starting - game, cards, challenges reset");
       break;
 
     case "card_used": {
