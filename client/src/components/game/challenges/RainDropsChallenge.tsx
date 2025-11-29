@@ -279,6 +279,37 @@ export function RainDropsChallenge() {
     };
   }, [raindropsChallenge.isGameActive, raindropsUpdateTime, completeChallenge, isPaused]);
 
+  // Keyboard support for desktop
+  useEffect(() => {
+    if (!raindropsChallenge.isGameActive || isPaused || !isDesktop) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Number keys (0-9)
+      if (e.key >= '0' && e.key <= '9') {
+        handleNumberPress(e.key);
+        e.preventDefault();
+      }
+      // Numpad keys
+      else if (e.code >= 'Numpad0' && e.code <= 'Numpad9') {
+        handleNumberPress(e.key);
+        e.preventDefault();
+      }
+      // Enter key to submit
+      else if (e.key === 'Enter') {
+        handleSubmit();
+        e.preventDefault();
+      }
+      // Backspace to delete
+      else if (e.key === 'Backspace') {
+        handleDelete();
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [raindropsChallenge.isGameActive, isPaused, isDesktop, handleNumberPress, handleSubmit, handleDelete]);
+
   return (
     <div className="w-full h-full flex flex-col md:flex-row bg-gradient-to-b from-indigo-600 via-purple-600 to-indigo-900 select-none overflow-hidden relative">
       <RainBackground />

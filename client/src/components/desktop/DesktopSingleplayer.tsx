@@ -84,6 +84,29 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
     }
   }, [singleplayer.phase, hint, singleplayer.secretCode, generateHint]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (singleplayer.phase !== "playing") return;
+      if (expandedAttempts) return;
+      
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleNumberInput(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!input.some(val => val === "")) {
+          handleSubmit();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [singleplayer.phase, focusedIndex, input, numDigits, expandedAttempts]);
+
   const handleNumberInput = (num: string) => {
     if (focusedIndex >= numDigits) return;
     

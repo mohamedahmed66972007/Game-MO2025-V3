@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { MultiplayerResults } from "../ui/MultiplayerResults";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
+import { useCards } from "@/lib/stores/useCards";
 import { send, connectWebSocket, disconnect } from "@/lib/websocket";
 import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Trophy, Maximize2, Minimize2, LogOut } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
 import { clearSession, clearPersistentRoom } from "@/lib/websocket";
+import { CardHand, CardEffectDisplay } from "../game/cards/CardSystem";
 
 export function MultiplayerGame2D() {
   const {
@@ -68,6 +70,30 @@ export function MultiplayerGame2D() {
     }, 100);
     return () => clearInterval(interval);
   }, []);
+
+  // Keyboard controls for game input
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
+      if (expandedAttempts) return;
+      
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleNumberInput(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!input.some(val => val === "")) {
+          handleSubmit();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [multiplayer.gameStatus, multiplayer.phase, focusedIndex, input, numDigits, expandedAttempts]);
 
   const handleCreateRoom = () => {
     if (!playerName.trim()) return;
@@ -637,6 +663,26 @@ export function MultiplayerGame2D() {
             </div>
           )}
         </div>
+
+        {/* Cards System UI */}
+        {multiplayer.settings.cardsEnabled && (
+          <>
+            <CardEffectDisplay playerId={multiplayer.playerId} />
+            <CardHand
+              playerId={multiplayer.playerId}
+              onUseCard={(cardId, targetPlayerId) => {
+                const { useCard } = useCards.getState();
+                const success = useCard(multiplayer.playerId, cardId, targetPlayerId);
+                if (success) {
+                  console.log("Card used successfully:", cardId);
+                }
+              }}
+              otherPlayers={multiplayer.players
+                .filter(p => p.id !== multiplayer.playerId)
+                .map(p => ({ id: p.id, name: p.name }))}
+            />
+          </>
+        )}
       </div>
     );
   }

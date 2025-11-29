@@ -1,7 +1,21 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { useCards, Card, CardType, CARD_DEFINITIONS } from "@/lib/stores/useCards";
-import { X, Target, Sparkles } from "lucide-react";
+import { useCards, Card, CardType, CardIconType, CARD_DEFINITIONS } from "@/lib/stores/useCards";
+import { X, Target, Sparkles, Eye, Clock, Shield, RefreshCw, Snowflake } from "lucide-react";
+
+const CARD_ICONS: Record<CardIconType, React.FC<{ className?: string }>> = {
+  eye: Eye,
+  clock: Clock,
+  shield: Shield,
+  refresh: RefreshCw,
+  snowflake: Snowflake,
+  sparkles: Sparkles,
+};
+
+function CardIcon({ icon, className }: { icon: CardIconType; className?: string }) {
+  const IconComponent = CARD_ICONS[icon];
+  return <IconComponent className={className} />;
+}
 
 interface CardComponentProps {
   card: Card;
@@ -48,8 +62,8 @@ function CardComponent({ card, onUse, isSelectable, otherPlayers = [], disabled 
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           
           <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-white">
-            <motion.span 
-              className="text-2xl sm:text-3xl mb-1"
+            <motion.div 
+              className="mb-1"
               animate={{ 
                 scale: [1, 1.2, 1],
                 rotate: [0, 5, -5, 0] 
@@ -60,8 +74,8 @@ function CardComponent({ card, onUse, isSelectable, otherPlayers = [], disabled 
                 ease: "easeInOut" 
               }}
             >
-              {card.icon}
-            </motion.span>
+              <CardIcon icon={card.icon} className="w-6 h-6 sm:w-8 sm:h-8" />
+            </motion.div>
             <span className="text-xs sm:text-sm font-bold text-center leading-tight drop-shadow-lg">
               {card.nameAr}
             </span>
@@ -213,7 +227,7 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
               exit={{ x: 100, opacity: 0 }}
               className={`bg-gradient-to-r ${cardDef.color} rounded-xl p-3 shadow-lg flex items-center gap-3 text-white`}
             >
-              <span className="text-2xl">{cardDef.icon}</span>
+              <CardIcon icon={cardDef.icon} className="w-6 h-6" />
               <div>
                 <span className="font-bold text-sm block">{cardDef.nameAr}</span>
                 <span className="text-xs opacity-80">{remainingTime}s</span>
@@ -255,8 +269,8 @@ export function CardUsedAnimation({ cardType, userName, targetName, onComplete }
         exit={{ scale: 0, rotate: 180 }}
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
       >
-        <motion.span
-          className="text-6xl block mb-4"
+        <motion.div
+          className="mb-4 flex justify-center"
           animate={{ 
             scale: [1, 1.3, 1],
             rotate: [0, 10, -10, 0] 
@@ -267,8 +281,8 @@ export function CardUsedAnimation({ cardType, userName, targetName, onComplete }
             ease: "easeInOut" 
           }}
         >
-          {cardDef.icon}
-        </motion.span>
+          <CardIcon icon={cardDef.icon} className="w-16 h-16" />
+        </motion.div>
         <h2 className="text-2xl font-bold mb-2">{cardDef.nameAr}</h2>
         <p className="text-lg opacity-90">
           {userName}
@@ -306,8 +320,8 @@ export function CardDrawAnimation({ card, onComplete }: CardDrawAnimationProps) 
         transition={{ type: "spring", stiffness: 200, damping: 15 }}
         whileHover={{ scale: 1.05 }}
       >
-        <motion.span
-          className="text-5xl mb-4"
+        <motion.div
+          className="mb-4"
           animate={{ 
             scale: [1, 1.3, 1],
             rotate: [0, 15, -15, 0] 
@@ -318,8 +332,8 @@ export function CardDrawAnimation({ card, onComplete }: CardDrawAnimationProps) 
             ease: "easeInOut" 
           }}
         >
-          {card.icon}
-        </motion.span>
+          <CardIcon icon={card.icon} className="w-12 h-12" />
+        </motion.div>
         <h3 className="text-xl font-bold text-center mb-2">{card.nameAr}</h3>
         <p className="text-sm text-center opacity-90">{card.descriptionAr}</p>
         

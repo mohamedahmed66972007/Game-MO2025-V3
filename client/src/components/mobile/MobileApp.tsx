@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
-import { reconnectToSession, connectWebSocket, reconnectWithRetry } from "@/lib/websocket";
+import { reconnectToSession, connectWebSocket, reconnectWithRetry, clearSession, getLastRoomSession } from "@/lib/websocket";
 import { MobileMenu } from "./MobileMenu";
 import { MobileSingleplayer } from "./MobileSingleplayer";
 import { MobileMultiplayer } from "./MobileMultiplayer";
@@ -9,7 +10,9 @@ import { ChallengesHub } from "../game/ChallengesHub";
 import { useChallenges } from "@/lib/stores/useChallenges";
 
 export function MobileApp() {
-  const { mode, setMode, setPlayerName, setRoomId, setPlayerId, setIsConnecting, multiplayer, singleplayer } = useNumberGame();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { mode, setMode, setPlayerName, setRoomId, setPlayerId, setIsConnecting, multiplayer, singleplayer, restartSingleplayer, resetMultiplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
   const [showChallengesHub, setShowChallengesHub] = useState(false);
   const challenges = useChallenges();
@@ -22,44 +25,63 @@ export function MobileApp() {
   }, [setSuccessSound]);
 
   useEffect(() => {
-    const session = reconnectToSession();
-    if (session && session.roomId && session.playerId && !multiplayer.roomId) {
-      console.log("Reconnecting to session:", session);
-      setPlayerName(session.playerName);
-      
-      // Restore game state if it was active
-      if (session.gameState) {
-        const store = useNumberGame.getState();
-        if (session.gameState.gameStatus) {
-          store.setGameStatus(session.gameState.gameStatus);
-        }
-        if (session.gameState.sharedSecret) {
-          store.setSharedSecret(session.gameState.sharedSecret);
-        }
-        if (session.gameState.attempts) {
-          useNumberGame.setState((state) => ({
-            multiplayer: {
-              ...state.multiplayer,
-              attempts: session.gameState.attempts,
-              startTime: session.gameState.startTime || 0,
-            },
-          }));
-        }
+    if (location.pathname === "/" || location.pathname === "") {
+      resetMultiplayer();
+      setMode("menu");
+      clearSession();
+    } else if (location.pathname === "/singleplayer") {
+      setMode("singleplayer");
+      if (!singleplayer.secretCode || singleplayer.secretCode.length === 0) {
+        restartSingleplayer();
       }
-      
+    } else if (location.pathname === "/multiplayer") {
       setMode("multiplayer");
-      setIsConnecting(true);
-      reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+    } else if (location.pathname.startsWith("/room/")) {
+      setMode("multiplayer");
+      const roomId = location.pathname.split("/room/")[1];
       
-      setTimeout(() => {
-        if (useNumberGame.getState().isConnecting) {
-          console.error("Connection timeout");
-          setIsConnecting(false);
-          setMode("menu");
-        }
-      }, 3000);
+      if (multiplayer.roomId === roomId && multiplayer.playerId) {
+        return;
+      }
+
+      const session = reconnectToSession();
+      if (session && session.roomId === roomId && session.playerId) {
+        console.log("Reconnecting to room from session:", roomId);
+        setPlayerName(session.playerName);
+        setIsConnecting(true);
+        reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+        
+        setTimeout(() => {
+          if (useNumberGame.getState().isConnecting) {
+            console.error("Connection timeout");
+            setIsConnecting(false);
+          }
+        }, 5000);
+        return;
+      }
+
+      const lastRoom = getLastRoomSession();
+      if (lastRoom && lastRoom.roomId === roomId && lastRoom.playerId) {
+        console.log("Reconnecting to last room:", roomId);
+        setPlayerName(lastRoom.playerName);
+        setIsConnecting(true);
+        reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
+        
+        setTimeout(() => {
+          if (useNumberGame.getState().isConnecting) {
+            console.error("Connection timeout");
+            setIsConnecting(false);
+          }
+        }, 5000);
+      }
     }
-  }, []);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (multiplayer.roomId && location.pathname !== `/room/${multiplayer.roomId}`) {
+      navigate(`/room/${multiplayer.roomId}`, { replace: true });
+    }
+  }, [multiplayer.roomId, navigate, location.pathname]);
 
   const handleExitChallengesHub = () => {
     if (hasWonAnyChallenge()) {
@@ -73,17 +95,21 @@ export function MobileApp() {
     return <ChallengesHub onExit={handleExitChallengesHub} />;
   }
 
+  const isMenuPage = location.pathname === "/" || location.pathname === "";
+  const isSingleplayerPage = location.pathname === "/singleplayer";
+  const isMultiplayerPage = location.pathname === "/multiplayer" || location.pathname.startsWith("/room/");
+
   return (
     <div dir="rtl" className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {mode === "menu" && <MobileMenu />}
-      {mode === "singleplayer" && (
+      {isMenuPage && <MobileMenu />}
+      {isSingleplayerPage && (
         <MobileSingleplayer 
           onStartChallenge={() => {
             setShowChallengesHub(true);
           }}
         />
       )}
-      {mode === "multiplayer" && <MobileMultiplayer />}
+      {isMultiplayerPage && <MobileMultiplayer />}
     </div>
   );
 }

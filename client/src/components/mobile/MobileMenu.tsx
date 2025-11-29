@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { Gamepad2, Users } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
 
 export function MobileMenu() {
-  const { setMode, startSingleplayer } = useNumberGame();
+  const navigate = useNavigate();
+  const { startSingleplayer } = useNumberGame();
   const [showSettings, setShowSettings] = useState(false);
 
   const handleSingleplayer = () => {
@@ -14,6 +16,7 @@ export function MobileMenu() {
   const handleSettingsConfirm = (settings: { numDigits: number; maxAttempts: number }) => {
     startSingleplayer(settings);
     setShowSettings(false);
+    navigate("/singleplayer");
   };
 
   if (showSettings) {
@@ -21,7 +24,7 @@ export function MobileMenu() {
   }
 
   const handleMultiplayer = () => {
-    setMode("multiplayer");
+    navigate("/multiplayer");
   };
 
   return (

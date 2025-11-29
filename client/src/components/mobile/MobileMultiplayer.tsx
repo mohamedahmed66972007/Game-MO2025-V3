@@ -1,13 +1,18 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { MultiplayerResults } from "../ui/MultiplayerResults";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
+import { useCards } from "@/lib/stores/useCards";
 import { send, connectWebSocket, disconnect } from "@/lib/websocket";
 import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Trophy, Maximize2, Minimize2, LogOut } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
 import { clearSession } from "@/lib/websocket";
+import { CardHand, CardEffectDisplay } from "../game/cards/CardSystem";
 
 export function MobileMultiplayer() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const {
     multiplayer,
     setMode,
@@ -127,7 +132,7 @@ export function MobileMultiplayer() {
     if (multiplayer.roomId) {
       handleLeaveRoom();
     }
-    setMode("menu");
+    navigate("/");
   };
 
   const handleCopyRoomId = () => {
@@ -520,6 +525,26 @@ export function MobileMultiplayer() {
             </div>
           )}
         </div>
+
+        {/* Cards System UI */}
+        {multiplayer.settings.cardsEnabled && (
+          <>
+            <CardEffectDisplay playerId={multiplayer.playerId} />
+            <CardHand
+              playerId={multiplayer.playerId}
+              onUseCard={(cardId, targetPlayerId) => {
+                const { useCard } = useCards.getState();
+                const success = useCard(multiplayer.playerId, cardId, targetPlayerId);
+                if (success) {
+                  console.log("Card used successfully:", cardId);
+                }
+              }}
+              otherPlayers={multiplayer.players
+                .filter(p => p.id !== multiplayer.playerId)
+                .map(p => ({ id: p.id, name: p.name }))}
+            />
+          </>
+        )}
       </div>
     );
   }

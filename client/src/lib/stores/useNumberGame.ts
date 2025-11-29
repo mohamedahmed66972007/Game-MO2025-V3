@@ -12,10 +12,13 @@ interface Attempt {
   correctPositionCount: number;
 }
 
+type ChallengeType = "memory" | "direction" | "raindrops" | "pattern" | "random";
+
 interface GameSettings {
   numDigits: number;
   maxAttempts: number;
   cardsEnabled?: boolean;
+  selectedChallenge?: ChallengeType;
 }
 
 interface SingleplayerState {
@@ -65,7 +68,7 @@ interface MultiplayerState {
     countdown: number | null;
     votes: RematchVote[];
   };
-  settings: GameSettings & { cardsEnabled: boolean };
+  settings: GameSettings & { cardsEnabled: boolean; selectedChallenge: ChallengeType };
 }
 
 interface NumberGameState {
@@ -189,7 +192,7 @@ export const useNumberGame = create<NumberGameState>()(
         countdown: null,
         votes: [],
       },
-      settings: { numDigits: 4, maxAttempts: 20, cardsEnabled: false },
+      settings: { numDigits: 4, maxAttempts: 20, cardsEnabled: false, selectedChallenge: "random" },
     },
 
     setMode: (mode) => set({ mode }),
@@ -459,7 +462,8 @@ export const useNumberGame = create<NumberGameState>()(
         settings: { 
           ...state.multiplayer.settings, 
           ...settings,
-          cardsEnabled: settings.cardsEnabled ?? state.multiplayer.settings.cardsEnabled ?? false 
+          cardsEnabled: settings.cardsEnabled ?? state.multiplayer.settings.cardsEnabled ?? false,
+          selectedChallenge: settings.selectedChallenge ?? state.multiplayer.settings.selectedChallenge ?? "random"
         } 
       } 
     })),

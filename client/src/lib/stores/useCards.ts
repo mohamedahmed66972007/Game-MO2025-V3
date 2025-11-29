@@ -8,6 +8,8 @@ export type CardType =
   | "freeze"         
   | "doublePoints";  
 
+export type CardIconType = "eye" | "clock" | "shield" | "refresh" | "snowflake" | "sparkles";
+
 export interface Card {
   id: string;
   type: CardType;
@@ -15,7 +17,7 @@ export interface Card {
   nameAr: string;
   description: string;
   descriptionAr: string;
-  icon: string;
+  icon: CardIconType;
   color: string;
   isUsed: boolean;
   cooldown: number;
@@ -60,7 +62,7 @@ const CARD_DEFINITIONS: Omit<Card, "id" | "isUsed" | "cooldown">[] = [
     nameAr: "تلميح",
     description: "Reveal one digit of the secret number",
     descriptionAr: "كشف رقم واحد من الرقم السري",
-    icon: "👁️",
+    icon: "eye",
     color: "from-purple-500 to-purple-700",
   },
   {
@@ -69,7 +71,7 @@ const CARD_DEFINITIONS: Omit<Card, "id" | "isUsed" | "cooldown">[] = [
     nameAr: "وقت إضافي",
     description: "Add 30 seconds to your timer",
     descriptionAr: "أضف 30 ثانية لوقتك",
-    icon: "⏱️",
+    icon: "clock",
     color: "from-green-500 to-green-700",
   },
   {
@@ -78,7 +80,7 @@ const CARD_DEFINITIONS: Omit<Card, "id" | "isUsed" | "cooldown">[] = [
     nameAr: "درع",
     description: "Block the next card used against you",
     descriptionAr: "حجب البطاقة القادمة ضدك",
-    icon: "🛡️",
+    icon: "shield",
     color: "from-blue-500 to-blue-700",
   },
   {
@@ -87,7 +89,7 @@ const CARD_DEFINITIONS: Omit<Card, "id" | "isUsed" | "cooldown">[] = [
     nameAr: "تبديل",
     description: "Swap your progress with another player",
     descriptionAr: "تبديل تقدمك مع لاعب آخر",
-    icon: "🔄",
+    icon: "refresh",
     color: "from-orange-500 to-orange-700",
   },
   {
@@ -96,7 +98,7 @@ const CARD_DEFINITIONS: Omit<Card, "id" | "isUsed" | "cooldown">[] = [
     nameAr: "تجميد",
     description: "Freeze opponent's input for 10 seconds",
     descriptionAr: "تجميد إدخال الخصم لـ 10 ثواني",
-    icon: "❄️",
+    icon: "snowflake",
     color: "from-cyan-500 to-cyan-700",
   },
   {
@@ -105,7 +107,7 @@ const CARD_DEFINITIONS: Omit<Card, "id" | "isUsed" | "cooldown">[] = [
     nameAr: "نقاط مضاعفة",
     description: "Double your score for the next correct guess",
     descriptionAr: "مضاعفة نقاطك للتخمين الصحيح التالي",
-    icon: "✨",
+    icon: "sparkles",
     color: "from-yellow-500 to-yellow-700",
   },
 ];
