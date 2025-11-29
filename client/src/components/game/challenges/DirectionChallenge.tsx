@@ -347,7 +347,7 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
             onClick={() => !hasInputRef.current && handleInput("left")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: isMobile ? '1' : '3',
+              gridColumn: isMobile ? '3' : '3',
               gridRow: '2',
               width: '70px',
               height: '70px',
@@ -406,7 +406,7 @@ export function DirectionChallenge({ onExit }: { onExit?: () => void } = {}) {
             onClick={() => !hasInputRef.current && handleInput("right")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: isMobile ? '3' : '1',
+              gridColumn: isMobile ? '1' : '1',
               gridRow: '2',
               width: '70px',
               height: '70px',
