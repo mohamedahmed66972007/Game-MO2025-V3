@@ -36,11 +36,12 @@ interface RematchVote {
 
 interface GameSession {
   sharedSecret: number[];
-  status: "waiting" | "playing" | "finished";
+  status: "waiting" | "pre_game_challenge" | "playing" | "finished";
   players: Map<string, PlayerGameData>;
   startTime: number;
   endTime: number | null;
   gameTimerHandle?: NodeJS.Timeout; // 5-minute game timer
+  challengesCompleted: Set<string>; // Track which players completed challenges
   lastResults?: {
     winners: any[];
     losers: any[];
@@ -504,13 +505,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Generate shared secret
         const sharedSecret = generateSecretCode(room.settings.numDigits);
         
-        // Initialize game session
+        // Initialize game session - start in pre-game challenge mode
         const game: GameSession = {
           sharedSecret,
-          status: "playing",
+          status: "pre_game_challenge",
           players: new Map(),
           startTime: Date.now(),
           endTime: null,
+          challengesCompleted: new Set(),
           rematchState: {
             requested: false,
             votes: new Map(),
@@ -565,6 +567,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sharedSecret, // All players get the same secret
           settings: room.settings,
         });
+        break;
+      }
+
+      case "challenges_completed": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room || !room.game) return;
+
+        // Mark this player as completed challenges
+        room.game.challengesCompleted.add(player.id);
+
+        // Check if all players completed challenges
+        if (room.game.challengesCompleted.size === room.players.length) {
+          // All players completed challenges - start the actual game
+          room.game.status = "playing";
+          room.game.startTime = Date.now();
+
+          // Clear any existing timer and restart the 5-minute timer
+          if (room.game.gameTimerHandle) {
+            clearTimeout(room.game.gameTimerHandle);
+          }
+
+          const gameTimerHandle = setTimeout(() => {
+            console.log(`5-minute timer expired for room ${room.id}`);
+            if (room.game && room.game.status === "playing") {
+              room.game.players.forEach((playerData) => {
+                if (!playerData.finished) {
+                  playerData.finished = true;
+                  playerData.endTime = Date.now();
+                  playerData.won = false;
+                }
+              });
+              room.game.status = "finished";
+              room.game.endTime = Date.now();
+              room.game.gameTimerHandle = undefined;
+              sendResultsToAllFinishedPlayers(room, "time_expired");
+            }
+          }, 5 * 60 * 1000);
+
+          room.game.gameTimerHandle = gameTimerHandle;
+
+          // Notify all players game is starting
+          broadcastToRoom(room, {
+            type: "game_starting",
+            message: "جميع اللاعبين انتهوا من التحديات - بدء اللعبة!",
+          });
+        }
         break;
       }
 
@@ -870,12 +921,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const sharedSecret = generateSecretCode(room.settings.numDigits);
           const game: GameSession = {
             sharedSecret,
-            status: "playing",
+            status: "pre_game_challenge",
             startTime: Date.now(),
             endTime: null,
             players: new Map(),
             lastResults: undefined,
             gameTimerHandle: undefined,
+            challengesCompleted: new Set(),
             rematchState: {
               requested: false,
               votes: new Map(),

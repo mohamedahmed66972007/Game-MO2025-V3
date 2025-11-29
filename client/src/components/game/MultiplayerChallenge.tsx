@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useCards } from "@/lib/stores/useCards";
 import { useChallenges, type ChallengeType } from "@/lib/stores/useChallenges";
+import { send } from "@/lib/websocket";
 import { Brain, Target, Zap, Calculator, Shuffle, Trophy, Sparkles } from "lucide-react";
 import { GuessChallenge } from "./challenges/GuessChallenge";
 import { MemoryChallenge } from "./challenges/MemoryChallenge";
@@ -134,6 +135,8 @@ export function MultiplayerChallenge({ onComplete }: MultiplayerChallengeProps) 
   const handleContinue = () => {
     console.log("Continuing with result:", hasWon);
     resetToMenu();
+    // Notify server that this player completed challenges
+    send({ type: "challenges_completed" });
     onComplete(hasWon);
   };
 
