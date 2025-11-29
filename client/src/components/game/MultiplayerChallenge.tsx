@@ -159,7 +159,7 @@ export function MultiplayerChallenge({ onComplete }: MultiplayerChallengeProps) 
           
           <div className="flex items-center justify-center gap-4 text-gray-300">
             <Sparkles className="w-6 h-6 text-yellow-400" />
-            <span className="text-lg">الفائز يحصل على بطاقة تلميح!</span>
+            <span className="text-lg">الفائز يحصل على بطاقة عشوائية!</span>
           </div>
           
           <div className="text-8xl font-bold text-white animate-bounce">
@@ -202,13 +202,13 @@ export function MultiplayerChallenge({ onComplete }: MultiplayerChallengeProps) 
           {won && (
             <div className="flex items-center justify-center gap-3 bg-yellow-500/20 border border-yellow-500/50 rounded-xl p-4">
               <Trophy className="w-8 h-8 text-yellow-400" />
-              <span className="text-xl text-yellow-300 font-bold">حصلت على بطاقة تلميح!</span>
+              <span className="text-xl text-yellow-300 font-bold">حصلت على بطاقة عشوائية!</span>
             </div>
           )}
           
           <p className="text-gray-300">
             {won 
-              ? "يمكنك استخدام البطاقة أثناء اللعبة للحصول على مساعدة"
+              ? "ستظهر البطاقة في أسفل الشاشة - يمكنك استخدامها أثناء اللعبة"
               : "لا تقلق، يمكنك اللعب بدون بطاقات"}
           </p>
           

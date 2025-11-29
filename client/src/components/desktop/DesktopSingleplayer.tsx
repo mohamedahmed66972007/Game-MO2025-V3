@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
 import { Home, Check, X, Maximize2, Minimize2, Lightbulb } from "lucide-react";
@@ -48,6 +49,7 @@ function useResponsiveSizes() {
 }
 
 export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: () => void }) {
+  const navigate = useNavigate();
   const {
     singleplayer,
     setMode,
@@ -207,6 +209,7 @@ export function DesktopSingleplayer({ onStartChallenge }: { onStartChallenge?: (
     resetToMenu();
     restartSingleplayer();
     setMode("menu");
+    navigate("/");
   };
 
   useEffect(() => {

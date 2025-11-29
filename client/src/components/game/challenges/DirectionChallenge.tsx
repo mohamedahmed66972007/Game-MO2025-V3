@@ -342,12 +342,12 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
             </span>
           </motion.button>
           
-          {/* Left Arrow - Grid position varies by device and mode */}
+          {/* Left Arrow - Grid position: always column 1 (left side) */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("left")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: isMultiplayer ? (isMobile ? '3' : '1') : (isMobile ? '3' : '1'),
+              gridColumn: '1',
               gridRow: '2',
               width: '70px',
               height: '70px',
@@ -401,12 +401,12 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
 
           </motion.div>
           
-          {/* Right Arrow - Grid position varies by device and mode */}
+          {/* Right Arrow - Grid position: always column 3 (right side) */}
           <motion.button
             onClick={() => !hasInputRef.current && handleInput("right")}
             className="rounded-2xl flex items-center justify-center transition-all border-2 backdrop-blur-sm"
             style={{
-              gridColumn: isMultiplayer ? (isMobile ? '1' : '3') : (isMobile ? '1' : '3'),
+              gridColumn: '3',
               gridRow: '2',
               width: '70px',
               height: '70px',

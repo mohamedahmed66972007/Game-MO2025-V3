@@ -93,9 +93,21 @@ export function MobileMultiplayer() {
     }
   };
 
+  const { hasActiveEffect, removeExpiredEffects } = useCards();
+  
+  const isPlayerFrozen = () => {
+    removeExpiredEffects();
+    return hasActiveEffect(multiplayer.playerId, "freeze");
+  };
+
   const handleNumberInput = (num: string) => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
     if (focusedIndex >= numDigits) return;
+    
+    if (isPlayerFrozen()) {
+      playError();
+      return;
+    }
 
     playDigit(parseInt(num));
     addMultiplayerDigit(parseInt(num));
@@ -112,6 +124,11 @@ export function MobileMultiplayer() {
   const handleSubmit = () => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
     if (input.some(val => val === "")) {
+      playError();
+      return;
+    }
+    
+    if (isPlayerFrozen()) {
       playError();
       return;
     }

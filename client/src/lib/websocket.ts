@@ -296,7 +296,7 @@ const handleMessage = (message: any) => {
           gameStatus: "playing",
           sharedSecret: message.sharedSecret,
           phase: "playing",
-          startTime: Date.now(),
+          startTime: cardsEnabled ? 0 : Date.now(),
           endTime: null,
           attempts: [],
           currentGuess: [],
@@ -336,6 +336,20 @@ const handleMessage = (message: any) => {
       
       saveSessionToStorage(store.multiplayer.playerName, store.multiplayer.playerId, store.multiplayer.roomId);
       console.log("Game started with shared secret, cardsEnabled:", cardsEnabled, "showPreGameChallenge:", cardsEnabled);
+      break;
+
+    case "game_starting":
+      // All players completed challenges - now actually start the game timer
+      useNumberGame.setState((state) => ({
+        multiplayer: {
+          ...state.multiplayer,
+          startTime: Date.now(),
+        },
+      }));
+      console.log("All players completed challenges - game timer started");
+      toast.success(message.message || "بدأت اللعبة!", {
+        duration: 3000,
+      });
       break;
 
     case "room_rejoined":
