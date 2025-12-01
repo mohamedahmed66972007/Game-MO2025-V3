@@ -668,6 +668,17 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
       return false;
     }
 
+    // Helper function to convert direction to color
+    const directionToColor = (dir: string): ColorDirection | null => {
+      switch(dir) {
+        case "up": return "red";
+        case "left": return "yellow";
+        case "right": return "green";
+        case "down": return "blue";
+        default: return null;
+      }
+    };
+
     let isCorrect = false;
     let expectedInput: string = "";
     
@@ -713,22 +724,34 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
           expectedInput = "left, right, or up";
           isCorrect = input === "left" || input === "right" || input === "up";
           break;
-        case "notRed":
+        case "notRed": {
+          const selectedColor = directionToColor(input);
           expectedInput = "green, yellow, or blue";
-          isCorrect = input === "green" || input === "yellow" || input === "blue";
+          isCorrect = selectedColor !== "red";
+          console.log(`[Direction Not Color Mode] Input: ${input}, Selected Color: ${selectedColor}, Expected: not red, Correct: ${isCorrect}`);
           break;
-        case "notYellow":
+        }
+        case "notYellow": {
+          const selectedColor = directionToColor(input);
           expectedInput = "red, green, or blue";
-          isCorrect = input === "red" || input === "green" || input === "blue";
+          isCorrect = selectedColor !== "yellow";
+          console.log(`[Direction Not Color Mode] Input: ${input}, Selected Color: ${selectedColor}, Expected: not yellow, Correct: ${isCorrect}`);
           break;
-        case "notGreen":
+        }
+        case "notGreen": {
+          const selectedColor = directionToColor(input);
           expectedInput = "red, yellow, or blue";
-          isCorrect = input === "red" || input === "yellow" || input === "blue";
+          isCorrect = selectedColor !== "green";
+          console.log(`[Direction Not Color Mode] Input: ${input}, Selected Color: ${selectedColor}, Expected: not green, Correct: ${isCorrect}`);
           break;
-        case "notBlue":
+        }
+        case "notBlue": {
+          const selectedColor = directionToColor(input);
           expectedInput = "red, yellow, or green";
-          isCorrect = input === "red" || input === "yellow" || input === "green";
+          isCorrect = selectedColor !== "blue";
+          console.log(`[Direction Not Color Mode] Input: ${input}, Selected Color: ${selectedColor}, Expected: not blue, Correct: ${isCorrect}`);
           break;
+        }
       }
       console.log(`[Direction] Direction: ${currentDirection}, Expected: ${expectedInput}, Got: ${input}, Correct: ${isCorrect}`);
     }
