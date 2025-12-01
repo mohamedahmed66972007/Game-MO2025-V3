@@ -606,10 +606,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Broadcast game start to all players with server start time for sync
+        // Ensure cardSettings is always included
+        const settingsToSend = {
+          ...room.settings,
+          cardSettings: room.settings.cardSettings || {
+            roundDuration: 5,
+            maxCards: 3,
+            revealNumberShowPosition: true,
+            burnNumberCount: 1,
+            revealParitySlots: 4,
+            freezeDuration: 5000,
+            shieldDuration: 5000
+          }
+        };
+        
         broadcastToRoom(room, {
           type: "game_started",
           sharedSecret, // All players get the same secret
-          settings: room.settings,
+          settings: settingsToSend,
           serverStartTime: cardsEnabled ? 0 : game.startTime, // 0 means wait for challenges to complete
         });
         break;
