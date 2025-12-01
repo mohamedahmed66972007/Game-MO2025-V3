@@ -252,16 +252,19 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
 
       {/* Header */}
       <div className="w-full max-w-2xl z-10 mb-6 flex items-center justify-between">
-        <button
-          onClick={() => {
-            resetToMenu();
-            onExit?.();
-          }}
-          className="flex items-center gap-2 bg-white/10 backdrop-blur-xl hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all shadow-lg border border-white/10"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span className="font-bold text-sm">رجوع</span>
-        </button>
+        {!isMultiplayer && (
+          <button
+            onClick={() => {
+              resetToMenu();
+              onExit?.();
+            }}
+            className="flex items-center gap-2 bg-white/10 backdrop-blur-xl hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all shadow-lg border border-white/10"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="font-bold text-sm">رجوع</span>
+          </button>
+        )}
+        {isMultiplayer && <div />}
 
         <div className="flex items-center gap-2 md:gap-3">
           <motion.div 
