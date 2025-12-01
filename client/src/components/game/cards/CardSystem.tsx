@@ -201,11 +201,13 @@ export function CardHand({ playerId, onUseCard, otherPlayers = [], disabled }: C
 interface CardEffectDisplayProps {
   playerId: string;
   revealNumberShowPosition?: boolean;
+  currentPlayerName?: string;
 }
 
-export function CardEffectDisplay({ playerId, revealNumberShowPosition = true }: CardEffectDisplayProps) {
+export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, currentPlayerName = "" }: CardEffectDisplayProps) {
   const { playerCards, removeExpiredEffects } = useCards();
   const playerData = playerCards.find((p) => p.playerId === playerId);
+  const otherPlayers = playerCards.filter(p => p.playerId !== playerId);
 
   if (!playerData || playerData.activeEffects.length === 0) {
     return null;
@@ -272,6 +274,40 @@ export function CardEffectDisplay({ playerId, revealNumberShowPosition = true }:
         }
         return null;
         
+      case "freeze":
+        const sourcePlayer = otherPlayers.find(p => effect.sourcePlayerId === p.playerId);
+        const sourceName = sourcePlayer?.playerId ? otherPlayers.find(p => p.playerId === effect.sourcePlayerId)?.playerId : effect.sourcePlayerName;
+        
+        // Check if current player is the one being frozen
+        if (effect.targetPlayerId === playerId) {
+          return (
+            <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
+              <span className="text-sm font-bold">
+                قام {sourceName} بتجميدك
+              </span>
+            </div>
+          );
+        }
+        
+        // Current player used freeze on someone else
+        const targetPlayer = otherPlayers.find(p => p.playerId === effect.targetPlayerId);
+        return (
+          <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
+            <span className="text-sm font-bold">
+              تم تجميد الخصم {effect.targetPlayerId}
+            </span>
+          </div>
+        );
+
+      case "shield":
+        return (
+          <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
+            <span className="text-sm font-bold">
+              أنت محمي
+            </span>
+          </div>
+        );
+
       default:
         return null;
     }

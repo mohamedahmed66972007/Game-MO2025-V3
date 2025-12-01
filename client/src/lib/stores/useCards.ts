@@ -49,6 +49,8 @@ export interface ParityInfo {
 export interface ActiveCardEffect {
   cardType: CardType;
   targetPlayerId?: string;
+  sourcePlayerId?: string;
+  sourcePlayerName?: string;
   expiresAt: number;
   value?: number | string | number[] | ParityInfo[];
 }
@@ -401,6 +403,7 @@ const useCards = create<CardState>((set, get) => ({
       const newEffect: ActiveCardEffect = {
         cardType: card.type,
         targetPlayerId,
+        sourcePlayerId: playerId,
         expiresAt: Date.now() + effectDuration,
         value: effectValue,
       };

@@ -844,7 +844,7 @@ export function MultiplayerGame2D() {
         {/* Cards System UI */}
         {multiplayer.settings.cardsEnabled && (
           <>
-            <CardEffectDisplay playerId={multiplayer.playerId} revealNumberShowPosition={cardSettings.revealNumberShowPosition} />
+            <CardEffectDisplay playerId={multiplayer.playerId} revealNumberShowPosition={cardSettings.revealNumberShowPosition} currentPlayerName={multiplayer.playerName} />
             <CardHand
               playerId={multiplayer.playerId}
               onUseCard={(cardId, targetPlayerId) => {
