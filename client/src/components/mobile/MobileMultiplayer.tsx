@@ -33,7 +33,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   } = useNumberGame();
 
   const { playDigit, playDelete, playConfirm, playError, successSound } = useAudio();
-  const { cardSettings, hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers, playerCards, removeRevealedDigit } = useCards();
+  const { cardSettings, hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers, playerCards } = useCards();
   const [playerName, setPlayerName] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
   const [showJoinForm, setShowJoinForm] = useState(false);
@@ -181,9 +181,15 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
       return;
     }
 
-    // إذا كانت الخانة الحالية مكشوفة، احذف الرقم المكشوف
-    if (getRevealedDigitAtPosition(focusedIndex) !== null) {
-      removeRevealedDigit(focusedIndex);
+    // تخطي الخانات المكشوفة تلقائياً
+    let targetIndex = focusedIndex;
+    while (targetIndex < numDigits && getRevealedDigitAtPosition(targetIndex) !== null) {
+      targetIndex++;
+    }
+    
+    if (targetIndex >= numDigits) {
+      playError();
+      return;
     }
 
     playDigit(parseInt(num));
