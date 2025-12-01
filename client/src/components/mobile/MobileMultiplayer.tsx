@@ -69,52 +69,15 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   }, [numDigits]);
 
   useEffect(() => {
-    // Build input array combining revealed digits with entered digits
-    const newInput: string[] = [];
-    let enteredDigitIndex = 0;
-    
-    for (let i = 0; i < numDigits; i++) {
-      const revealedDigit = getRevealedDigitAtPosition(i);
-      if (revealedDigit !== null) {
-        // For revealed digits, keep empty string in input so the digit displays in background only
-        newInput.push("");
-      } else {
-        if (enteredDigitIndex < multiplayer.currentGuess.length) {
-          newInput.push(String(multiplayer.currentGuess[enteredDigitIndex]));
-          enteredDigitIndex++;
-        } else {
-          newInput.push("");
-        }
-      }
+    if (multiplayer.currentGuess.length < numDigits) {
+      const newInput = [...multiplayer.currentGuess.map(String), ...new Array(numDigits - multiplayer.currentGuess.length).fill("")];
+      setInput(newInput);
+      setFocusedIndex(multiplayer.currentGuess.length);
+    } else if (multiplayer.currentGuess.length === numDigits) {
+      setInput(multiplayer.currentGuess.map(String));
+      setFocusedIndex(numDigits);
     }
-    
-    setInput(newInput);
-    
-    // Calculate the next unfilled, non-revealed slot for focus
-    let nextFocusIndex = 0;
-    let enteredCount = 0;
-    for (let i = 0; i < numDigits; i++) {
-      const revealedDigit = getRevealedDigitAtPosition(i);
-      if (revealedDigit !== null) {
-        continue;
-      }
-      if (enteredCount < multiplayer.currentGuess.length) {
-        enteredCount++;
-      } else {
-        nextFocusIndex = i;
-        break;
-      }
-      nextFocusIndex = i + 1;
-    }
-    
-    // If all non-revealed slots are filled, set focus to end
-    const totalNonRevealed = numDigits - revealedDigits.length;
-    if (multiplayer.currentGuess.length >= totalNonRevealed) {
-      nextFocusIndex = numDigits;
-    }
-    
-    setFocusedIndex(nextFocusIndex);
-  }, [multiplayer.currentGuess, numDigits, revealedDigits]);
+  }, [multiplayer.currentGuess, numDigits]);
 
   // Live timer update
   useEffect(() => {
