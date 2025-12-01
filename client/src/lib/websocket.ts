@@ -284,10 +284,11 @@ const handleMessage = (message: any) => {
 
     case "settings_updated":
       store.setMultiplayerSettings(message.settings);
-      // Update card settings for all players when host changes settings
+      // Update card settings for all players when host changes settings or joins room
       if (message.settings.cardSettings) {
         const cardsStore = useCards.getState();
         cardsStore.setCardSettings(message.settings.cardSettings);
+        console.log("Card settings updated:", message.settings.cardSettings);
       }
       break;
 
