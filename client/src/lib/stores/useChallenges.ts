@@ -34,7 +34,7 @@ interface MemoryChallenge {
   showingSuccess: boolean;
 }
 
-export type DirectionType = "right" | "left" | "up" | "down" | "notRight" | "notLeft" | "notUp" | "notDown" | "nothing";
+export type DirectionType = "right" | "left" | "up" | "down" | "notRight" | "notLeft" | "notUp" | "notDown" | "notRed" | "notYellow" | "notGreen" | "notBlue" | "nothing";
 export type ColorDirection = "green" | "yellow" | "blue" | "red";
 export type ColorPosition = {
   yellow: 'left' | 'right' | 'top' | 'bottom';
@@ -240,7 +240,7 @@ const generateRandomHint = (secretCode: number[]): Hint => {
 const generateRandomDirection = (): { direction: DirectionType; color: ColorDirection | null; useColors: boolean } => {
   const useColors = Math.random() > 0.6;
   const simpleDirections: DirectionType[] = ["right", "left", "up", "down"];
-  const allDirections: DirectionType[] = ["right", "left", "up", "down", "notRight", "notLeft", "notUp", "notDown", "nothing"];
+  const allDirections: DirectionType[] = ["right", "left", "up", "down", "notRight", "notLeft", "notUp", "notDown", "notRed", "notYellow", "notGreen", "notBlue", "nothing"];
   const colors: ColorDirection[] = ["green", "yellow", "blue", "red"];
   
   if (useColors) {
@@ -712,6 +712,22 @@ export const useChallenges = create<ChallengesState>()((set, get) => ({
         case "notDown":
           expectedInput = "left, right, or up";
           isCorrect = input === "left" || input === "right" || input === "up";
+          break;
+        case "notRed":
+          expectedInput = "green, yellow, or blue";
+          isCorrect = input === "green" || input === "yellow" || input === "blue";
+          break;
+        case "notYellow":
+          expectedInput = "red, green, or blue";
+          isCorrect = input === "red" || input === "green" || input === "blue";
+          break;
+        case "notGreen":
+          expectedInput = "red, yellow, or blue";
+          isCorrect = input === "red" || input === "yellow" || input === "blue";
+          break;
+        case "notBlue":
+          expectedInput = "red, yellow, or green";
+          isCorrect = input === "red" || input === "yellow" || input === "green";
           break;
       }
       console.log(`[Direction] Direction: ${currentDirection}, Expected: ${expectedInput}, Got: ${input}, Correct: ${isCorrect}`);

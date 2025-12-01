@@ -31,6 +31,10 @@ const directionLabels: Record<DirectionType, string> = {
   notLeft: "ليس يسار",
   notUp: "ليس فوق",
   notDown: "ليس تحت",
+  notRed: "ليس أحمر",
+  notYellow: "ليس أصفر",
+  notGreen: "ليس أخضر",
+  notBlue: "ليس أزرق",
   nothing: "لا تتحرك",
 };
 
