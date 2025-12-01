@@ -69,7 +69,7 @@ export function MultiplayerResults() {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 z-50 p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 z-50 p-4 overflow-y-auto flex flex-col items-center justify-start">
       {showConfetti && isWinner && (
         <Confetti
           width={window.innerWidth}
@@ -80,7 +80,7 @@ export function MultiplayerResults() {
         />
       )}
 
-      <div className="w-full max-w-2xl my-4">
+      <div className="w-full max-w-2xl py-8">
         <div className="bg-slate-800/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-700 overflow-hidden">
           <div className={`p-6 text-center ${
             isWinner 
