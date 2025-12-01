@@ -115,7 +115,7 @@ export function MultiplayerGame2D() {
     }
   };
 
-  const { hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers, getActiveEffect, playerCards } = useCards();
+  const { hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers, getActiveEffect, playerCards, removeRevealedDigit } = useCards();
   
   const isPlayerFrozen = () => {
     removeExpiredEffects();
@@ -158,15 +158,9 @@ export function MultiplayerGame2D() {
       return;
     }
 
-    // تخطي الخانات المكشوفة تلقائياً
-    let targetIndex = focusedIndex;
-    while (targetIndex < numDigits && getRevealedDigitAtPosition(targetIndex) !== null) {
-      targetIndex++;
-    }
-    
-    if (targetIndex >= numDigits) {
-      playError();
-      return;
+    // إذا كانت الخانة الحالية مكشوفة، احذف الرقم المكشوف
+    if (getRevealedDigitAtPosition(focusedIndex) !== null) {
+      removeRevealedDigit(focusedIndex);
     }
 
     playDigit(parseInt(num));
