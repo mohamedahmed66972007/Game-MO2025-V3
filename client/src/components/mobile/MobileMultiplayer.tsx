@@ -315,8 +315,11 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   // Check if current player has finished
   const playerFinished = multiplayer.phase === "won" || multiplayer.phase === "lost";
   
-  // Show results screen only if explicitly requested via showResults flag
-  const shouldShowResults = multiplayer.showResults;
+  // Check if game is finished (all players done)
+  const gameFinished = multiplayer.gameStatus === "finished";
+  
+  // Show results screen if explicitly requested OR if game is finished and player has finished
+  const shouldShowResults = multiplayer.showResults || (gameFinished && playerFinished);
 
   // Initialize spectator mode when player finishes
   // Watching mode when player finishes
