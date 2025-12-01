@@ -289,10 +289,10 @@ export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, c
         
       case "freeze": {
         const sourceName = effect.sourcePlayerName || effect.sourcePlayerId || "خصم";
+        const targetName = otherPlayers.find(p => p.playerId === effect.targetPlayerId)?.playerId || "الخصم";
         
         // Check if current player is the one being frozen
         if (effect.targetPlayerId === playerId) {
-          console.log(`[CardEffectDisplay] Showing freeze message to frozen player: قام ${sourceName} بتجميدك`);
           return (
             <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
               <span className="text-sm font-bold">
@@ -303,11 +303,10 @@ export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, c
         }
         
         // Current player used freeze on someone else
-        console.log(`[CardEffectDisplay] Showing freeze message to card user: تم تجميد الخصم`);
         return (
           <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
             <span className="text-sm font-bold">
-              تم تجميد الخصم
+              تم تجميد الخصم {targetName}
             </span>
           </div>
         );
@@ -346,7 +345,7 @@ export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, c
 
           const remainingTime = Math.max(0, Math.ceil((effect.expiresAt - Date.now()) / 1000));
           const valueDisplay = getEffectValueDisplay(effect);
-          const showTimer = effect.cardType !== "revealNumber";
+          const showTimer = effect.cardType !== "revealNumber" && effect.cardType !== "burnNumber";
 
           return (
             <motion.div
