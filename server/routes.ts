@@ -384,11 +384,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             numDigits: 4, 
             maxAttempts: 20,
             cardsEnabled: false,
-            selectedChallenge: "rain",
-            allowedCards: ["revealNumber", "burnNumber", "revealParity", "freezeOpponent", "shield", "disableDisplay"],
+            selectedChallenge: "random",
+            allowedCards: ["revealNumber", "burnNumber", "revealParity", "freeze", "shield"],
             cardSettings: {
               roundDuration: 5,
-              maxCards: 3
+              maxCards: 3,
+              revealNumberShowPosition: true,
+              burnNumberCount: 1,
+              revealParitySlots: 2,
+              freezeDuration: 5000,
+              shieldDuration: 5000
             }
           },
         };
