@@ -76,7 +76,8 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
     for (let i = 0; i < numDigits; i++) {
       const revealedDigit = getRevealedDigitAtPosition(i);
       if (revealedDigit !== null) {
-        newInput.push(String(revealedDigit));
+        // For revealed digits, keep empty string in input so the digit displays in background only
+        newInput.push("");
       } else {
         if (enteredDigitIndex < multiplayer.currentGuess.length) {
           newInput.push(String(multiplayer.currentGuess[enteredDigitIndex]));
