@@ -493,10 +493,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        // Merge settings properly to preserve cardSettings
+        // Deep merge settings to properly update cardSettings and other nested properties
         room.settings = {
           ...room.settings,
           ...message.settings,
+          cardSettings: message.settings.cardSettings 
+            ? { ...room.settings.cardSettings, ...message.settings.cardSettings }
+            : room.settings.cardSettings,
         };
         
         console.log(`[update_settings] Room ${room.id} - roundDuration: ${room.settings.cardSettings?.roundDuration}, cardsEnabled: ${room.settings.cardsEnabled}`);
