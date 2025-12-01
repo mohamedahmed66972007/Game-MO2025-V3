@@ -200,9 +200,10 @@ export function CardHand({ playerId, onUseCard, otherPlayers = [], disabled }: C
 
 interface CardEffectDisplayProps {
   playerId: string;
+  revealNumberShowPosition?: boolean;
 }
 
-export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
+export function CardEffectDisplay({ playerId, revealNumberShowPosition = true }: CardEffectDisplayProps) {
   const { playerCards, removeExpiredEffects } = useCards();
   const playerData = playerCards.find((p) => p.playerId === playerId);
 
@@ -217,6 +218,15 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
       case "revealNumber":
         if (Array.isArray(effect.value) && effect.value.length === 2) {
           const [position, digit] = effect.value as number[];
+          if (!revealNumberShowPosition) {
+            return (
+              <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
+                <span className="text-sm font-bold">
+                  {digit}
+                </span>
+              </div>
+            );
+          }
           return (
             <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
               <span className="text-sm font-bold">
@@ -278,7 +288,7 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
   }
 
   return (
-    <div className="fixed top-20 right-4 z-40 space-y-2">
+    <div className="fixed bottom-4 right-4 z-40 space-y-2">
       <AnimatePresence>
         {displayableEffects.map((effect, index) => {
           const cardDef = CARD_DEFINITIONS.find((c) => c.type === effect.cardType);
@@ -286,6 +296,7 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
 
           const remainingTime = Math.max(0, Math.ceil((effect.expiresAt - Date.now()) / 1000));
           const valueDisplay = getEffectValueDisplay(effect);
+          const showTimer = effect.cardType !== "revealNumber";
 
           return (
             <motion.div
@@ -299,7 +310,7 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
                 <CardIcon icon={cardDef.icon} className="w-6 h-6" />
                 <div>
                   <span className="font-bold text-sm block">{cardDef.nameAr}</span>
-                  <span className="text-xs opacity-80">{remainingTime}s</span>
+                  {showTimer && <span className="text-xs opacity-80">{remainingTime}s</span>}
                 </div>
               </div>
               {valueDisplay}
