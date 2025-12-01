@@ -171,6 +171,13 @@ export function MultiplayerGame2D() {
 
     playDigit(parseInt(num));
     addMultiplayerDigit(parseInt(num));
+    
+    // تحديث focusedIndex للخانة التالية
+    let nextIndex = targetIndex + 1;
+    while (nextIndex < numDigits && getRevealedDigitAtPosition(nextIndex) !== null) {
+      nextIndex++;
+    }
+    setFocusedIndex(nextIndex);
   };
 
   const handleBackspace = () => {
@@ -179,6 +186,13 @@ export function MultiplayerGame2D() {
 
     playDelete();
     deleteMultiplayerDigit();
+    
+    // الرجوع للخانة السابقة غير المكشوفة
+    let prevIndex = focusedIndex - 1;
+    while (prevIndex >= 0 && getRevealedDigitAtPosition(prevIndex) !== null) {
+      prevIndex--;
+    }
+    setFocusedIndex(Math.max(0, prevIndex));
   };
 
   const handleSubmit = () => {
