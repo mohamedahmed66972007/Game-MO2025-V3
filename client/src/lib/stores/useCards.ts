@@ -82,6 +82,7 @@ interface CardState {
   clearAllActiveEffects: () => void; // تنظيف جميع التأثيرات
   
   addRevealedDigit: (position: number, digit: number) => void;
+  removeRevealedDigit: (position: number) => void;
   addBurnedNumber: (num: number) => void;
   clearRevealedAndBurned: () => void;
   
@@ -501,6 +502,12 @@ const useCards = create<CardState>((set, get) => ({
       set({ revealedDigits: [...revealedDigits, { position, digit }] });
       console.log(`[Cards] Added revealed digit: position ${position}, digit ${digit}`);
     }
+  },
+
+  removeRevealedDigit: (position: number) => {
+    const { revealedDigits } = get();
+    set({ revealedDigits: revealedDigits.filter(r => r.position !== position) });
+    console.log(`[Cards] Removed revealed digit at position ${position}`);
   },
 
   addBurnedNumber: (num: number) => {
