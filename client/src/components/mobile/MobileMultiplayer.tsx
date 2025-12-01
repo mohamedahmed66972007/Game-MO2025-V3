@@ -318,15 +318,12 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
     }
   }, [playerFinished, multiplayer.showResults]);
 
+  // Note: GameSettings handles sending update_settings with full cardSettings
   if (showSettings && multiplayer.isHost && multiplayer.gameStatus === "waiting") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
         <GameSettings
-          onConfirm={(settings) => {
-            send({ 
-              type: "update_settings", 
-              settings: { numDigits: settings.numDigits, maxAttempts: settings.maxAttempts }
-            });
+          onConfirm={() => {
             setShowSettings(false);
           }}
           isMultiplayer={true}

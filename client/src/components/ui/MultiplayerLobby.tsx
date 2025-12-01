@@ -46,18 +46,11 @@ export function MultiplayerLobby() {
   };
 
   // Render GameSettings if showSettings is true
+  // Note: GameSettings handles sending update_settings with full cardSettings
   if (showSettings && multiplayer.isHost) {
     return (
       <GameSettings
-        onConfirm={(settings) => {
-          send({ 
-            type: "update_settings", 
-            settings: { 
-              numDigits: settings.numDigits, 
-              maxAttempts: settings.maxAttempts,
-              cardsEnabled: settings.cardsEnabled || false 
-            }
-          });
+        onConfirm={() => {
           setShowSettings(false);
         }}
         isMultiplayer={true}

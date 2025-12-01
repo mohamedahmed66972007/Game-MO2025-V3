@@ -291,10 +291,12 @@ const handleMessage = (message: any) => {
       }
       break;
 
-    case "game_started":
+    case "game_started": {
       // Clear previous game data and start fresh
       const cardsEnabled = message.settings?.cardsEnabled ?? store.multiplayer.settings.cardsEnabled;
       const selectedChallenge = message.settings?.selectedChallenge ?? store.multiplayer.settings.selectedChallenge;
+      // Use server start time for synchronization (0 means waiting for challenges)
+      const serverGameStartTime = message.serverStartTime || (cardsEnabled ? 0 : Date.now());
       
       useNumberGame.setState((state) => ({
         multiplayer: {
@@ -302,7 +304,7 @@ const handleMessage = (message: any) => {
           gameStatus: "playing",
           sharedSecret: message.sharedSecret,
           phase: "playing",
-          startTime: cardsEnabled ? 0 : Date.now(),
+          startTime: serverGameStartTime,
           endTime: null,
           attempts: [],
           currentGuess: [],
@@ -359,10 +361,11 @@ const handleMessage = (message: any) => {
       }
       
       saveSessionToStorage(store.multiplayer.playerName, store.multiplayer.playerId, store.multiplayer.roomId);
-      console.log("Game started with shared secret, cardsEnabled:", cardsEnabled, "showPreGameChallenge:", cardsEnabled);
+      console.log("Game started with shared secret, cardsEnabled:", cardsEnabled, "showPreGameChallenge:", cardsEnabled, "startTime:", serverGameStartTime);
       break;
+    }
 
-    case "game_starting":
+    case "game_starting": {
       // All players completed challenges - use server timestamp for sync if provided
       const gameStartTime = message.serverStartTime || Date.now();
       useNumberGame.setState((state) => ({
@@ -376,6 +379,7 @@ const handleMessage = (message: any) => {
         duration: 3000,
       });
       break;
+    }
 
     case "room_rejoined":
       store.setRoomId(message.roomId);

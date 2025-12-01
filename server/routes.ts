@@ -380,7 +380,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           players: [player],
           disconnectedPlayers: new Map(),
           game: null,
-          settings: { numDigits: 4, maxAttempts: 20 },
+          settings: { 
+            numDigits: 4, 
+            maxAttempts: 20,
+            cardsEnabled: false,
+            selectedChallenge: "rain",
+            allowedCards: ["revealNumber", "burnNumber", "revealParity", "freezeOpponent", "shield", "disableDisplay"],
+            cardSettings: {
+              roundDuration: 5,
+              maxCards: 3
+            }
+          },
         };
 
         rooms.set(roomId, room);
@@ -483,11 +493,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        room.settings = message.settings;
+        // Merge settings properly to preserve cardSettings
+        room.settings = {
+          ...room.settings,
+          ...message.settings,
+        };
+        
+        console.log(`[update_settings] Room ${room.id} - roundDuration: ${room.settings.cardSettings?.roundDuration}, cardsEnabled: ${room.settings.cardsEnabled}`);
 
         broadcastToRoom(room, {
           type: "settings_updated",
-          settings: message.settings,
+          settings: room.settings,
         });
         break;
       }
@@ -542,41 +558,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         });
 
-        // Start game timer based on roundDuration setting (default 5 minutes)
-        const roundDurationMinutes = room.settings.cardSettings?.roundDuration ?? 5;
-        const timerDuration = roundDurationMinutes * 60 * 1000;
-        const gameTimerHandle = setTimeout(() => {
-          console.log(`${roundDurationMinutes}-minute timer expired for room ${room.id}`);
-          if (room.game && room.game.status === "playing") {
-            // Mark all unfinished players as losers
-            room.game.players.forEach((playerData) => {
-              if (!playerData.finished) {
-                playerData.finished = true;
-                playerData.endTime = Date.now();
-                playerData.won = false;
-              }
-            });
-            
-            // End the game first
-            room.game.status = "finished";
-            room.game.endTime = Date.now();
-            
-            // Clear the timer handle
-            room.game.gameTimerHandle = undefined;
-            
-            // Send final results to ALL finished players (everyone at this point)
-            sendResultsToAllFinishedPlayers(room, "time_expired");
-          }
-        }, timerDuration);
-
-        game.gameTimerHandle = gameTimerHandle;
         room.game = game;
 
-        // Broadcast game start to all players
+        // Only start game timer immediately if cards are NOT enabled
+        // If cards are enabled, timer starts after all players complete challenges
+        const cardsEnabled = room.settings.cardsEnabled ?? false;
+        console.log(`[start_game] Room ${room.id} - cardsEnabled: ${cardsEnabled}, cardSettings: ${JSON.stringify(room.settings.cardSettings)}`);
+        if (!cardsEnabled) {
+          // No challenges - start playing immediately
+          const gameStartTime = Date.now();
+          game.status = "playing";
+          game.startTime = gameStartTime;
+          
+          // Update all player startTimes
+          game.players.forEach((playerData) => {
+            playerData.startTime = gameStartTime;
+          });
+          
+          const roundDurationMinutes = room.settings.cardSettings?.roundDuration ?? 5;
+          const timerDuration = roundDurationMinutes * 60 * 1000;
+          console.log(`Cards disabled - Starting game timer immediately: ${roundDurationMinutes} minutes (${timerDuration}ms) for room ${room.id}`);
+          const gameTimerHandle = setTimeout(() => {
+            console.log(`${roundDurationMinutes}-minute timer expired for room ${room.id}`);
+            if (room.game && room.game.status === "playing") {
+              room.game.players.forEach((playerData) => {
+                if (!playerData.finished) {
+                  playerData.finished = true;
+                  playerData.endTime = Date.now();
+                  playerData.won = false;
+                }
+              });
+              room.game.status = "finished";
+              room.game.endTime = Date.now();
+              room.game.gameTimerHandle = undefined;
+              sendResultsToAllFinishedPlayers(room, "time_expired");
+            }
+          }, timerDuration);
+          game.gameTimerHandle = gameTimerHandle;
+        }
+
+        // Broadcast game start to all players with server start time for sync
         broadcastToRoom(room, {
           type: "game_started",
           sharedSecret, // All players get the same secret
           settings: room.settings,
+          serverStartTime: cardsEnabled ? 0 : game.startTime, // 0 means wait for challenges to complete
         });
         break;
       }
@@ -595,7 +621,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (room.game.challengesCompleted.size === room.players.length) {
           // All players completed challenges - start the actual game
           room.game.status = "playing";
-          room.game.startTime = Date.now();
+          const gameStartTime = Date.now();
+          room.game.startTime = gameStartTime;
+
+          // Update all player startTimes to match the actual game start time
+          room.game.players.forEach((playerData) => {
+            playerData.startTime = gameStartTime;
+          });
 
           // Clear any existing timer and restart the game timer based on roundDuration
           if (room.game.gameTimerHandle) {
@@ -604,6 +636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const roundDurationMinutes = room.settings.cardSettings?.roundDuration ?? 5;
           const timerDuration = roundDurationMinutes * 60 * 1000;
+          console.log(`Starting game timer: ${roundDurationMinutes} minutes (${timerDuration}ms) for room ${room.id}`);
           const gameTimerHandle = setTimeout(() => {
             console.log(`${roundDurationMinutes}-minute timer expired for room ${room.id}`);
             if (room.game && room.game.status === "playing") {

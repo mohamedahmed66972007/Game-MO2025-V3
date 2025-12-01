@@ -254,6 +254,11 @@ export function MultiplayerGame2D() {
     return cardSettings.roundDuration * 60 * 1000;
   };
 
+  const isTimeWarning = () => {
+    const remaining = getRemainingTime();
+    return remaining <= 30000; // Last 30 seconds
+  };
+
   // Check if current player has finished
   const playerFinished = multiplayer.phase === "won" || multiplayer.phase === "lost";
   
@@ -284,15 +289,12 @@ export function MultiplayerGame2D() {
     }
   }, [playerFinished, multiplayer.showResults, hasPlayersStillPlaying]);
 
+  // Note: GameSettings handles sending update_settings with full cardSettings
   if (showSettings && multiplayer.isHost && multiplayer.gameStatus === "waiting") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
         <GameSettings
-          onConfirm={(settings) => {
-            send({ 
-              type: "update_settings", 
-              settings: { numDigits: settings.numDigits, maxAttempts: settings.maxAttempts }
-            });
+          onConfirm={() => {
             setShowSettings(false);
           }}
           isMultiplayer={true}
@@ -627,8 +629,8 @@ export function MultiplayerGame2D() {
               <p className="text-2xl font-bold text-blue-600">{multiplayer.settings.maxAttempts - multiplayer.attempts.length}</p>
             </div>
             <div className="text-right flex-1 border-l-2 border-gray-300 pl-4">
-              <p className="text-sm text-gray-600">الوقت المنقضي</p>
-              <p className="text-2xl font-bold text-green-600">{formatDuration(getElapsedTime())}</p>
+              <p className="text-sm text-gray-600">الوقت المتبقي</p>
+              <p className={`text-2xl font-bold ${isTimeWarning() ? 'text-red-600 animate-pulse' : 'text-green-600'}`}>{formatDuration(getRemainingTime())}</p>
             </div>
           </div>
 
