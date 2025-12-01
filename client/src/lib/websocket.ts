@@ -642,6 +642,12 @@ const handleMessage = (message: any) => {
       // Apply the effect (for cards that have duration like freeze, shield)
       // Use the correct duration from card settings
       if (["freeze", "shield"].includes(message.cardType)) {
+        // For shield cards used by the current player, the effect is already added locally
+        // Skip adding it again from websocket to prevent duplicate notifications
+        if (message.cardType === "shield" && message.fromPlayerId === currentPlayerId) {
+          break;
+        }
+        
         let effectDuration = message.effectDuration || 30000;
         
         // Use card settings for freeze duration

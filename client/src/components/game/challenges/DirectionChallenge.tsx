@@ -304,6 +304,7 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
       <div className="flex-1 flex items-center justify-center w-full z-10 px-4">
         <div 
           className="grid"
+          dir="ltr"
           style={{
             gridTemplateColumns: '70px 150px 70px',
             gridTemplateRows: '70px 150px 70px',

@@ -358,7 +358,7 @@ export function RainDropsChallenge({ onExit }: { onExit?: () => void } = {}) {
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mb-2">
+          <div className="grid grid-cols-3 gap-2 mb-2" dir="ltr">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
               <button
                 key={num}
@@ -370,7 +370,7 @@ export function RainDropsChallenge({ onExit }: { onExit?: () => void } = {}) {
             ))}
           </div>
           
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2" dir="ltr">
             <button
               onClick={() => handleNumberPress('0')}
               className="h-12 bg-purple-600/80 hover:bg-purple-500/80 text-white text-xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"
@@ -482,7 +482,7 @@ export function RainDropsChallenge({ onExit }: { onExit?: () => void } = {}) {
       {!isDesktop && (
         <div className="bg-slate-900/95 backdrop-blur-xl p-3 z-20 relative">
           <div className="max-w-sm mx-auto">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3" dir="ltr">
               <div className="flex-1 bg-purple-300/30 rounded-xl px-4 py-3 text-center border border-purple-400/30">
                 <span className="text-2xl font-bold text-white font-mono">
                   {raindropsChallenge.currentInput || ''}
@@ -496,7 +496,7 @@ export function RainDropsChallenge({ onExit }: { onExit?: () => void } = {}) {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 mb-2">
+            <div className="grid grid-cols-3 gap-2 mb-2" dir="ltr">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                 <button
                   key={num}
@@ -508,7 +508,7 @@ export function RainDropsChallenge({ onExit }: { onExit?: () => void } = {}) {
               ))}
             </div>
             
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2" dir="ltr">
               <button
                 onClick={() => handleNumberPress('0')}
                 className="h-12 bg-purple-600/80 hover:bg-purple-500/80 text-white text-xl font-bold rounded-xl shadow-lg active:scale-95 transition-all border border-purple-400/30"

@@ -566,13 +566,18 @@ export function MobileMultiplayer() {
                     key={idx}
                     className={`relative w-12 h-14 border-2 rounded-xl flex items-center justify-center text-2xl font-bold transition-all ${
                       isRevealed
-                        ? "border-purple-500 bg-purple-100 text-purple-700"
+                        ? "border-purple-500 bg-purple-50"
                         : focusedIndex === idx
                         ? "border-blue-500 bg-blue-50"
                         : "border-gray-300 bg-white"
                     }`}
-                    title={isRevealed ? "رقم مكشوف (ثابت)" : parityInfo ? (parityInfo.isEven ? "رقم زوجي" : "رقم فردي") : undefined}
+                    title={isRevealed ? "رقم مكشوف" : parityInfo ? (parityInfo.isEven ? "رقم زوجي" : "رقم فردي") : undefined}
                   >
+                    {isRevealed && !digit && (
+                      <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold opacity-40 text-purple-600">
+                        {revealedDigit}
+                      </span>
+                    )}
                     {parityInfo && !isRevealed && !digit && (
                       <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium opacity-40 ${
                         parityInfo.isEven ? "text-green-600" : "text-orange-600"
@@ -580,7 +585,7 @@ export function MobileMultiplayer() {
                         {parityInfo.isEven ? "زوجي" : "فردي"}
                       </span>
                     )}
-                    <span className="relative z-10">{isRevealed ? revealedDigit : digit}</span>
+                    <span className="relative z-10">{digit}</span>
                     {isRevealed && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
                         <Eye className="w-2.5 h-2.5 text-white" />

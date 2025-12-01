@@ -267,9 +267,10 @@ export function CardEffectDisplay({ playerId }: CardEffectDisplayProps) {
     }
   };
 
-  // Filter out burnNumber effects - they work in the background without notifications
+  // Filter out burnNumber and revealParity effects - they work in the background without notifications
+  // (revealParity info is shown directly in the input fields)
   const displayableEffects = playerData.activeEffects.filter(
-    effect => effect.cardType !== "burnNumber"
+    effect => effect.cardType !== "burnNumber" && effect.cardType !== "revealParity"
   );
 
   if (displayableEffects.length === 0) {
