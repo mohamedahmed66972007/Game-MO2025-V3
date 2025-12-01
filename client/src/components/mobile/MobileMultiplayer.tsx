@@ -1058,8 +1058,20 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
             </div>
 
             {/* Settings Display */}
-            <div className="bg-gray-100 rounded-lg p-3 text-center text-sm text-gray-600 mt-3">
-              أرقام: <span className="font-bold text-gray-800">{multiplayer.settings.numDigits}</span> · محاولات: <span className="font-bold text-gray-800">{multiplayer.settings.maxAttempts}</span>
+            <div className="bg-gray-100 rounded-lg p-3 text-center text-sm text-gray-600 mt-3 space-y-2">
+              <div>
+                أرقام: <span className="font-bold text-gray-800">{multiplayer.settings.numDigits}</span> · محاولات: <span className="font-bold text-gray-800">{multiplayer.settings.maxAttempts}</span>
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-gray-600">البطاقات:</span>
+                <span className={`px-3 py-1 rounded-lg font-bold border ${
+                  multiplayer.settings.cardsEnabled 
+                    ? "bg-green-100 text-green-700 border-green-300" 
+                    : "bg-gray-100 text-gray-600 border-gray-300"
+                }`}>
+                  {multiplayer.settings.cardsEnabled ? "مفعّلة ✨" : "معطّلة"}
+                </span>
+              </div>
             </div>
           </div>
 
