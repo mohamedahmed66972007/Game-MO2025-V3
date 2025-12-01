@@ -665,6 +665,8 @@ const handleMessage = (message: any) => {
         const effect = {
           cardType: message.cardType,
           targetPlayerId: message.targetPlayerId,
+          sourcePlayerId: message.fromPlayerId,
+          sourcePlayerName: message.fromPlayerName,
           expiresAt: Date.now() + effectDuration,
           value: message.effectValue,
         };
