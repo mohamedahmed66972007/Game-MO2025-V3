@@ -672,6 +672,11 @@ const handleMessage = (message: any) => {
         };
         
         cardsStore.addActiveEffect(effectRecipientId, effect);
+        
+        // For freeze card, also add effect to card user so they see the notification
+        if (message.cardType === "freeze" && message.fromPlayerId !== currentPlayerId) {
+          cardsStore.addActiveEffect(message.fromPlayerId, effect);
+        }
       }
       
       // Show notification based on who used the card

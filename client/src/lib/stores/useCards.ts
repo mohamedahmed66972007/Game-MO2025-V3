@@ -431,6 +431,24 @@ const useCards = create<CardState>((set, get) => ({
         ...updatedPlayerCards[effectTargetIndex],
         activeEffects: [...updatedPlayerCards[effectTargetIndex].activeEffects, newEffect],
       };
+      
+      // For freeze card, also add effect to card user so they see the notification
+      if (card.type === "freeze" && targetPlayerId) {
+        let cardUserIndex = updatedPlayerCards.findIndex((p) => p.playerId === playerId);
+        if (cardUserIndex !== -1) {
+          const cardUserEffect: ActiveCardEffect = {
+            cardType: card.type,
+            targetPlayerId,
+            sourcePlayerId: playerId,
+            expiresAt: Date.now() + effectDuration,
+            value: effectValue,
+          };
+          updatedPlayerCards[cardUserIndex] = {
+            ...updatedPlayerCards[cardUserIndex],
+            activeEffects: [...updatedPlayerCards[cardUserIndex].activeEffects, cardUserEffect],
+          };
+        }
+      }
     }
     
     set({ playerCards: updatedPlayerCards });
