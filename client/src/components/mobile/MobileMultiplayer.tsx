@@ -285,11 +285,17 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   };
 
   const getRemainingTime = () => {
-    if (multiplayer.gameStatus === "playing" && multiplayer.startTime > 0) {
-      const elapsed = currentTime - multiplayer.startTime;
-      const totalDuration = cardSettings.roundDuration * 60 * 1000;
-      const remaining = totalDuration - elapsed;
-      return Math.max(0, remaining);
+    if (multiplayer.gameStatus === "playing") {
+      if (multiplayer.startTime > 0) {
+        // Game has started - calculate remaining time
+        const elapsed = currentTime - multiplayer.startTime;
+        const totalDuration = cardSettings.roundDuration * 60 * 1000;
+        const remaining = totalDuration - elapsed;
+        return Math.max(0, remaining);
+      } else {
+        // Waiting for challenges to complete (startTime is 0)
+        return cardSettings.roundDuration * 60 * 1000;
+      }
     }
     return cardSettings.roundDuration * 60 * 1000;
   };
