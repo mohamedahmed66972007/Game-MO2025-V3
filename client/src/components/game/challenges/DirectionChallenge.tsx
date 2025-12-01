@@ -233,7 +233,26 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
     }
   };
 
-  const getColorForPosition = (position: 'top' | 'bottom' | 'left' | 'right') => {
+  const isColorMode = () => {
+    const { currentDirection } = directionChallenge;
+    return currentDirection?.startsWith('not') && 
+           (currentDirection === 'notRed' || currentDirection === 'notYellow' || 
+            currentDirection === 'notGreen' || currentDirection === 'notBlue');
+  };
+
+  const getColorForDirectionButton = (position: 'top' | 'bottom' | 'left' | 'right'): ColorDirection | null => {
+    // For "not color" mode
+    if (isColorMode()) {
+      const colorMap: Record<'top' | 'bottom' | 'left' | 'right', ColorDirection> = {
+        'top': 'red',
+        'left': 'yellow',
+        'right': 'green',
+        'bottom': 'blue',
+      };
+      return colorMap[position];
+    }
+    
+    // For regular color position mode
     if (!colorPositions) return null;
     for (const [color, pos] of Object.entries(colorPositions)) {
       if (pos === position) return color as ColorDirection;
@@ -329,11 +348,11 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
               gridRow: '1',
               width: '70px',
               height: '70px',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('top') 
-                ? `${colorValues[getColorForPosition('top')!]}30` 
+              backgroundColor: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('top') 
+                ? `${colorValues[getColorForDirectionButton('top')!]}30` 
                 : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('top')
-                ? colorValues[getColorForPosition('top')!]
+              borderColor: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('top')
+                ? colorValues[getColorForDirectionButton('top')!]
                 : 'rgba(255,255,255,0.3)',
               boxShadow: pulseDirection === 'up' 
                 ? `0 0 30px rgba(139, 92, 246, 0.8)`
@@ -345,7 +364,7 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
           >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('top') ? colorValues[getColorForPosition('top')!] : 'white' }}>
+            <span style={{ color: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('top') ? colorValues[getColorForDirectionButton('top')!] : 'white' }}>
               {getDirectionIcon('up')}
             </span>
           </motion.button>
@@ -359,11 +378,11 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
               gridRow: '2',
               width: '70px',
               height: '70px',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('left') 
-                ? `${colorValues[getColorForPosition('left')!]}30` 
+              backgroundColor: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('left') 
+                ? `${colorValues[getColorForDirectionButton('left')!]}30` 
                 : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('left')
-                ? colorValues[getColorForPosition('left')!]
+              borderColor: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('left')
+                ? colorValues[getColorForDirectionButton('left')!]
                 : 'rgba(255,255,255,0.3)',
               boxShadow: pulseDirection === 'left' 
                 ? `0 0 30px rgba(139, 92, 246, 0.8)`
@@ -375,7 +394,7 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
           >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('left') ? colorValues[getColorForPosition('left')!] : 'white' }}>
+            <span style={{ color: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('left') ? colorValues[getColorForDirectionButton('left')!] : 'white' }}>
               {getDirectionIcon('left')}
             </span>
           </motion.button>
@@ -418,11 +437,11 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
               gridRow: '2',
               width: '70px',
               height: '70px',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('right') 
-                ? `${colorValues[getColorForPosition('right')!]}30` 
+              backgroundColor: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('right') 
+                ? `${colorValues[getColorForDirectionButton('right')!]}30` 
                 : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('right')
-                ? colorValues[getColorForPosition('right')!]
+              borderColor: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('right')
+                ? colorValues[getColorForDirectionButton('right')!]
                 : 'rgba(255,255,255,0.3)',
               boxShadow: pulseDirection === 'right' 
                 ? `0 0 30px rgba(139, 92, 246, 0.8)`
@@ -434,7 +453,7 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
           >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('right') ? colorValues[getColorForPosition('right')!] : 'white' }}>
+            <span style={{ color: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('right') ? colorValues[getColorForDirectionButton('right')!] : 'white' }}>
               {getDirectionIcon('right')}
             </span>
           </motion.button>
@@ -448,11 +467,11 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
               gridRow: '3',
               width: '70px',
               height: '70px',
-              backgroundColor: directionChallenge.useColors && getColorForPosition('bottom') 
-                ? `${colorValues[getColorForPosition('bottom')!]}30` 
+              backgroundColor: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('bottom') 
+                ? `${colorValues[getColorForDirectionButton('bottom')!]}30` 
                 : 'rgba(255,255,255,0.1)',
-              borderColor: directionChallenge.useColors && getColorForPosition('bottom')
-                ? colorValues[getColorForPosition('bottom')!]
+              borderColor: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('bottom')
+                ? colorValues[getColorForDirectionButton('bottom')!]
                 : 'rgba(255,255,255,0.3)',
               boxShadow: pulseDirection === 'down' 
                 ? `0 0 30px rgba(139, 92, 246, 0.8)`
@@ -464,7 +483,7 @@ export function DirectionChallenge({ onExit, isMultiplayer = false }: { onExit?:
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
           >
-            <span style={{ color: directionChallenge.useColors && getColorForPosition('bottom') ? colorValues[getColorForPosition('bottom')!] : 'white' }}>
+            <span style={{ color: (directionChallenge.useColors || isColorMode()) && getColorForDirectionButton('bottom') ? colorValues[getColorForDirectionButton('bottom')!] : 'white' }}>
               {getDirectionIcon('down')}
             </span>
           </motion.button>
