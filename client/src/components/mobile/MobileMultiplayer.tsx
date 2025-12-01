@@ -175,26 +175,21 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
       return;
     }
 
-    // Build complete guess including revealed digits
-    const completeGuess: number[] = [];
-    let enteredDigitIndex = 0;
-    
+    // Check if all non-revealed positions are filled
+    let filledCount = 0;
     for (let i = 0; i < numDigits; i++) {
       const revealedDigit = getRevealedDigitAtPosition(i);
       if (revealedDigit !== null) {
-        completeGuess.push(revealedDigit);
-      } else {
-        if (enteredDigitIndex < multiplayer.currentGuess.length) {
-          completeGuess.push(multiplayer.currentGuess[enteredDigitIndex]);
-          enteredDigitIndex++;
-        } else {
-          playError();
-          return;
-        }
+        filledCount++; // Revealed digit counts as filled
+      } else if (filledCount - revealedDigits.length < multiplayer.currentGuess.length) {
+        // User entered digit
+        filledCount++;
       }
     }
 
-    if (completeGuess.length !== numDigits) {
+    // Verify we have all required digits
+    const totalNonRevealed = numDigits - revealedDigits.length;
+    if (multiplayer.currentGuess.length < totalNonRevealed) {
       playError();
       return;
     }
@@ -202,7 +197,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
     playConfirm();
     send({
       type: "submit_guess",
-      guess: completeGuess,
+      guess: multiplayer.currentGuess,
     });
     submitMultiplayerGuess();
   };
