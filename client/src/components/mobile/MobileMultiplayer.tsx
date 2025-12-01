@@ -591,13 +591,13 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                     }`}
                     title={isRevealed ? "رقم مكشوف" : parityInfo ? (parityInfo.isEven ? "رقم زوجي" : "رقم فردي") : undefined}
                   >
-                    {isRevealed && !digit && (
-                      <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold opacity-40 text-purple-600">
+                    {isRevealed && digit === "" && (
+                      <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold opacity-40 text-purple-600 pointer-events-none">
                         {revealedDigit}
                       </span>
                     )}
-                    {parityInfo && !isRevealed && !digit && (
-                      <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium opacity-40 ${
+                    {parityInfo && !isRevealed && digit === "" && (
+                      <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium opacity-40 pointer-events-none ${
                         parityInfo.isEven ? "text-green-600" : "text-orange-600"
                       }`}>
                         {parityInfo.isEven ? "زوجي" : "فردي"}
