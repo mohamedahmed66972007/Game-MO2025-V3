@@ -11,7 +11,11 @@ import { clearSession } from "@/lib/websocket";
 import { CardHand, CardEffectDisplay } from "../game/cards/CardSystem";
 import { MultiplayerChallenge } from "../game/MultiplayerChallenge";
 
-export function MobileMultiplayer() {
+interface MobileMultiplayerProps {
+  joinRoomIdFromUrl?: string;
+}
+
+export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -22,6 +26,10 @@ export function MobileMultiplayer() {
     deleteMultiplayerDigit,
     submitMultiplayerGuess,
     setShowPreGameChallenge,
+    isConnecting,
+    setIsConnecting,
+    connectionError,
+    setConnectionError,
   } = useNumberGame();
 
   const { playDigit, playDelete, playConfirm, playError, successSound } = useAudio();
@@ -29,6 +37,7 @@ export function MobileMultiplayer() {
   const [playerName, setPlayerName] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
   const [showJoinForm, setShowJoinForm] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -800,6 +809,100 @@ export function MobileMultiplayer() {
                 .map(p => ({ id: p.id, name: p.name }))}
             />
           </>
+        )}
+      </div>
+    );
+  }
+
+  // Handle join from URL - show join form when accessing room link directly
+  const handleJoinFromUrl = () => {
+    if (!playerName.trim() || !joinRoomIdFromUrl) return;
+    
+    // Validate room ID format (should be 6 characters)
+    const normalizedRoomId = joinRoomIdFromUrl.toUpperCase().trim();
+    if (normalizedRoomId.length !== 6) {
+      setConnectionError("رمز الغرفة غير صالح");
+      return;
+    }
+    
+    setIsJoining(true);
+    localStorage.setItem("lastPlayerName", playerName.trim());
+    setIsConnecting(true);
+    connectWebSocket(playerName.trim(), normalizedRoomId);
+  };
+
+  // Show join form when accessing a room link but not in the room yet
+  if (joinRoomIdFromUrl && !multiplayer.roomId && !multiplayer.playerId) {
+    return (
+      <div className="min-h-screen p-6 flex items-center justify-center">
+        {/* Connection Error */}
+        {connectionError && (
+          <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 z-50 p-4">
+            <div className="text-center relative max-w-md mx-4">
+              <div className="inline-flex items-center justify-center mb-4">
+                <div className="text-6xl">❌</div>
+              </div>
+              <p className="text-gray-800 text-xl font-semibold mb-4">{connectionError}</p>
+              <button
+                onClick={() => {
+                  setConnectionError(null);
+                  resetMultiplayer();
+                  navigate("/");
+                }}
+                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                العودة للقائمة الرئيسية
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Connecting Spinner */}
+        {isConnecting && !connectionError && (
+          <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50">
+            <div className="text-center relative">
+              <div className="inline-flex items-center justify-center mb-4">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500"></div>
+              </div>
+              <p className="text-gray-800 text-xl font-semibold">جاري الاتصال...</p>
+              <p className="text-gray-600 text-sm mt-2">يرجى الانتظار</p>
+            </div>
+          </div>
+        )}
+
+        {/* Join Form */}
+        {!isConnecting && !connectionError && (
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-center space-y-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+              <span className="text-3xl">🎮</span>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800">الانضمام للغرفة</h2>
+            <p className="text-gray-600">رقم الغرفة: <span className="font-mono font-bold text-blue-600">{joinRoomIdFromUrl}</span></p>
+            
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="أدخل اسمك"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center font-semibold focus:border-blue-500 focus:outline-none transition-colors"
+                maxLength={20}
+              />
+              <button
+                onClick={handleJoinFromUrl}
+                disabled={!playerName.trim() || isJoining}
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-3 rounded-xl transition-all"
+              >
+                {isJoining ? "جاري الانضمام..." : "انضم للغرفة"}
+              </button>
+              <button
+                onClick={() => navigate("/")}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl transition-colors"
+              >
+                العودة للقائمة
+              </button>
+            </div>
+          </div>
         )}
       </div>
     );

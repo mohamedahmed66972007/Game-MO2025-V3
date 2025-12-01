@@ -99,6 +99,11 @@ export function MobileApp() {
   const isSingleplayerPage = location.pathname === "/singleplayer";
   const isMultiplayerPage = location.pathname === "/multiplayer" || location.pathname.startsWith("/room/");
 
+  // Extract roomId from URL for join page - clean up any query/hash params
+  const urlRoomId = location.pathname.startsWith("/room/") 
+    ? location.pathname.split("/room/")[1]?.split(/[?#]/)[0]?.replace(/\/$/, "")?.toUpperCase() || undefined
+    : undefined;
+
   return (
     <div dir="rtl" className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {isMenuPage && <MobileMenu />}
@@ -109,7 +114,7 @@ export function MobileApp() {
           }}
         />
       )}
-      {isMultiplayerPage && <MobileMultiplayer />}
+      {isMultiplayerPage && <MobileMultiplayer joinRoomIdFromUrl={urlRoomId} />}
     </div>
   );
 }
