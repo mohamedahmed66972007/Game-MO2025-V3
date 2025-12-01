@@ -672,18 +672,18 @@ const handleMessage = (message: any) => {
         };
         
         cardsStore.addActiveEffect(effectRecipientId, effect);
-        
-        // For freeze card, also add effect to card user so they see the notification
-        if (message.cardType === "freeze" && message.fromPlayerId !== currentPlayerId) {
-          cardsStore.addActiveEffect(message.fromPlayerId, effect);
-        }
       }
       
       // Show notification based on who used the card
       if (message.fromPlayerId === currentPlayerId) {
         // I used the card
         if (message.targetPlayerId && message.targetPlayerName) {
-          toast.success(`استخدمت البطاقة ضد ${message.targetPlayerName}! 🎴`, { duration: 3000 });
+          if (message.cardType === "freeze") {
+            const freezeSecs = currentCardSettings.freezeDuration || 30;
+            toast.success(`تم تجميد الخصم ${message.targetPlayerName} لمدة ${freezeSecs} ثانية! ❄️`, { duration: 3000 });
+          } else {
+            toast.success(`استخدمت البطاقة ضد ${message.targetPlayerName}! 🎴`, { duration: 3000 });
+          }
         }
       } else if (message.targetPlayerId === currentPlayerId) {
         // Card was used against me

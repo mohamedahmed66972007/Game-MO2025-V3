@@ -289,9 +289,8 @@ export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, c
         
       case "freeze": {
         const sourceName = effect.sourcePlayerName || effect.sourcePlayerId || "خصم";
-        const targetName = otherPlayers.find(p => p.playerId === effect.targetPlayerId)?.playerId || "الخصم";
         
-        // Check if current player is the one being frozen
+        // Only show to frozen player
         if (effect.targetPlayerId === playerId) {
           return (
             <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
@@ -302,14 +301,7 @@ export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, c
           );
         }
         
-        // Current player used freeze on someone else
-        return (
-          <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
-            <span className="text-sm font-bold">
-              تم تجميد الخصم {targetName}
-            </span>
-          </div>
-        );
+        return null;
       }
 
       case "shield":
