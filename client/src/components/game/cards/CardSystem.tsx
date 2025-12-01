@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCards, Card, CardType, CardIconType, CARD_DEFINITIONS } from "@/lib/stores/useCards";
 import { X, Target, Eye, XCircle, Hash, Snowflake, Shield, EyeOff, Sparkles } from "lucide-react";
 
@@ -206,12 +206,25 @@ interface CardEffectDisplayProps {
 
 export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, currentPlayerName = "" }: CardEffectDisplayProps) {
   const { playerCards, removeExpiredEffects } = useCards();
+  const [forceUpdate, setForceUpdate] = useState(0);
   const playerData = playerCards.find((p) => p.playerId === playerId);
   const otherPlayers = playerCards.filter(p => p.playerId !== playerId);
+
+  // Force update when playerCards changes
+  useEffect(() => {
+    setForceUpdate(prev => prev + 1);
+  }, [playerCards]);
 
   if (!playerData || playerData.activeEffects.length === 0) {
     return null;
   }
+
+  // Log for debugging
+  playerData.activeEffects.forEach(effect => {
+    if (effect.cardType === "freeze") {
+      console.log(`[CardEffectDisplay] Freeze effect - source: ${effect.sourcePlayerName} (${effect.sourcePlayerId}), target: ${effect.targetPlayerId}`);
+    }
+  });
 
   const getEffectValueDisplay = (effect: { cardType: CardType; value?: number | string | number[] | { position: number; isEven: boolean }[] }) => {
     if (!effect.value) return null;
@@ -274,11 +287,12 @@ export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, c
         }
         return null;
         
-      case "freeze":
+      case "freeze": {
         const sourceName = effect.sourcePlayerName || effect.sourcePlayerId || "خصم";
         
         // Check if current player is the one being frozen
         if (effect.targetPlayerId === playerId) {
+          console.log(`[CardEffectDisplay] Showing freeze message to frozen player: قام ${sourceName} بتجميدك`);
           return (
             <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
               <span className="text-sm font-bold">
@@ -289,6 +303,7 @@ export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, c
         }
         
         // Current player used freeze on someone else
+        console.log(`[CardEffectDisplay] Showing freeze message to card user: تم تجميد الخصم`);
         return (
           <div className="mt-1 bg-white/20 rounded-lg px-2 py-1">
             <span className="text-sm font-bold">
@@ -296,6 +311,7 @@ export function CardEffectDisplay({ playerId, revealNumberShowPosition = true, c
             </span>
           </div>
         );
+      }
 
       case "shield":
         return (
