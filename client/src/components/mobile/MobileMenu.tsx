@@ -1,13 +1,50 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
-import { Gamepad2, Users } from "lucide-react";
+import { Gamepad2, Users, WifiOff, User, LogOut, Download } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
+import { useOnlineStatus } from "@/hooks/use-online-status";
+import { OfflineDialog } from "../ui/OfflineDialog";
+import { AccountDialog } from "../ui/AccountDialog";
+import { NotificationsDropdown } from "../ui/NotificationsDropdown";
+import { useAccount } from "@/lib/stores/useAccount";
 
 export function MobileMenu() {
   const navigate = useNavigate();
   const { startSingleplayer } = useNumberGame();
+  const { account, logout } = useAccount();
   const [showSettings, setShowSettings] = useState(false);
+  const [showOfflineDialog, setShowOfflineDialog] = useState(false);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+  const isOnline = useOnlineStatus();
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      setIsInstallable(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   const handleSingleplayer = () => {
     setShowSettings(true);
@@ -24,11 +61,53 @@ export function MobileMenu() {
   }
 
   const handleMultiplayer = () => {
+    if (!isOnline) {
+      setShowOfflineDialog(true);
+      return;
+    }
     navigate("/multiplayer");
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <OfflineDialog isOpen={showOfflineDialog} onClose={() => setShowOfflineDialog(false)} />
+      <AccountDialog isOpen={showAccountDialog} onClose={() => setShowAccountDialog(false)} />
+      
+      <div className="absolute top-4 left-4 flex items-center gap-2">
+        {isInstallable && (
+          <button
+            onClick={handleInstallClick}
+            className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors text-sm font-medium shadow-md"
+          >
+            <Download className="w-4 h-4" />
+            <span>تحميل</span>
+          </button>
+        )}
+        {account && <NotificationsDropdown />}
+        {account ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 font-medium hidden sm:block">
+              {account.displayName}
+            </span>
+            <button
+              onClick={logout}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="تسجيل خروج"
+            >
+              <LogOut className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowAccountDialog(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-sm font-medium"
+          >
+            <User className="w-4 h-4" />
+            <span>تسجيل</span>
+          </button>
+        )}
+      </div>
+      
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-4">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl shadow-lg">
@@ -55,8 +134,12 @@ export function MobileMenu() {
 
           <button
             onClick={handleMultiplayer}
-            className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3"
+            className={`w-full ${isOnline 
+              ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700' 
+              : 'bg-gradient-to-r from-gray-400 to-gray-500'
+            } text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 relative`}
           >
+            {!isOnline && <WifiOff className="w-5 h-5 absolute left-4" />}
             <Users className="w-6 h-6" />
             <span className="text-lg">لعب متعدد اللاعبين</span>
           </button>

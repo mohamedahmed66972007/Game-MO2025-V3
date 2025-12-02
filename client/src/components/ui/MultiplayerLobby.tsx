@@ -2,13 +2,17 @@ import { useState } from "react";
 import { Button } from "./button";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
-import { Users, Copy, LogOut, Settings, Crown, Play, Link, Check } from "lucide-react";
+import { Users, Copy, LogOut, Settings, Crown, Play, Link, Check, UserPlus } from "lucide-react";
 import { GameSettings } from "./GameSettings";
 import { toast } from "sonner";
+import { FriendsDialog } from "./FriendsDialog";
+import { useAccount } from "@/lib/stores/useAccount";
 
 export function MultiplayerLobby() {
   const { multiplayer, setMode, resetMultiplayer } = useNumberGame();
+  const { account } = useAccount();
   const [showSettings, setShowSettings] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -127,6 +131,16 @@ export function MultiplayerLobby() {
               {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               {linkCopied ? 'تم النسخ!' : 'نسخ الرابط'}
             </Button>
+            {account && (
+              <Button
+                onClick={() => setShowFriends(true)}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-all"
+              >
+                <UserPlus className="w-4 h-4" />
+                دعوة صديق
+              </Button>
+            )}
           </div>
         </div>
 
@@ -244,6 +258,12 @@ export function MultiplayerLobby() {
           </Button>
         </div>
       </div>
+
+      <FriendsDialog
+        isOpen={showFriends}
+        onClose={() => setShowFriends(false)}
+        roomId={multiplayer.roomId}
+      />
     </div>
   );
 }

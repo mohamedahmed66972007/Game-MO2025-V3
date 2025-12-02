@@ -121,9 +121,274 @@ function checkGuess(secret: number[], guess: number[]): { correctCount: number; 
   return { correctCount, correctPositionCount };
 }
 
+const onlineUsers = new Map<number, WebSocket>();
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ noServer: true });
+
+  app.post("/api/accounts/create", async (req, res) => {
+    try {
+      const { displayName, username } = req.body;
+      
+      if (!displayName || !username) {
+        return res.status(400).json({ error: "الاسم واسم المستخدم مطلوبان" });
+      }
+      
+      if (username.length < 3 || username.length > 30) {
+        return res.status(400).json({ error: "اسم المستخدم يجب أن يكون بين 3 و 30 حرف" });
+      }
+      
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        return res.status(400).json({ error: "اسم المستخدم يجب أن يحتوي على أحرف إنجليزية وأرقام فقط" });
+      }
+      
+      const existing = await storage.getAccountByUsername(username);
+      if (existing) {
+        return res.status(409).json({ error: "اسم المستخدم مستخدم بالفعل" });
+      }
+      
+      const account = await storage.createAccount({ displayName, username });
+      res.json(account);
+    } catch (error) {
+      console.error("Error creating account:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء إنشاء الحساب" });
+    }
+  });
+
+  app.get("/api/accounts/check/:username", async (req, res) => {
+    try {
+      const account = await storage.getAccountByUsername(req.params.username);
+      if (account) {
+        res.json({ exists: true, account: { id: account.id, displayName: account.displayName, username: account.username } });
+      } else {
+        res.json({ exists: false });
+      }
+    } catch (error) {
+      console.error("Error checking account:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.get("/api/accounts/search", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.length < 2) {
+        return res.json([]);
+      }
+      const accounts = await storage.searchAccounts(query);
+      res.json(accounts.map(a => ({ id: a.id, displayName: a.displayName, username: a.username, isOnline: a.isOnline })));
+    } catch (error) {
+      console.error("Error searching accounts:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.get("/api/friends/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const friends = await storage.getFriends(userId);
+      res.json(friends.map(f => ({ id: f.id, displayName: f.displayName, username: f.username, isOnline: f.isOnline, currentRoomId: f.currentRoomId })));
+    } catch (error) {
+      console.error("Error getting friends:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/friends/request", async (req, res) => {
+    try {
+      const { fromUserId, toUserId } = req.body;
+      
+      if (fromUserId === toUserId) {
+        return res.status(400).json({ error: "لا يمكنك إضافة نفسك" });
+      }
+      
+      const areFriends = await storage.areFriends(fromUserId, toUserId);
+      if (areFriends) {
+        return res.status(400).json({ error: "أنتما أصدقاء بالفعل" });
+      }
+      
+      const pendingRequests = await storage.getSentFriendRequests(fromUserId);
+      const alreadySent = pendingRequests.some(r => r.toUserId === toUserId);
+      if (alreadySent) {
+        return res.status(400).json({ error: "تم إرسال طلب الصداقة بالفعل" });
+      }
+      
+      const request = await storage.createFriendRequest({ fromUserId, toUserId });
+      
+      const fromUser = await storage.getAccount(fromUserId);
+      await storage.createNotification({
+        userId: toUserId,
+        type: "friend_request",
+        title: "طلب صداقة جديد",
+        message: `${fromUser?.displayName || "شخص ما"} يريد إضافتك كصديق`,
+        data: JSON.stringify({ requestId: request.id, fromUserId }),
+      });
+      
+      const targetWs = onlineUsers.get(toUserId);
+      if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+        targetWs.send(JSON.stringify({
+          type: "friend_request_received",
+          request: { id: request.id, fromUserId, fromUser: { id: fromUser?.id, displayName: fromUser?.displayName, username: fromUser?.username } },
+        }));
+      }
+      
+      res.json(request);
+    } catch (error) {
+      console.error("Error creating friend request:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.get("/api/friends/requests/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const requests = await storage.getPendingFriendRequests(userId);
+      res.json(requests);
+    } catch (error) {
+      console.error("Error getting friend requests:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/friends/accept", async (req, res) => {
+    try {
+      const { requestId, userId } = req.body;
+      
+      const requests = await storage.getPendingFriendRequests(userId);
+      const request = requests.find(r => r.id === requestId);
+      
+      if (!request) {
+        return res.status(404).json({ error: "طلب الصداقة غير موجود" });
+      }
+      
+      await storage.createFriendship(request.fromUserId, request.toUserId);
+      await storage.deleteFriendRequest(requestId);
+      
+      const toUser = await storage.getAccount(userId);
+      await storage.createNotification({
+        userId: request.fromUserId,
+        type: "friend_accepted",
+        title: "تم قبول طلب الصداقة",
+        message: `${toUser?.displayName || "شخص ما"} قبل طلب صداقتك`,
+        data: JSON.stringify({ userId }),
+      });
+      
+      const fromWs = onlineUsers.get(request.fromUserId);
+      if (fromWs && fromWs.readyState === WebSocket.OPEN) {
+        fromWs.send(JSON.stringify({
+          type: "friend_request_accepted",
+          friend: { id: toUser?.id, displayName: toUser?.displayName, username: toUser?.username, isOnline: toUser?.isOnline },
+        }));
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error accepting friend request:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/friends/reject", async (req, res) => {
+    try {
+      const { requestId } = req.body;
+      await storage.deleteFriendRequest(requestId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error rejecting friend request:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/friends/remove", async (req, res) => {
+    try {
+      const { userId1, userId2 } = req.body;
+      await storage.removeFriendship(userId1, userId2);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing friend:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.get("/api/notifications/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const notifications = await storage.getNotifications(userId);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error getting notifications:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.get("/api/notifications/unread/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const count = await storage.getUnreadNotificationsCount(userId);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error getting unread count:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/notifications/markRead", async (req, res) => {
+    try {
+      const { notificationId } = req.body;
+      await storage.markNotificationAsRead(notificationId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/notifications/markAllRead", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      await storage.markAllNotificationsAsRead(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/invite/send", async (req, res) => {
+    try {
+      const { fromUserId, toUserId, roomId } = req.body;
+      
+      const fromUser = await storage.getAccount(fromUserId);
+      const toUser = await storage.getAccount(toUserId);
+      
+      if (!toUser) {
+        return res.status(404).json({ error: "المستخدم غير موجود" });
+      }
+      
+      await storage.createNotification({
+        userId: toUserId,
+        type: "room_invite",
+        title: "دعوة للانضمام لغرفة",
+        message: `${fromUser?.displayName || "صديقك"} يدعوك للانضمام إلى غرفته`,
+        data: JSON.stringify({ roomId, fromUserId, fromUserName: fromUser?.displayName }),
+      });
+      
+      const targetWs = onlineUsers.get(toUserId);
+      if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+        targetWs.send(JSON.stringify({
+          type: "room_invite",
+          roomId,
+          fromUser: { id: fromUser?.id, displayName: fromUser?.displayName, username: fromUser?.username },
+        }));
+      }
+      
+      res.json({ success: true, isOnline: !!targetWs });
+    } catch (error) {
+      console.error("Error sending invite:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
 
   httpServer.on("upgrade", (request, socket, head) => {
     const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;

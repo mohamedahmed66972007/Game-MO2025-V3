@@ -19,6 +19,7 @@ function MenuPage() {
   const isMobile = useIsMobile();
   const { setMode, resetMultiplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
+  const [checkedLastRoom, setCheckedLastRoom] = useState(false);
 
   useEffect(() => {
     const successAudio = new Audio("/sounds/success.mp3");
@@ -27,10 +28,21 @@ function MenuPage() {
   }, [setSuccessSound]);
 
   useEffect(() => {
+    if (checkedLastRoom) return;
+    
+    const lastRoom = getLastRoomSession();
+    if (lastRoom && lastRoom.roomId) {
+      console.log("Found last room session:", lastRoom.roomId);
+      setCheckedLastRoom(true);
+      navigate(`/room/${lastRoom.roomId}`, { replace: true });
+      return;
+    }
+    
+    setCheckedLastRoom(true);
     resetMultiplayer();
     setMode("menu");
     clearSession();
-  }, []);
+  }, [checkedLastRoom]);
 
   if (isMobile) {
     return <MobileApp />;

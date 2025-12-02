@@ -35,6 +35,7 @@
 - `useChallenges`: حالة التحديات والتلميحات
 - `useCards`: نظام البطاقات الخاص
 - `useAudio`: إدارة المؤثرات الصوتية
+- `useAccount`: نظام الحسابات والأصدقاء (مع persist في localStorage)
 
 **التواصل بين العميل والخادم:**
 - WebSocket للعب الجماعي الفوري
@@ -68,8 +69,9 @@
 ## تخزين البيانات
 
 **قاعدة البيانات:**
-- PostgreSQL عبر Neon (مُعد لكن لم يُستخدم بالكامل بعد)
+- PostgreSQL عبر Neon
 - Drizzle ORM لاستعلامات آمنة
+- جداول: accounts, friendRequests, friendships, notifications
 
 **إدارة الجلسات:**
 - تتبع اتصالات WebSocket لكل لاعب
@@ -94,6 +96,18 @@
 - نظام بطاقات فريد مع 6 أنواع (إظهار رقم، حرق رقم، كشف زوجي/فردي، تجميد، درع، تعطيل عرض)
 
 ## التحسينات الأخيرة
+
+### إضافة 2 ديسمبر - نظام الحسابات والأصدقاء:
+1. **نظام الحسابات**: إنشاء حسابات بسيطة (اسم + اسم مستخدم فريد) بدون بريد إلكتروني
+2. **نظام الأصدقاء**: بحث عن مستخدمين، إرسال طلبات صداقة، قبول/رفض الطلبات
+3. **دعوات الغرف**: دعوة الأصدقاء للانضمام للغرف في اللعب الجماعي
+4. **الإشعارات**: نظام إشعارات مع عداد للإشعارات غير المقروءة
+5. **مكونات UI جديدة**:
+   - AccountDialog: تسجيل الدخول وإنشاء الحسابات
+   - FriendsDialog: إدارة الأصدقاء ودعوتهم للغرف
+   - NotificationsDropdown: عرض الإشعارات
+   - RoomInviteDialog: قبول دعوات الغرف
+6. **API Routes جديدة**: /api/accounts/*, /api/friends/*, /api/notifications/*, /api/invite/*
 
 ### إصلاح 29 نوفمبر (3):
 1. **سرعة تحدي حبات المطر**: إزالة تسارع السرعة المفرط في آخر 10-15 ثانية
@@ -156,5 +170,11 @@
 - `client/src/components/game/challenges/`
 - `client/src/lib/stores/useChallenges.ts`
 - `client/src/lib/stores/useCards.ts`
+- `client/src/lib/stores/useAccount.ts` (نظام الحسابات والأصدقاء)
 - `client/src/components/game/cards/CardSystem.tsx` (أيقونات مصححة)
+- `client/src/components/ui/AccountDialog.tsx` (تسجيل الدخول)
+- `client/src/components/ui/FriendsDialog.tsx` (إدارة الأصدقاء)
+- `client/src/components/ui/NotificationsDropdown.tsx` (الإشعارات)
 - `server/routes.ts`
+- `server/storage.ts` (مع functions للحسابات والأصدقاء)
+- `shared/schema.ts` (جداول قاعدة البيانات)
