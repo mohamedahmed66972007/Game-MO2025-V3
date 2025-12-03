@@ -15,12 +15,25 @@ import { DesktopSingleplayer } from "./components/desktop/DesktopSingleplayer";
 import { MultiplayerGame2D } from "./components/desktop/MultiplayerGame2D";
 import "@fontsource/inter";
 
+const DEFAULT_TITLE = "لعبة التخمين";
+
+function usePageTitle(title?: string) {
+  useEffect(() => {
+    document.title = title || DEFAULT_TITLE;
+    return () => {
+      document.title = DEFAULT_TITLE;
+    };
+  }, [title]);
+}
+
 function MenuPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { setMode, resetMultiplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
   const [checkedLastRoom, setCheckedLastRoom] = useState(false);
+
+  usePageTitle(DEFAULT_TITLE);
 
   useEffect(() => {
     const successAudio = new Audio("/sounds/success.mp3");
@@ -308,6 +321,8 @@ function RoomPage() {
   const [playerNameInput, setPlayerNameInputState] = useState(() => localStorage.getItem("lastPlayerName") || "");
   const [isJoining, setIsJoining] = useState(false);
   const [hasAttemptedReconnect, setHasAttemptedReconnect] = useState(false);
+
+  usePageTitle(roomId ? `غرفة ${roomId}` : DEFAULT_TITLE);
 
   useEffect(() => {
     const successAudio = new Audio("/sounds/success.mp3");

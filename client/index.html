@@ -12,8 +12,137 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      #splash-screen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #eff6ff 0%, #ffffff 50%, #f3e8ff 100%);
+        z-index: 9999;
+        transition: opacity 0.5s ease-out;
+      }
+      #splash-screen.hide {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .splash-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+      }
+      .splash-logo {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        border-radius: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 40px rgba(59, 130, 246, 0.3);
+        animation: logoFloat 2s ease-in-out infinite;
+      }
+      .splash-logo svg {
+        width: 40px;
+        height: 40px;
+        color: white;
+      }
+      @keyframes logoFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+      }
+      .splash-title {
+        font-family: 'Inter', sans-serif;
+        font-size: 28px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: titlePulse 3s ease-in-out infinite;
+      }
+      @keyframes titlePulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+      .splash-loader {
+        display: flex;
+        gap: 8px;
+      }
+      .splash-dot {
+        width: 10px;
+        height: 10px;
+        background: #3b82f6;
+        border-radius: 50%;
+        animation: dotBounce 1.4s ease-in-out infinite;
+      }
+      .splash-dot:nth-child(1) { animation-delay: 0s; }
+      .splash-dot:nth-child(2) { animation-delay: 0.2s; background: #8b5cf6; }
+      .splash-dot:nth-child(3) { animation-delay: 0.4s; background: #ec4899; }
+      @keyframes dotBounce {
+        0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+        40% { transform: scale(1); opacity: 1; }
+      }
+      .splash-numbers {
+        display: flex;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .splash-number {
+        width: 48px;
+        height: 56px;
+        background: white;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Inter', sans-serif;
+        font-size: 24px;
+        font-weight: 700;
+        color: #6366f1;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        animation: numberReveal 2s ease-in-out infinite;
+      }
+      .splash-number:nth-child(1) { animation-delay: 0s; }
+      .splash-number:nth-child(2) { animation-delay: 0.15s; }
+      .splash-number:nth-child(3) { animation-delay: 0.3s; }
+      .splash-number:nth-child(4) { animation-delay: 0.45s; }
+      @keyframes numberReveal {
+        0%, 100% { transform: rotateY(0deg); }
+        25% { transform: rotateY(180deg); }
+        50% { transform: rotateY(180deg); }
+        75% { transform: rotateY(0deg); }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash-screen">
+      <div class="splash-container">
+        <div class="splash-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+            <line x1="6" y1="12" x2="6" y2="12"></line>
+            <line x1="10" y1="12" x2="10" y2="12"></line>
+            <circle cx="17" cy="12" r="2"></circle>
+          </svg>
+        </div>
+        <h1 class="splash-title">لعبة التخمين</h1>
+        <div class="splash-numbers">
+          <div class="splash-number">?</div>
+          <div class="splash-number">?</div>
+          <div class="splash-number">?</div>
+          <div class="splash-number">?</div>
+        </div>
+        <div class="splash-loader">
+          <div class="splash-dot"></div>
+          <div class="splash-dot"></div>
+          <div class="splash-dot"></div>
+        </div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>

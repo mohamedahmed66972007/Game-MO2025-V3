@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
-import { Gamepad2, Users, WifiOff, User, LogOut, Download } from "lucide-react";
+import { Gamepad2, Users, WifiOff, User, LogOut, Download, Settings } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { OfflineDialog } from "../ui/OfflineDialog";
 import { AccountDialog } from "../ui/AccountDialog";
+import { FriendsDialog } from "../ui/FriendsDialog";
+import { ProfileDialog } from "../ui/ProfileDialog";
 import { NotificationsDropdown } from "../ui/NotificationsDropdown";
 import { useAccount } from "@/lib/stores/useAccount";
 
@@ -16,6 +18,8 @@ export function MobileMenu() {
   const [showSettings, setShowSettings] = useState(false);
   const [showOfflineDialog, setShowOfflineDialog] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [showFriendsDialog, setShowFriendsDialog] = useState(false);
+  const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
   const isOnline = useOnlineStatus();
@@ -72,37 +76,62 @@ export function MobileMenu() {
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <OfflineDialog isOpen={showOfflineDialog} onClose={() => setShowOfflineDialog(false)} />
       <AccountDialog isOpen={showAccountDialog} onClose={() => setShowAccountDialog(false)} />
+      <FriendsDialog isOpen={showFriendsDialog} onClose={() => setShowFriendsDialog(false)} />
+      <ProfileDialog isOpen={showProfileDialog} onClose={() => setShowProfileDialog(false)} />
       
-      <div className="absolute top-4 left-4 flex items-center gap-2">
-        {isInstallable && (
-          <button
-            onClick={handleInstallClick}
-            className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors text-sm font-medium shadow-md"
-          >
-            <Download className="w-4 h-4" />
-            <span>تحميل</span>
-          </button>
-        )}
-        {account && <NotificationsDropdown />}
+      <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {isInstallable && (
+            <button
+              onClick={handleInstallClick}
+              className="flex items-center gap-1 px-2 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors text-xs font-medium shadow-md"
+            >
+              <Download className="w-3 h-3" />
+              <span>تحميل</span>
+            </button>
+          )}
+          {account && <NotificationsDropdown />}
+          {account && (
+            <button
+              onClick={() => setShowFriendsDialog(true)}
+              className="flex items-center gap-1 px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg transition-colors text-xs font-medium shadow-md"
+            >
+              <Users className="w-3 h-3" />
+              <span>أصدقاء</span>
+            </button>
+          )}
+        </div>
+        
         {account ? (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-700 font-medium hidden sm:block">
-              {account.displayName}
-            </span>
+          <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg shadow-md border border-gray-200">
+            <button
+              onClick={() => setShowProfileDialog(true)}
+              className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-xs hover:opacity-90 transition-opacity"
+              title="الملف الشخصي"
+            >
+              {account.displayName.charAt(0)}
+            </button>
+            <button
+              onClick={() => setShowProfileDialog(true)}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              title="الإعدادات"
+            >
+              <Settings className="w-4 h-4 text-gray-500" />
+            </button>
             <button
               onClick={logout}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
               title="تسجيل خروج"
             >
-              <LogOut className="w-5 h-5 text-gray-600" />
+              <LogOut className="w-4 h-4 text-gray-500" />
             </button>
           </div>
         ) : (
           <button
             onClick={() => setShowAccountDialog(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-sm font-medium"
+            className="flex items-center gap-1 px-2 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-xs font-medium"
           >
-            <User className="w-4 h-4" />
+            <User className="w-3 h-3" />
             <span>تسجيل</span>
           </button>
         )}

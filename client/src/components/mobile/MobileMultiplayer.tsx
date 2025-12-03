@@ -4,10 +4,9 @@ import { MultiplayerResults } from "../ui/MultiplayerResults";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
 import { useCards } from "@/lib/stores/useCards";
-import { send, connectWebSocket, disconnect } from "@/lib/websocket";
+import { send, connectWebSocket, disconnect, clearSession, clearPersistentRoom } from "@/lib/websocket";
 import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Trophy, Maximize2, Minimize2, LogOut } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
-import { clearSession } from "@/lib/websocket";
 import { CardHand, CardEffectDisplay } from "../game/cards/CardSystem";
 import { MultiplayerChallenge } from "../game/MultiplayerChallenge";
 
@@ -219,15 +218,23 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   const handleLeaveRoom = () => {
     send({ type: "leave_room" });
     clearSession();
+    clearPersistentRoom();
     disconnect();
     resetMultiplayer();
+    document.title = "لعبة التخمين";
+    navigate("/", { replace: true });
   };
 
   const handleHome = () => {
     if (multiplayer.roomId) {
-      handleLeaveRoom();
+      send({ type: "leave_room" });
+      clearSession();
+      clearPersistentRoom();
+      disconnect();
+      resetMultiplayer();
     }
-    navigate("/");
+    document.title = "لعبة التخمين";
+    navigate("/", { replace: true });
   };
 
   const handleCopyRoomId = () => {

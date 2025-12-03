@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
-import { reconnectToSession, connectWebSocket, reconnectWithRetry, clearSession, getLastRoomSession } from "@/lib/websocket";
+import { reconnectToSession, connectWebSocket, reconnectWithRetry, clearSession, getLastRoomSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
 import { MobileMenu } from "./MobileMenu";
 import { MobileSingleplayer } from "./MobileSingleplayer";
 import { MobileMultiplayer } from "./MobileMultiplayer";
 import { ChallengesHub } from "../game/ChallengesHub";
 import { useChallenges } from "@/lib/stores/useChallenges";
+
+const DEFAULT_TITLE = "لعبة التخمين";
 
 export function MobileApp() {
   const location = useLocation();
@@ -26,9 +28,29 @@ export function MobileApp() {
 
   useEffect(() => {
     if (location.pathname === "/" || location.pathname === "") {
+      document.title = DEFAULT_TITLE;
       resetMultiplayer();
       setMode("menu");
       clearSession();
+      clearPersistentRoom();
+      disconnect();
+    } else if (location.pathname === "/singleplayer") {
+      document.title = `${DEFAULT_TITLE} - لعب فردي`;
+    } else if (location.pathname.startsWith("/room/")) {
+      const roomId = location.pathname.split("/room/")[1]?.split(/[?#]/)[0]?.replace(/\/$/, "")?.toUpperCase();
+      document.title = roomId ? `غرفة ${roomId}` : DEFAULT_TITLE;
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    let timeoutHandle: NodeJS.Timeout | null = null;
+    let isMounted = true;
+
+    if (location.pathname === "/" || location.pathname === "") {
+      return () => {
+        isMounted = false;
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      };
     } else if (location.pathname === "/singleplayer") {
       setMode("singleplayer");
       if (!singleplayer.secretCode || singleplayer.secretCode.length === 0) {
@@ -41,7 +63,10 @@ export function MobileApp() {
       const roomId = location.pathname.split("/room/")[1];
       
       if (multiplayer.roomId === roomId && multiplayer.playerId) {
-        return;
+        return () => {
+          isMounted = false;
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+        };
       }
 
       const session = reconnectToSession();
@@ -51,30 +76,34 @@ export function MobileApp() {
         setIsConnecting(true);
         reconnectWithRetry(session.playerName, session.playerId, session.roomId);
         
-        setTimeout(() => {
-          if (useNumberGame.getState().isConnecting) {
+        timeoutHandle = setTimeout(() => {
+          if (isMounted && useNumberGame.getState().isConnecting) {
             console.error("Connection timeout");
             setIsConnecting(false);
           }
         }, 5000);
-        return;
-      }
-
-      const lastRoom = getLastRoomSession();
-      if (lastRoom && lastRoom.roomId === roomId && lastRoom.playerId) {
-        console.log("Reconnecting to last room:", roomId);
-        setPlayerName(lastRoom.playerName);
-        setIsConnecting(true);
-        reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
-        
-        setTimeout(() => {
-          if (useNumberGame.getState().isConnecting) {
-            console.error("Connection timeout");
-            setIsConnecting(false);
-          }
-        }, 5000);
+      } else {
+        const lastRoom = getLastRoomSession();
+        if (lastRoom && lastRoom.roomId === roomId && lastRoom.playerId) {
+          console.log("Reconnecting to last room:", roomId);
+          setPlayerName(lastRoom.playerName);
+          setIsConnecting(true);
+          reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
+          
+          timeoutHandle = setTimeout(() => {
+            if (isMounted && useNumberGame.getState().isConnecting) {
+              console.error("Connection timeout");
+              setIsConnecting(false);
+            }
+          }, 5000);
+        }
       }
     }
+
+    return () => {
+      isMounted = false;
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    };
   }, [location.pathname]);
 
   useEffect(() => {
