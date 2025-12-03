@@ -9,11 +9,9 @@ function getInitialIsMobile(): boolean {
 }
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = useState<boolean>(() => getInitialIsMobile());
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(getInitialIsMobile);
 
   useEffect(() => {
-    setIsHydrated(true);
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
     const onChange = () => {
       setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);

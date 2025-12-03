@@ -207,7 +207,7 @@ export function ChallengesHub({ onExit }: { onExit: () => void }) {
                 <category.icon className="w-6 h-6 text-white" />
                 <h2 className="text-2xl font-bold text-white">{category.name}</h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 lg:gap-6">
                 {categoryChallenges.map((challenge) => {
                   const canPlay = canPlayChallenge(challenge.id);
                   const Icon = challenge.icon;
