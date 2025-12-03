@@ -1,7 +1,19 @@
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import { Component, ErrorInfo, ReactNode } from "react";
 import App from "./App";
+import "./index.css";
+
+// Lock screen orientation to portrait on mobile devices
+if ('screen' in window && 'orientation' in window.screen) {
+  const screenOrientation = window.screen.orientation as any;
+  if (screenOrientation && 'lock' in screenOrientation) {
+    screenOrientation.lock('portrait').catch((error: any) => {
+      console.log('Orientation lock not supported or failed:', error);
+    });
+  }
+}
+
+import { Component, ErrorInfo, ReactNode } from "react";
 import "./index.css";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
