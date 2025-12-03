@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Users, X, Check } from "lucide-react";
 
 interface RoomInvite {
@@ -13,6 +13,7 @@ interface RoomInvite {
 
 export function RoomInvitePopup() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [pendingInvites, setPendingInvites] = useState<RoomInvite[]>([]);
 
   useEffect(() => {
@@ -32,7 +33,16 @@ export function RoomInvitePopup() {
 
   const handleAccept = (invite: RoomInvite) => {
     setPendingInvites(prev => prev.filter(inv => inv.roomId !== invite.roomId));
-    navigate(`/room/${invite.roomId}`);
+    
+    // Check if we're already on this room page
+    const targetPath = `/room/${invite.roomId}`;
+    if (location.pathname === targetPath) {
+      console.log("Already on this room page");
+      return;
+    }
+    
+    // Navigate to the room
+    navigate(targetPath, { replace: false });
   };
 
   const handleReject = (invite: RoomInvite) => {
