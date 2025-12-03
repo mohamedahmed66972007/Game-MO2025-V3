@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Routes, Route, useNavigate, useParams, useLocation } from "react-router-dom";
+import { Routes, Route, useNavigate, useParams, useLocation, BrowserRouter } from "react-router-dom";
 import { useNumberGame } from "./lib/stores/useNumberGame";
 import { useAudio } from "./lib/stores/useAudio";
 import { useAccount } from "./lib/stores/useAccount";
@@ -44,7 +44,7 @@ function MenuPage() {
 
   useEffect(() => {
     if (checkedLastRoom) return;
-    
+
     const lastRoom = getLastRoomSession();
     if (lastRoom && lastRoom.roomId) {
       console.log("Found last room session:", lastRoom.roomId);
@@ -52,7 +52,7 @@ function MenuPage() {
       navigate(`/room/${lastRoom.roomId}`, { replace: true });
       return;
     }
-    
+
     setCheckedLastRoom(true);
     resetMultiplayer();
     setMode("menu");
@@ -116,7 +116,7 @@ function SingleplayerPage() {
 function MultiplayerPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { multiplayer, setMode, resetMultiplayer, isConnecting, setIsConnecting, connectionError, setConnectionError, setPlayerName } = useNumberGame();
+  const { multiplayer, setMode, setIsConnecting, setConnectionError, connectionError, isConnecting, setPlayerName } = useNumberGame();
   const { account } = useAccount();
   const { setSuccessSound } = useAudio();
   const [playerNameInput, setPlayerNameInputState] = useState(() => localStorage.getItem("lastPlayerName") || "");
@@ -178,7 +178,7 @@ function MultiplayerPage() {
             <button
               onClick={() => {
                 setConnectionError(null);
-                resetMultiplayer();
+                useNumberGame.getState().resetMultiplayer();
                 clearSession();
                 clearPersistentRoom();
                 disconnect();
@@ -347,7 +347,7 @@ function RoomPage() {
       setPlayerName(session.playerName);
       setIsConnecting(true);
       reconnectWithRetry(session.playerName, session.playerId, session.roomId);
-      
+
       setTimeout(() => {
         if (useNumberGame.getState().isConnecting) {
           console.error("Connection timeout");
@@ -364,7 +364,7 @@ function RoomPage() {
       setPlayerName(lastRoom.playerName);
       setIsConnecting(true);
       reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
-      
+
       setTimeout(() => {
         if (useNumberGame.getState().isConnecting) {
           console.error("Connection timeout");
@@ -446,7 +446,7 @@ function RoomPage() {
             </div>
             <h2 className="text-2xl font-bold text-gray-800">الانضمام للغرفة</h2>
             <p className="text-gray-600">رقم الغرفة: <span className="font-mono font-bold text-blue-600">{roomId}</span></p>
-            
+
             <div className="space-y-4">
               {hasAccountName ? (
                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-xl border border-blue-200">
@@ -484,11 +484,11 @@ function RoomPage() {
       {isInRoom && !isGameActive && !multiplayer.showResults && (
         <MultiplayerLobby />
       )}
-      
+
       {isInRoom && isGameActive && !multiplayer.showResults && (
         <MultiplayerGame2D />
       )}
-      
+
       {isInRoom && multiplayer.showResults && (
         <MultiplayerResults />
       )}
@@ -540,7 +540,7 @@ function RematchDialog() {
           {multiplayer.players.map(player => {
             const vote = multiplayer.rematchState.votes.find(v => v.playerId === player.id);
             const isCurrentPlayer = player.id === multiplayer.playerId;
-            
+
             return (
               <div
                 key={player.id}
@@ -590,7 +590,7 @@ function RematchDialog() {
 
 function App() {
   return (
-    <>
+    <BrowserRouter>
       <Routes>
         <Route path="/" element={<MenuPage />} />
         <Route path="/singleplayer" element={<SingleplayerPage />} />
@@ -598,7 +598,7 @@ function App() {
         <Route path="/room/:roomId" element={<RoomPage />} />
       </Routes>
       <RoomInvitePopup />
-    </>
+    </BrowserRouter>
   );
 }
 
