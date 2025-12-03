@@ -12,15 +12,8 @@ interface RoomInvite {
 }
 
 export function RoomInvitePopup() {
+  const navigate = useNavigate();
   const [pendingInvites, setPendingInvites] = useState<RoomInvite[]>([]);
-  
-  // Safely get navigate - will be null if not in router context
-  let navigate: ReturnType<typeof useNavigate> | null = null;
-  try {
-    navigate = useNavigate();
-  } catch (e) {
-    console.warn("RoomInvitePopup must be used within a Router context");
-  }
 
   useEffect(() => {
     const handleInvite = (event: CustomEvent<RoomInvite>) => {
@@ -39,11 +32,7 @@ export function RoomInvitePopup() {
 
   const handleAccept = (invite: RoomInvite) => {
     setPendingInvites(prev => prev.filter(inv => inv.roomId !== invite.roomId));
-    if (navigate) {
-      navigate(`/room/${invite.roomId}`);
-    } else {
-      window.location.href = `/room/${invite.roomId}`;
-    }
+    navigate(`/room/${invite.roomId}`);
   };
 
   const handleReject = (invite: RoomInvite) => {
