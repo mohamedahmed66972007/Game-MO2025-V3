@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Routes, Route, useNavigate, useParams, useLocation } from "react-router-dom";
 import { useNumberGame } from "./lib/stores/useNumberGame";
 import { useAudio } from "./lib/stores/useAudio";
+import { useAccount } from "./lib/stores/useAccount";
 import { send, reconnectToSession, connectWebSocket, reconnectWithRetry, getLastRoomSession, clearSession, clearPersistentRoom, disconnect } from "./lib/websocket";
 import { useIsMobile } from "./hooks/use-is-mobile";
 import { MobileApp } from "./components/mobile/MobileApp";
@@ -102,6 +103,7 @@ function MultiplayerPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { multiplayer, setMode, resetMultiplayer, isConnecting, setIsConnecting, connectionError, setConnectionError, setPlayerName } = useNumberGame();
+  const { account } = useAccount();
   const { setSuccessSound } = useAudio();
   const [playerNameInput, setPlayerNameInputState] = useState(() => localStorage.getItem("lastPlayerName") || "");
   const [joinRoomId, setJoinRoomId] = useState("");
@@ -123,20 +125,27 @@ function MultiplayerPage() {
     }
   }, [multiplayer.roomId, navigate]);
 
+  const getPlayerName = () => {
+    if (account?.displayName) return account.displayName;
+    return playerNameInput.trim();
+  };
+
   const handleCreateRoom = () => {
-    if (!playerNameInput.trim()) return;
-    localStorage.setItem("lastPlayerName", playerNameInput.trim());
-    setPlayerName(playerNameInput.trim());
+    const name = getPlayerName();
+    if (!name) return;
+    localStorage.setItem("lastPlayerName", name);
+    setPlayerName(name);
     setIsConnecting(true);
-    connectWebSocket(playerNameInput.trim());
+    connectWebSocket(name);
   };
 
   const handleJoinRoom = () => {
-    if (!playerNameInput.trim() || !joinRoomId.trim()) return;
-    localStorage.setItem("lastPlayerName", playerNameInput.trim());
-    setPlayerName(playerNameInput.trim());
+    const name = getPlayerName();
+    if (!name || !joinRoomId.trim()) return;
+    localStorage.setItem("lastPlayerName", name);
+    setPlayerName(name);
     setIsConnecting(true);
-    connectWebSocket(playerNameInput.trim(), joinRoomId.trim().toUpperCase());
+    connectWebSocket(name, joinRoomId.trim().toUpperCase());
   };
 
   if (isMobile) {
@@ -156,7 +165,10 @@ function MultiplayerPage() {
               onClick={() => {
                 setConnectionError(null);
                 resetMultiplayer();
-                navigate("/");
+                clearSession();
+                clearPersistentRoom();
+                disconnect();
+                navigate("/", { replace: true });
               }}
               className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold transition-colors"
             >
@@ -198,23 +210,30 @@ function MultiplayerPage() {
                 <h2 className="text-2xl font-bold text-gray-800">لعب جماعي</h2>
               </div>
 
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2 text-right">
-                  اسمك
-                </label>
-                <input
-                  type="text"
-                  value={playerNameInput}
-                  onChange={(e) => setPlayerNameInputState(e.target.value)}
-                  placeholder="أدخل اسمك"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl text-right focus:outline-none focus:border-blue-500"
-                  dir="rtl"
-                />
-              </div>
+              {account?.displayName ? (
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-xl border border-blue-200">
+                  <p className="text-gray-600 text-sm text-right">ستلعب باسم:</p>
+                  <p className="font-bold text-lg text-gray-800 text-right">{account.displayName}</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2 text-right">
+                    اسمك
+                  </label>
+                  <input
+                    type="text"
+                    value={playerNameInput}
+                    onChange={(e) => setPlayerNameInputState(e.target.value)}
+                    placeholder="أدخل اسمك"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl text-right focus:outline-none focus:border-blue-500"
+                    dir="rtl"
+                  />
+                </div>
+              )}
 
               <button
                 onClick={handleCreateRoom}
-                disabled={!playerNameInput.trim()}
+                disabled={!account?.displayName && !playerNameInput.trim()}
                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -257,7 +276,7 @@ function MultiplayerPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={handleJoinRoom}
-                      disabled={!playerNameInput.trim() || !joinRoomId.trim()}
+                      disabled={(!account?.displayName && !playerNameInput.trim()) || !joinRoomId.trim()}
                       className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-3 rounded-xl transition-all"
                     >
                       انضم
@@ -284,6 +303,7 @@ function RoomPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { multiplayer, setMode, setIsConnecting, setPlayerName, resetMultiplayer, connectionError, setConnectionError, isConnecting } = useNumberGame();
+  const { account } = useAccount();
   const { setSuccessSound } = useAudio();
   const [playerNameInput, setPlayerNameInputState] = useState(() => localStorage.getItem("lastPlayerName") || "");
   const [isJoining, setIsJoining] = useState(false);
@@ -341,13 +361,19 @@ function RoomPage() {
     setHasAttemptedReconnect(true);
   }, [roomId, hasAttemptedReconnect]);
 
+  const getPlayerName = () => {
+    if (account?.displayName) return account.displayName;
+    return playerNameInput.trim();
+  };
+
   const handleJoinRoom = () => {
-    if (!playerNameInput.trim() || !roomId) return;
+    const name = getPlayerName();
+    if (!name || !roomId) return;
     setIsJoining(true);
-    localStorage.setItem("lastPlayerName", playerNameInput.trim());
-    setPlayerName(playerNameInput.trim());
+    localStorage.setItem("lastPlayerName", name);
+    setPlayerName(name);
     setIsConnecting(true);
-    connectWebSocket(playerNameInput.trim(), roomId);
+    connectWebSocket(name, roomId);
   };
 
   if (isMobile) {
@@ -356,6 +382,7 @@ function RoomPage() {
 
   const isInRoom = multiplayer.roomId === roomId && multiplayer.playerId;
   const isGameActive = multiplayer.gameStatus === "playing" && multiplayer.sharedSecret.length > 0;
+  const hasAccountName = !!account?.displayName;
 
   return (
     <div dir="rtl" style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
@@ -370,7 +397,10 @@ function RoomPage() {
               onClick={() => {
                 setConnectionError(null);
                 resetMultiplayer();
-                navigate("/");
+                clearSession();
+                clearPersistentRoom();
+                disconnect();
+                navigate("/", { replace: true });
               }}
               className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold transition-colors"
             >
@@ -402,17 +432,24 @@ function RoomPage() {
             <p className="text-gray-600">رقم الغرفة: <span className="font-mono font-bold text-blue-600">{roomId}</span></p>
             
             <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="أدخل اسمك"
-                value={playerNameInput}
-                onChange={(e) => setPlayerNameInputState(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center font-semibold focus:border-blue-500 focus:outline-none transition-colors"
-                maxLength={20}
-              />
+              {hasAccountName ? (
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-xl border border-blue-200">
+                  <p className="text-gray-600 text-sm">ستنضم باسم:</p>
+                  <p className="font-bold text-lg text-gray-800">{account.displayName}</p>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  placeholder="أدخل اسمك"
+                  value={playerNameInput}
+                  onChange={(e) => setPlayerNameInputState(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center font-semibold focus:border-blue-500 focus:outline-none transition-colors"
+                  maxLength={20}
+                />
+              )}
               <button
                 onClick={handleJoinRoom}
-                disabled={!playerNameInput.trim() || isJoining}
+                disabled={(!hasAccountName && !playerNameInput.trim()) || isJoining}
                 className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-3 rounded-xl transition-all"
               >
                 {isJoining ? "جاري الانضمام..." : "انضم للغرفة"}

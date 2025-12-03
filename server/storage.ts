@@ -5,6 +5,9 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, or, and, like, desc } from "drizzle-orm";
+import bcrypt from "bcrypt";
+
+const SALT_ROUNDS = 10;
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -14,6 +17,8 @@ export interface IStorage {
   getAccount(id: number): Promise<Account | undefined>;
   getAccountByUsername(username: string): Promise<Account | undefined>;
   createAccount(account: InsertAccount): Promise<Account>;
+  updateAccount(id: number, updates: { displayName?: string; username?: string; password?: string }): Promise<Account | undefined>;
+  updateAccountPassword(id: number, hashedPassword: string): Promise<void>;
   updateAccountOnline(id: number, isOnline: boolean, roomId?: string): Promise<void>;
   searchAccounts(query: string): Promise<Account[]>;
   
@@ -97,10 +102,13 @@ export class MemStorage implements IStorage {
   }
 
   async createAccount(insertAccount: InsertAccount): Promise<Account> {
+    const hashedPassword = await bcrypt.hash(insertAccount.password, SALT_ROUNDS);
+    
     if (db) {
       const result = await db.insert(accounts).values({
         displayName: insertAccount.displayName,
         username: insertAccount.username.toLowerCase(),
+        password: hashedPassword,
       }).returning();
       return result[0];
     }
@@ -109,6 +117,7 @@ export class MemStorage implements IStorage {
       ...insertAccount, 
       id, 
       username: insertAccount.username.toLowerCase(),
+      password: hashedPassword,
       createdAt: new Date(),
       lastSeen: new Date(),
       isOnline: false,
@@ -116,6 +125,43 @@ export class MemStorage implements IStorage {
     };
     this.accountsMap.set(id, account);
     return account;
+  }
+
+  async updateAccount(id: number, updates: { displayName?: string; username?: string; password?: string }): Promise<Account | undefined> {
+    const updateData: any = {};
+    if (updates.displayName) updateData.displayName = updates.displayName;
+    if (updates.username) updateData.username = updates.username.toLowerCase();
+    if (updates.password) {
+      updateData.password = await bcrypt.hash(updates.password, SALT_ROUNDS);
+    }
+    
+    if (db) {
+      const result = await db.update(accounts)
+        .set(updateData)
+        .where(eq(accounts.id, id))
+        .returning();
+      return result[0];
+    }
+    const account = this.accountsMap.get(id);
+    if (account) {
+      if (updateData.displayName) account.displayName = updateData.displayName;
+      if (updateData.username) account.username = updateData.username;
+      if (updateData.password) account.password = updateData.password;
+    }
+    return account;
+  }
+
+  async updateAccountPassword(id: number, hashedPassword: string): Promise<void> {
+    if (db) {
+      await db.update(accounts)
+        .set({ password: hashedPassword })
+        .where(eq(accounts.id, id));
+      return;
+    }
+    const account = this.accountsMap.get(id);
+    if (account) {
+      account.password = hashedPassword;
+    }
   }
 
   async updateAccountOnline(id: number, isOnline: boolean, roomId?: string): Promise<void> {

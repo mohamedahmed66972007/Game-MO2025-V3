@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { User, UserPlus, LogIn, X } from "lucide-react";
-import { useAccount, createAccount, checkAccount } from "@/lib/stores/useAccount";
+import { User, UserPlus, LogIn, X, Eye, EyeOff } from "lucide-react";
+import { useAccount, createAccount, loginAccount } from "@/lib/stores/useAccount";
 import { toast } from "sonner";
 
 interface AccountDialogProps {
@@ -14,6 +14,8 @@ export function AccountDialog({ isOpen, onClose, onSuccess }: AccountDialogProps
   const [mode, setMode] = useState<"login" | "create">("login");
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,30 +26,39 @@ export function AccountDialog({ isOpen, onClose, onSuccess }: AccountDialogProps
       setError("أدخل اسم المستخدم");
       return;
     }
+    if (!password.trim()) {
+      setError("أدخل كلمة المرور");
+      return;
+    }
 
     setIsLoading(true);
     setError("");
 
     try {
-      const result = await checkAccount(username.trim());
-      if (result.exists && result.account) {
-        setAccount(result.account);
-        toast.success(`مرحباً ${result.account.displayName}!`);
-        onSuccess?.();
-        onClose();
-      } else {
-        setError("اسم المستخدم غير موجود");
-      }
-    } catch (err) {
-      setError("حدث خطأ أثناء تسجيل الدخول");
+      const account = await loginAccount(username.trim(), password);
+      setAccount(account);
+      toast.success(`مرحباً ${account.displayName}!`);
+      resetForm();
+      onSuccess?.();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "حدث خطأ أثناء تسجيل الدخول");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCreate = async () => {
-    if (!displayName.trim() || !username.trim()) {
-      setError("أدخل الاسم واسم المستخدم");
+    if (!displayName.trim()) {
+      setError("أدخل الاسم");
+      return;
+    }
+    if (!username.trim()) {
+      setError("أدخل اسم المستخدم");
+      return;
+    }
+    if (!password.trim()) {
+      setError("أدخل كلمة المرور");
       return;
     }
 
@@ -61,12 +72,18 @@ export function AccountDialog({ isOpen, onClose, onSuccess }: AccountDialogProps
       return;
     }
 
+    if (password.length < 4) {
+      setError("كلمة المرور يجب أن تكون 4 أحرف على الأقل");
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
     try {
-      const account = await createAccount(displayName.trim(), username.trim());
+      const account = await createAccount(displayName.trim(), username.trim(), password);
       toast.success(`تم إنشاء الحساب بنجاح! مرحباً ${account.displayName}`);
+      resetForm();
       onSuccess?.();
       onClose();
     } catch (err: any) {
@@ -74,6 +91,19 @@ export function AccountDialog({ isOpen, onClose, onSuccess }: AccountDialogProps
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setDisplayName("");
+    setUsername("");
+    setPassword("");
+    setError("");
+    setShowPassword(false);
+  };
+
+  const handleModeChange = (newMode: "login" | "create") => {
+    setMode(newMode);
+    setError("");
   };
 
   return (
@@ -84,7 +114,7 @@ export function AccountDialog({ isOpen, onClose, onSuccess }: AccountDialogProps
             {mode === "login" ? "تسجيل الدخول" : "إنشاء حساب جديد"}
           </h2>
           <button
-            onClick={onClose}
+            onClick={() => { resetForm(); onClose(); }}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5 text-gray-500" />
@@ -93,7 +123,7 @@ export function AccountDialog({ isOpen, onClose, onSuccess }: AccountDialogProps
 
         <div className="flex gap-2">
           <button
-            onClick={() => { setMode("login"); setError(""); }}
+            onClick={() => handleModeChange("login")}
             className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
               mode === "login"
                 ? "bg-blue-500 text-white"
@@ -104,7 +134,7 @@ export function AccountDialog({ isOpen, onClose, onSuccess }: AccountDialogProps
             دخول
           </button>
           <button
-            onClick={() => { setMode("create"); setError(""); }}
+            onClick={() => handleModeChange("create")}
             className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
               mode === "create"
                 ? "bg-blue-500 text-white"
@@ -146,9 +176,39 @@ export function AccountDialog({ isOpen, onClose, onSuccess }: AccountDialogProps
               dir="ltr"
               maxLength={30}
             />
-            <p className="text-xs text-gray-500 mt-1">
-              أحرف إنجليزية وأرقام فقط
-            </p>
+            {mode === "create" && (
+              <p className="text-xs text-gray-500 mt-1">
+                أحرف إنجليزية وأرقام فقط
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              كلمة المرور
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="أدخل كلمة المرور"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 pl-12"
+                dir="ltr"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            {mode === "create" && (
+              <p className="text-xs text-gray-500 mt-1">
+                4 أحرف على الأقل
+              </p>
+            )}
           </div>
 
           {error && (

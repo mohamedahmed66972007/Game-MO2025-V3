@@ -118,16 +118,50 @@ export const useAccount = create<AccountState>()(
   )
 );
 
-export async function createAccount(displayName: string, username: string): Promise<Account> {
+export async function createAccount(displayName: string, username: string, password: string): Promise<Account> {
   const response = await fetch("/api/accounts/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ displayName, username }),
+    body: JSON.stringify({ displayName, username, password }),
   });
   
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || "فشل إنشاء الحساب");
+  }
+  
+  const account = await response.json();
+  useAccount.getState().setAccount(account);
+  return account;
+}
+
+export async function loginAccount(username: string, password: string): Promise<Account> {
+  const response = await fetch("/api/accounts/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "فشل تسجيل الدخول");
+  }
+  
+  const account = await response.json();
+  useAccount.getState().setAccount(account);
+  return account;
+}
+
+export async function updateAccount(id: number, updates: { displayName?: string; username?: string; currentPassword?: string; newPassword?: string }): Promise<Account> {
+  const response = await fetch("/api/accounts/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...updates }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "فشل تحديث الحساب");
   }
   
   const account = await response.json();

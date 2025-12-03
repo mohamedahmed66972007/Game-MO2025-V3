@@ -13,6 +13,7 @@ export const accounts = pgTable("accounts", {
   id: serial("id").primaryKey(),
   displayName: varchar("display_name", { length: 50 }).notNull(),
   username: varchar("username", { length: 30 }).notNull().unique(),
+  password: varchar("password", { length: 100 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastSeen: timestamp("last_seen").defaultNow().notNull(),
   isOnline: boolean("is_online").default(false).notNull(),
@@ -90,6 +91,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const insertAccountSchema = createInsertSchema(accounts).pick({
   displayName: true,
   username: true,
+  password: true,
 });
 
 export const insertFriendRequestSchema = createInsertSchema(friendRequests).pick({

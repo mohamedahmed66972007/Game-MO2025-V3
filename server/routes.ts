@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import bcrypt from "bcrypt";
 import { storage } from "./storage";
 
 interface Player {
@@ -129,10 +130,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/accounts/create", async (req, res) => {
     try {
-      const { displayName, username } = req.body;
+      const { displayName, username, password } = req.body;
       
-      if (!displayName || !username) {
-        return res.status(400).json({ error: "الاسم واسم المستخدم مطلوبان" });
+      if (!displayName || !username || !password) {
+        return res.status(400).json({ error: "الاسم واسم المستخدم وكلمة المرور مطلوبان" });
       }
       
       if (username.length < 3 || username.length > 30) {
@@ -143,16 +144,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "اسم المستخدم يجب أن يحتوي على أحرف إنجليزية وأرقام فقط" });
       }
       
+      if (password.length < 4) {
+        return res.status(400).json({ error: "كلمة المرور يجب أن تكون 4 أحرف على الأقل" });
+      }
+      
       const existing = await storage.getAccountByUsername(username);
       if (existing) {
         return res.status(409).json({ error: "اسم المستخدم مستخدم بالفعل" });
       }
       
-      const account = await storage.createAccount({ displayName, username });
-      res.json(account);
+      const account = await storage.createAccount({ displayName, username, password });
+      res.json({ id: account.id, displayName: account.displayName, username: account.username });
     } catch (error) {
       console.error("Error creating account:", error);
       res.status(500).json({ error: "حدث خطأ أثناء إنشاء الحساب" });
+    }
+  });
+
+  app.post("/api/accounts/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ error: "اسم المستخدم وكلمة المرور مطلوبان" });
+      }
+      
+      const account = await storage.getAccountByUsername(username);
+      if (!account) {
+        return res.status(401).json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" });
+      }
+      
+      let isValidPassword = false;
+      
+      if (account.password.startsWith("$2b$") || account.password.startsWith("$2a$")) {
+        isValidPassword = await bcrypt.compare(password, account.password);
+      } else {
+        isValidPassword = password === account.password;
+        if (isValidPassword) {
+          const hashedPassword = await bcrypt.hash(password, 10);
+          await storage.updateAccountPassword(account.id, hashedPassword);
+        }
+      }
+      
+      if (!isValidPassword) {
+        return res.status(401).json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" });
+      }
+      
+      res.json({ id: account.id, displayName: account.displayName, username: account.username });
+    } catch (error) {
+      console.error("Error logging in:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء تسجيل الدخول" });
+    }
+  });
+
+  app.post("/api/accounts/update", async (req, res) => {
+    try {
+      const { id, displayName, username, currentPassword, newPassword } = req.body;
+      
+      if (!id) {
+        return res.status(400).json({ error: "معرف الحساب مطلوب" });
+      }
+      
+      const account = await storage.getAccount(id);
+      if (!account) {
+        return res.status(404).json({ error: "الحساب غير موجود" });
+      }
+      
+      const updates: { displayName?: string; username?: string; password?: string } = {};
+      
+      if (displayName && displayName !== account.displayName) {
+        updates.displayName = displayName;
+      }
+      
+      if (username && username.toLowerCase() !== account.username) {
+        if (username.length < 3 || username.length > 30) {
+          return res.status(400).json({ error: "اسم المستخدم يجب أن يكون بين 3 و 30 حرف" });
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+          return res.status(400).json({ error: "اسم المستخدم يجب أن يحتوي على أحرف إنجليزية وأرقام فقط" });
+        }
+        const existing = await storage.getAccountByUsername(username);
+        if (existing && existing.id !== id) {
+          return res.status(409).json({ error: "اسم المستخدم مستخدم بالفعل" });
+        }
+        updates.username = username;
+      }
+      
+      if (newPassword) {
+        if (!currentPassword) {
+          return res.status(400).json({ error: "كلمة المرور الحالية مطلوبة" });
+        }
+        
+        let isValidPassword = false;
+        if (account.password.startsWith("$2b$") || account.password.startsWith("$2a$")) {
+          isValidPassword = await bcrypt.compare(currentPassword, account.password);
+        } else {
+          isValidPassword = currentPassword === account.password;
+        }
+        
+        if (!isValidPassword) {
+          return res.status(401).json({ error: "كلمة المرور الحالية غير صحيحة" });
+        }
+        if (newPassword.length < 4) {
+          return res.status(400).json({ error: "كلمة المرور الجديدة يجب أن تكون 4 أحرف على الأقل" });
+        }
+        updates.password = newPassword;
+      }
+      
+      if (Object.keys(updates).length === 0) {
+        return res.json({ id: account.id, displayName: account.displayName, username: account.username });
+      }
+      
+      const updatedAccount = await storage.updateAccount(id, updates);
+      res.json({ id: updatedAccount?.id, displayName: updatedAccount?.displayName, username: updatedAccount?.username });
+    } catch (error) {
+      console.error("Error updating account:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء تحديث الحساب" });
     }
   });
 

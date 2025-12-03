@@ -4,11 +4,13 @@ import { Button } from "./button";
 import { Card } from "./card";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { getLastPlayerName } from "@/lib/websocket";
-import { Gamepad2, Users, WifiOff, User, LogOut, Download } from "lucide-react";
+import { Gamepad2, Users, WifiOff, User, LogOut, Download, UserCircle, Settings } from "lucide-react";
 import { GameSettings } from "./GameSettings";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { OfflineDialog } from "./OfflineDialog";
 import { AccountDialog } from "./AccountDialog";
+import { FriendsDialog } from "./FriendsDialog";
+import { ProfileDialog } from "./ProfileDialog";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { useAccount } from "@/lib/stores/useAccount";
 
@@ -19,6 +21,8 @@ export function Menu() {
   const [showSettings, setShowSettings] = useState(false);
   const [showOfflineDialog, setShowOfflineDialog] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [showFriendsDialog, setShowFriendsDialog] = useState(false);
+  const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
   const isOnline = useOnlineStatus();
@@ -75,6 +79,8 @@ export function Menu() {
     <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50 p-4">
       <OfflineDialog isOpen={showOfflineDialog} onClose={() => setShowOfflineDialog(false)} />
       <AccountDialog isOpen={showAccountDialog} onClose={() => setShowAccountDialog(false)} />
+      <FriendsDialog isOpen={showFriendsDialog} onClose={() => setShowFriendsDialog(false)} />
+      <ProfileDialog isOpen={showProfileDialog} onClose={() => setShowProfileDialog(false)} />
       
       <div className="absolute top-4 left-4 flex items-center gap-3 z-50">
         {isInstallable && (
@@ -87,14 +93,34 @@ export function Menu() {
           </button>
         )}
         {account && <NotificationsDropdown />}
+        {account && (
+          <button
+            onClick={() => setShowFriendsDialog(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg transition-colors text-sm font-medium shadow-md"
+          >
+            <Users className="w-4 h-4" />
+            <span>الأصدقاء</span>
+          </button>
+        )}
         {account ? (
           <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg shadow-md border border-gray-200">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+            <button
+              onClick={() => setShowProfileDialog(true)}
+              className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-sm hover:opacity-90 transition-opacity"
+              title="تعديل الملف الشخصي"
+            >
               {account.displayName.charAt(0)}
-            </div>
+            </button>
             <span className="text-sm text-gray-700 font-medium">
               {account.displayName}
             </span>
+            <button
+              onClick={() => setShowProfileDialog(true)}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+              title="تعديل الملف الشخصي"
+            >
+              <Settings className="w-4 h-4 text-gray-500" />
+            </button>
             <button
               onClick={logout}
               className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
@@ -116,16 +142,20 @@ export function Menu() {
       
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl shadow-lg">
-            <Gamepad2 className="w-10 h-10 text-white" />
+          <div className="relative inline-flex items-center justify-center">
+            <div className="absolute inset-0 w-24 h-24 bg-gradient-to-br from-blue-400/30 to-purple-500/30 rounded-full animate-ping" style={{ animationDuration: '2s' }} />
+            <div className="absolute inset-0 w-24 h-24 bg-gradient-to-br from-blue-400/20 to-purple-500/20 rounded-full animate-pulse" style={{ animationDuration: '3s' }} />
+            <div className="relative w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl shadow-lg transform hover:scale-110 hover:rotate-3 transition-all duration-300 flex items-center justify-center animate-bounce" style={{ animationDuration: '3s', animationIterationCount: 'infinite' }}>
+              <Gamepad2 className="w-10 h-10 text-white drop-shadow-lg" />
+            </div>
           </div>
           
-          <h1 className="text-4xl font-bold text-gray-800">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent animate-pulse" style={{ animationDuration: '4s' }}>
             لعبة التخمين
           </h1>
           
           <div className="space-y-2 text-gray-600">
-            <p className="text-lg">خمن الرقم السري المكون من 4 أرقام</p>
+            <p className="text-lg opacity-0 animate-[fadeIn_1s_ease-out_0.5s_forwards]">خمن الرقم السري المكون من 4 أرقام</p>
           </div>
         </div>
 
