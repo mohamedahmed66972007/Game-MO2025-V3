@@ -588,9 +588,9 @@ function RematchDialog() {
   );
 }
 
-function App() {
+function AppContent() {
   return (
-    <BrowserRouter>
+    <>
       <Routes>
         <Route path="/" element={<MenuPage />} />
         <Route path="/singleplayer" element={<SingleplayerPage />} />
@@ -598,6 +598,14 @@ function App() {
         <Route path="/room/:roomId" element={<RoomPage />} />
       </Routes>
       <RoomInvitePopup />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
     </BrowserRouter>
   );
 }
