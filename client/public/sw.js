@@ -1,6 +1,6 @@
-const CACHE_NAME = 'guess-game-v1';
-const STATIC_CACHE = 'guess-game-static-v1';
-const DYNAMIC_CACHE = 'guess-game-dynamic-v1';
+const CACHE_NAME = 'guess-game-v2';
+const STATIC_CACHE = 'guess-game-static-v2';
+const DYNAMIC_CACHE = 'guess-game-dynamic-v2';
 
 const STATIC_ASSETS = [
   '/',
