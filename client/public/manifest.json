@@ -1,12 +1,12 @@
 {
   "name": "لعبة التخمين",
-  "short_name": "تخمين",
+  "short_name": "التخمين",
   "description": "لعبة تخمين الأرقام - فردي ومتعدد اللاعبين",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
-  "orientation": "any",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/favicon.svg",
