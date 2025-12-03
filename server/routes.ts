@@ -490,9 +490,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
       }
       
+      if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+        try {
+          const subscriptions = await storage.getPushSubscriptions(toUserId);
+          if (subscriptions.length > 0) {
+            const webpush = require("web-push");
+            webpush.setVapidDetails(
+              `mailto:${process.env.VAPID_EMAIL || "admin@example.com"}`,
+              process.env.VAPID_PUBLIC_KEY,
+              process.env.VAPID_PRIVATE_KEY
+            );
+            
+            const payload = JSON.stringify({
+              title: "دعوة للعب!",
+              body: `${fromUser?.displayName || "صديقك"} يدعوك للانضمام لغرفته`,
+              icon: "/favicon.svg",
+              badge: "/favicon.svg",
+              tag: `room-invite-${roomId}`,
+              data: { roomId, fromUserId, fromUserName: fromUser?.displayName }
+            });
+            
+            for (const sub of subscriptions) {
+              try {
+                await webpush.sendNotification({
+                  endpoint: sub.endpoint,
+                  keys: { p256dh: sub.p256dh, auth: sub.auth }
+                }, payload);
+              } catch (pushError: any) {
+                if (pushError.statusCode === 410) {
+                  await storage.deletePushSubscription(sub.id);
+                }
+                console.error("Push notification error:", pushError);
+              }
+            }
+          }
+        } catch (pushError) {
+          console.error("Push notification setup error:", pushError);
+        }
+      }
+      
       res.json({ success: true, isOnline: !!targetWs });
     } catch (error) {
       console.error("Error sending invite:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.get("/api/push/vapid-key", (req, res) => {
+    if (process.env.VAPID_PUBLIC_KEY) {
+      res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+    } else {
+      res.status(404).json({ error: "Push notifications not configured" });
+    }
+  });
+
+  app.post("/api/push/subscribe", async (req, res) => {
+    try {
+      const { userId, subscription } = req.body;
+      
+      if (!userId || !subscription) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      await storage.savePushSubscription({
+        userId,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving push subscription:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/push/unsubscribe", async (req, res) => {
+    try {
+      const { userId, endpoint } = req.body;
+      
+      if (!userId || !endpoint) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      await storage.deletePushSubscriptionByEndpoint(userId, endpoint);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing push subscription:", error);
       res.status(500).json({ error: "حدث خطأ" });
     }
   });

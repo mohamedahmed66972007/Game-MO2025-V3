@@ -714,6 +714,18 @@ const handleMessage = (message: any) => {
       store.setMode("menu");
       break;
 
+    case "room_invite": {
+      console.log("Room invite received:", message);
+      const inviteEvent = new CustomEvent("room_invite_received", {
+        detail: {
+          roomId: message.roomId,
+          fromUser: message.fromUser,
+        }
+      });
+      window.dispatchEvent(inviteEvent);
+      break;
+    }
+
     case "error":
       console.error("Server error:", message.message);
       

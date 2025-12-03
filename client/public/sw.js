@@ -105,3 +105,85 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push notification received');
+  
+  let data = {
+    title: 'لعبة التخمين',
+    body: 'لديك إشعار جديد',
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
+    tag: 'game-notification',
+    data: {}
+  };
+  
+  try {
+    if (event.data) {
+      const payload = event.data.json();
+      data = {
+        title: payload.title || data.title,
+        body: payload.body || data.body,
+        icon: payload.icon || data.icon,
+        badge: payload.badge || data.badge,
+        tag: payload.tag || data.tag,
+        data: payload.data || {}
+      };
+    }
+  } catch (e) {
+    console.log('[SW] Error parsing push data:', e);
+  }
+  
+  const options = {
+    body: data.body,
+    icon: data.icon,
+    badge: data.badge,
+    tag: data.tag,
+    data: data.data,
+    vibrate: [200, 100, 200],
+    requireInteraction: true,
+    actions: data.data.roomId ? [
+      { action: 'accept', title: 'موافق' },
+      { action: 'reject', title: 'رفض' }
+    ] : []
+  };
+  
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notification clicked:', event.action);
+  event.notification.close();
+  
+  const data = event.notification.data || {};
+  
+  if (event.action === 'accept' && data.roomId) {
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin)) {
+            client.focus();
+            client.navigate(`/room/${data.roomId}`);
+            return;
+          }
+        }
+        return clients.openWindow(`/room/${data.roomId}`);
+      })
+    );
+  } else if (event.action === 'reject') {
+    return;
+  } else {
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin)) {
+            return client.focus();
+          }
+        }
+        return clients.openWindow('/');
+      })
+    );
+  }
+});

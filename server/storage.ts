@@ -1,7 +1,8 @@
 import { 
-  users, accounts, friendRequests, friendships, notifications,
+  users, accounts, friendRequests, friendships, notifications, pushSubscriptions,
   type User, type InsertUser, type Account, type InsertAccount,
-  type FriendRequest, type InsertFriendRequest, type Notification, type InsertNotification
+  type FriendRequest, type InsertFriendRequest, type Notification, type InsertNotification,
+  type PushSubscription, type InsertPushSubscription
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, or, and, like, desc } from "drizzle-orm";
@@ -453,6 +454,75 @@ export class MemStorage implements IStorage {
       return;
     }
     this.notificationsMap.delete(notificationId);
+  }
+
+  private pushSubscriptionsMap: Map<number, PushSubscription> = new Map();
+  private pushSubscriptionId: number = 1;
+
+  async getPushSubscriptions(userId: number): Promise<PushSubscription[]> {
+    if (db) {
+      return await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+    }
+    return Array.from(this.pushSubscriptionsMap.values()).filter(sub => sub.userId === userId);
+  }
+
+  async savePushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription> {
+    if (db) {
+      const existing = await db.select().from(pushSubscriptions)
+        .where(and(
+          eq(pushSubscriptions.userId, subscription.userId),
+          eq(pushSubscriptions.endpoint, subscription.endpoint)
+        ))
+        .limit(1);
+      
+      if (existing.length > 0) {
+        return existing[0];
+      }
+      
+      const result = await db.insert(pushSubscriptions).values(subscription).returning();
+      return result[0];
+    }
+    
+    const existing = Array.from(this.pushSubscriptionsMap.values())
+      .find(sub => sub.userId === subscription.userId && sub.endpoint === subscription.endpoint);
+    
+    if (existing) {
+      return existing;
+    }
+    
+    const id = this.pushSubscriptionId++;
+    const newSubscription: PushSubscription = {
+      ...subscription,
+      id,
+      createdAt: new Date(),
+    };
+    this.pushSubscriptionsMap.set(id, newSubscription);
+    return newSubscription;
+  }
+
+  async deletePushSubscription(subscriptionId: number): Promise<void> {
+    if (db) {
+      await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, subscriptionId));
+      return;
+    }
+    this.pushSubscriptionsMap.delete(subscriptionId);
+  }
+
+  async deletePushSubscriptionByEndpoint(userId: number, endpoint: string): Promise<void> {
+    if (db) {
+      await db.delete(pushSubscriptions).where(and(
+        eq(pushSubscriptions.userId, userId),
+        eq(pushSubscriptions.endpoint, endpoint)
+      ));
+      return;
+    }
+    
+    for (const [id, sub] of this.pushSubscriptionsMap.entries()) {
+      if (sub.userId === userId && sub.endpoint === endpoint) {
+        this.pushSubscriptionsMap.delete(id);
+        break;
+      }
+    }
   }
 }
 

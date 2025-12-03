@@ -13,6 +13,7 @@ import { ChallengesHub } from "./components/game/ChallengesHub";
 import { useChallenges } from "./lib/stores/useChallenges";
 import { DesktopSingleplayer } from "./components/desktop/DesktopSingleplayer";
 import { MultiplayerGame2D } from "./components/desktop/MultiplayerGame2D";
+import { RoomInvitePopup } from "./components/ui/RoomInvitePopup";
 import "@fontsource/inter";
 
 const DEFAULT_TITLE = "لعبة التخمين";
@@ -589,12 +590,15 @@ function RematchDialog() {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<MenuPage />} />
-      <Route path="/singleplayer" element={<SingleplayerPage />} />
-      <Route path="/multiplayer" element={<MultiplayerPage />} />
-      <Route path="/room/:roomId" element={<RoomPage />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<MenuPage />} />
+        <Route path="/singleplayer" element={<SingleplayerPage />} />
+        <Route path="/multiplayer" element={<MultiplayerPage />} />
+        <Route path="/room/:roomId" element={<RoomPage />} />
+      </Routes>
+      <RoomInvitePopup />
+    </>
   );
 }
 

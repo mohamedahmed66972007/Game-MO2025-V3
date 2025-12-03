@@ -4,11 +4,13 @@ import { MultiplayerResults } from "../ui/MultiplayerResults";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
 import { useCards } from "@/lib/stores/useCards";
+import { useAccount } from "@/lib/stores/useAccount";
 import { send, connectWebSocket, disconnect, clearSession, clearPersistentRoom } from "@/lib/websocket";
-import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Trophy, Maximize2, Minimize2, LogOut } from "lucide-react";
+import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Trophy, Maximize2, Minimize2, LogOut, UserPlus } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
 import { CardHand, CardEffectDisplay } from "../game/cards/CardSystem";
 import { MultiplayerChallenge } from "../game/MultiplayerChallenge";
+import { FriendsDialog } from "../ui/FriendsDialog";
 
 interface MobileMultiplayerProps {
   joinRoomIdFromUrl?: string;
@@ -33,11 +35,13 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
 
   const { playDigit, playDelete, playConfirm, playError, successSound } = useAudio();
   const { cardSettings, hasActiveEffect, removeExpiredEffects, revealedDigits, burnedNumbers, playerCards } = useCards();
+  const { account } = useAccount();
   const [playerName, setPlayerName] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showFriendsDialog, setShowFriendsDialog] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -50,11 +54,15 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   const numDigits = multiplayer.settings.numDigits;
 
   useEffect(() => {
-    const savedName = localStorage.getItem("lastPlayerName");
-    if (savedName) {
-      setPlayerName(savedName);
+    if (account?.displayName) {
+      setPlayerName(account.displayName);
+    } else {
+      const savedName = localStorage.getItem("lastPlayerName");
+      if (savedName) {
+        setPlayerName(savedName);
+      }
     }
-  }, []);
+  }, [account]);
 
   useEffect(() => {
     if (playerName.trim()) {
@@ -1038,6 +1046,17 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                 <Copy className="w-4 h-4" />
                 {linkCopied ? "✓ تم نسخ الرابط" : "نسخ رابط الغرفة"}
               </button>
+
+              {account && (
+                <button
+                  onClick={() => setShowFriendsDialog(true)}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 text-sm"
+                  title="دعوة أصدقاء"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  دعوة صديق
+                </button>
+              )}
             </div>
 
             {/* Settings Display */}
@@ -1134,6 +1153,12 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
             </button>
           </div>
         </div>
+
+        <FriendsDialog
+          isOpen={showFriendsDialog}
+          onClose={() => setShowFriendsDialog(false)}
+          roomId={multiplayer.roomId}
+        />
       </div>
     );
   }
