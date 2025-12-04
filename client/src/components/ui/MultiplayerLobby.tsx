@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "./button";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
-import { Users, Copy, LogOut, Settings, Crown, Play, Link, Check, UserPlus, CheckCircle2, Circle } from "lucide-react";
+import { Users, Copy, LogOut, Settings, Crown, Play, Link, Check, UserPlus, CheckCircle2, Circle, Bell, AlertTriangle, X } from "lucide-react";
 import { GameSettings } from "./GameSettings";
 import { toast } from "sonner";
 import { FriendsDialog } from "./FriendsDialog";
@@ -15,11 +15,20 @@ export function MultiplayerLobby() {
   const [showFriends, setShowFriends] = useState(false);
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [showStartDialog, setShowStartDialog] = useState(false);
+  const [showNoPlayersDialog, setShowNoPlayersDialog] = useState(false);
 
   const roomLink = `${window.location.origin}/room/${multiplayer.roomId}`;
-  const readyCount = multiplayer.readyPlayers.length;
+  
+  const otherPlayers = multiplayer.players.filter(p => p.id !== multiplayer.hostId);
+  const readyOtherPlayers = otherPlayers.filter(p => multiplayer.readyPlayers.includes(p.id));
+  const notReadyOtherPlayers = otherPlayers.filter(p => !multiplayer.readyPlayers.includes(p.id));
+  const hasReadyPlayers = readyOtherPlayers.length > 0;
+  const allOthersReady = notReadyOtherPlayers.length === 0 && otherPlayers.length > 0;
+  
+  const readyCount = readyOtherPlayers.length + 1;
   const isPlayerReady = multiplayer.readyPlayers.includes(multiplayer.playerId);
-  const canStartGame = multiplayer.isHost && multiplayer.players.length >= 2 && readyCount >= 2;
+  const canStartGame = multiplayer.isHost && multiplayer.players.length >= 2;
 
   const handleLeaveRoom = () => {
     send({ type: "leave_room" });
@@ -34,9 +43,30 @@ export function MultiplayerLobby() {
   };
 
   const handleStartGame = () => {
-    if (canStartGame) {
-      send({ type: "start_game" });
+    if (!canStartGame) return;
+    
+    if (!hasReadyPlayers) {
+      setShowNoPlayersDialog(true);
+      return;
     }
+    
+    if (!allOthersReady) {
+      setShowStartDialog(true);
+      return;
+    }
+    
+    send({ type: "start_game" });
+  };
+
+  const handleStartAnyway = () => {
+    setShowStartDialog(false);
+    send({ type: "start_game", forceStart: true });
+  };
+
+  const handleNotifyPlayers = () => {
+    setShowStartDialog(false);
+    setShowNoPlayersDialog(false);
+    send({ type: "notify_ready" });
   };
 
   const handleToggleReady = () => {
@@ -189,7 +219,7 @@ export function MultiplayerLobby() {
               {multiplayer.players.map((player) => {
                 const isHost = player.id === multiplayer.hostId;
                 const isYou = player.id === multiplayer.playerId;
-                const isReady = multiplayer.readyPlayers.includes(player.id);
+                const isReady = isHost || multiplayer.readyPlayers.includes(player.id);
                 
                 return (
                   <div
@@ -251,26 +281,28 @@ export function MultiplayerLobby() {
 
         {/* Action Buttons */}
         <div className="p-4 border-t border-gray-200 space-y-2 flex-shrink-0">
-          <Button
-            onClick={handleToggleReady}
-            className={`w-full font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all ${
-              isPlayerReady
-                ? "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
-                : "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
-            }`}
-          >
-            {isPlayerReady ? (
-              <>
-                <Circle className="w-5 h-5" />
-                إلغاء الاستعداد
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-5 h-5" />
-                مستعد للعب
-              </>
-            )}
-          </Button>
+          {!multiplayer.isHost && (
+            <Button
+              onClick={handleToggleReady}
+              className={`w-full font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all ${
+                isPlayerReady
+                  ? "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
+                  : "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
+              }`}
+            >
+              {isPlayerReady ? (
+                <>
+                  <Circle className="w-5 h-5" />
+                  إلغاء الاستعداد
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-5 h-5" />
+                  مستعد للعب
+                </>
+              )}
+            </Button>
+          )}
 
           {multiplayer.isHost && (
             <Button
@@ -308,6 +340,121 @@ export function MultiplayerLobby() {
         onClose={() => setShowFriends(false)}
         roomId={multiplayer.roomId}
       />
+
+      {showStartDialog && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+          onClick={() => setShowStartDialog(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                ليس جميع اللاعبين مستعدين
+              </h2>
+              <button 
+                onClick={() => setShowStartDialog(false)}
+                className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              {readyOtherPlayers.length > 0 && (
+                <div>
+                  <p className="text-green-600 text-sm mb-2 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    مستعدون ({readyOtherPlayers.length})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {readyOtherPlayers.map((player) => (
+                      <span key={player.id} className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-sm border border-green-300">
+                        {player.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {notReadyOtherPlayers.length > 0 && (
+                <div>
+                  <p className="text-orange-600 text-sm mb-2 flex items-center gap-2">
+                    <Circle className="w-4 h-4" />
+                    غير مستعدين ({notReadyOtherPlayers.length})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {notReadyOtherPlayers.map((player) => (
+                      <span key={player.id} className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-sm border border-orange-300">
+                        {player.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Button
+                onClick={handleStartAnyway}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <Play className="w-5 h-5" />
+                البدء على أي حال
+              </Button>
+              <Button
+                onClick={handleNotifyPlayers}
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <Bell className="w-5 h-5" />
+                إعلامهم بالاستعداد
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNoPlayersDialog && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+          onClick={() => setShowNoPlayersDialog(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                لا يوجد لاعب مستعد
+              </h2>
+              <button 
+                onClick={() => setShowNoPlayersDialog(false)}
+                className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <p className="text-gray-600 mb-6 text-center">
+              لا يوجد أي لاعب مستعد في الغرفة. يجب أن يستعد لاعب واحد على الأقل قبل بدء اللعبة.
+            </p>
+
+            <div className="space-y-2">
+              <Button
+                onClick={handleNotifyPlayers}
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <Bell className="w-5 h-5" />
+                إعلامهم بالاستعداد
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
