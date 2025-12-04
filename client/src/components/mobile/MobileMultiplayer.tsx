@@ -6,7 +6,7 @@ import { useAudio } from "@/lib/stores/useAudio";
 import { useCards } from "@/lib/stores/useCards";
 import { useAccount } from "@/lib/stores/useAccount";
 import { send, connectWebSocket, disconnect, clearSession, clearPersistentRoom } from "@/lib/websocket";
-import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Trophy, Maximize2, Minimize2, LogOut, UserPlus } from "lucide-react";
+import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Trophy, Maximize2, Minimize2, LogOut, UserPlus, CheckCircle2, Circle, Bell, AlertTriangle } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
 import { CardHand, CardEffectDisplay } from "../game/cards/CardSystem";
 import { MultiplayerChallenge } from "../game/MultiplayerChallenge";
@@ -47,6 +47,8 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   const [linkCopied, setLinkCopied] = useState(false);
   const [expandedAttempts, setExpandedAttempts] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [showStartDialog, setShowStartDialog] = useState(false);
+  const [showNoPlayersDialog, setShowNoPlayersDialog] = useState(false);
 
   const [input, setInput] = useState<string[]>([]);
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -104,10 +106,44 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
     connectWebSocket(playerName.trim(), joinRoomId.trim().toUpperCase());
   };
 
+  const otherPlayers = multiplayer.players.filter(p => p.id !== multiplayer.hostId);
+  const readyOtherPlayers = otherPlayers.filter(p => multiplayer.readyPlayers.includes(p.id));
+  const notReadyOtherPlayers = otherPlayers.filter(p => !multiplayer.readyPlayers.includes(p.id));
+  const hasReadyPlayers = readyOtherPlayers.length > 0;
+  const allOthersReady = notReadyOtherPlayers.length === 0 && otherPlayers.length > 0;
+  const isPlayerReady = multiplayer.readyPlayers.includes(multiplayer.playerId);
+  const canStartGame = multiplayer.isHost && multiplayer.players.length >= 2;
+  const readyCount = readyOtherPlayers.length + 1;
+
   const handleStartGame = () => {
-    if (multiplayer.isHost && multiplayer.players.length >= 2) {
-      send({ type: "start_game" });
+    if (!canStartGame) return;
+    
+    if (!hasReadyPlayers) {
+      setShowNoPlayersDialog(true);
+      return;
     }
+    
+    if (!allOthersReady) {
+      setShowStartDialog(true);
+      return;
+    }
+    
+    send({ type: "start_game" });
+  };
+
+  const handleStartAnyway = () => {
+    setShowStartDialog(false);
+    send({ type: "start_game", forceStart: true });
+  };
+
+  const handleNotifyPlayers = () => {
+    setShowStartDialog(false);
+    setShowNoPlayersDialog(false);
+    send({ type: "notify_ready" });
+  };
+
+  const handleToggleReady = () => {
+    send({ type: "toggle_ready", isReady: !isPlayerReady });
   };
 
   const isPlayerFrozen = () => {
@@ -1065,30 +1101,51 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
               {multiplayer.players.map((player) => {
                 const isHost = player.id === multiplayer.hostId;
                 const isYou = player.id === multiplayer.playerId;
+                const isReady = isHost || multiplayer.readyPlayers.includes(player.id);
                 
                 return (
                   <div
                     key={player.id}
-                    className={`p-3 rounded-xl flex items-center gap-3 ${
+                    className={`p-3 rounded-xl flex items-center justify-between ${
                       isYou
                         ? "bg-gradient-to-r from-blue-100 to-purple-100 border-2 border-blue-300"
                         : "bg-gray-50 border border-gray-200"
                     }`}
                   >
-                    {isHost && (
-                      <Crown className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                    )}
-                    {!isHost && (
-                      <span className="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-xs">
-                        👤
-                      </span>
-                    )}
-                    <span className="font-bold text-gray-800">{player.name}</span>
-                    {isYou && (
-                      <span className="text-xs bg-blue-200 text-blue-700 px-2 py-0.5 rounded-lg ml-auto">
-                        (أنت)
-                      </span>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {isHost && (
+                        <Crown className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+                      )}
+                      {!isHost && (
+                        <span className="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-xs">
+                          👤
+                        </span>
+                      )}
+                      <span className="font-bold text-gray-800">{player.name}</span>
+                      {isYou && (
+                        <span className="text-xs bg-blue-200 text-blue-700 px-2 py-0.5 rounded-lg">
+                          (أنت)
+                        </span>
+                      )}
+                      {isHost && (
+                        <span className="text-xs bg-yellow-200 text-yellow-700 px-2 py-0.5 rounded-lg">
+                          (القائد)
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isReady ? (
+                        <span className="flex items-center gap-1 text-green-600 font-bold text-xs bg-green-100 px-2 py-1 rounded-lg">
+                          <CheckCircle2 className="w-4 h-4" />
+                          جاهز
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-gray-400 font-medium text-xs bg-gray-100 px-2 py-1 rounded-lg">
+                          <Circle className="w-4 h-4" />
+                          غير جاهز
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1104,20 +1161,45 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
 
           {/* Action Buttons */}
           <div className="space-y-2">
+            {!multiplayer.isHost && (
+              <button
+                onClick={handleToggleReady}
+                className={`w-full font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all ${
+                  isPlayerReady
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
+                    : "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
+                }`}
+              >
+                {isPlayerReady ? (
+                  <>
+                    <Circle className="w-5 h-5" />
+                    إلغاء الاستعداد
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-5 h-5" />
+                    مستعد للعب
+                  </>
+                )}
+              </button>
+            )}
+
             {multiplayer.isHost && multiplayer.players.length >= 2 && (
               <button
                 onClick={handleStartGame}
-                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2"
               >
                 <Play className="w-5 h-5" />
-                ابدأ اللعبة
+                ابدأ اللعبة ({readyCount}/{multiplayer.players.length} جاهز)
               </button>
             )}
 
             {!multiplayer.isHost && (
               <div className="bg-purple-50 border-2 border-purple-300 rounded-xl p-3">
                 <p className="text-purple-800 text-center font-semibold text-sm">
-                  ⏳ في انتظار بدء المضيف للعبة...
+                  ⏳ {readyCount >= 2 
+                    ? "في انتظار قائد الغرفة لبدء اللعبة..." 
+                    : `يجب أن يكون لاعبان جاهزان على الأقل (${readyCount}/2)`}
                 </p>
               </div>
             )}
@@ -1137,6 +1219,121 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
           onClose={() => setShowFriendsDialog(false)}
           roomId={multiplayer.roomId}
         />
+
+        {showStartDialog && (
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            onClick={() => setShowStartDialog(false)}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                  ليس جميع اللاعبين مستعدين
+                </h2>
+                <button 
+                  onClick={() => setShowStartDialog(false)}
+                  className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                {readyOtherPlayers.length > 0 && (
+                  <div>
+                    <p className="text-green-600 text-sm mb-2 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" />
+                      مستعدون ({readyOtherPlayers.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {readyOtherPlayers.map((player) => (
+                        <span key={player.id} className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-sm border border-green-300">
+                          {player.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {notReadyOtherPlayers.length > 0 && (
+                  <div>
+                    <p className="text-orange-600 text-sm mb-2 flex items-center gap-2">
+                      <Circle className="w-4 h-4" />
+                      غير مستعدين ({notReadyOtherPlayers.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {notReadyOtherPlayers.map((player) => (
+                        <span key={player.id} className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-sm border border-orange-300">
+                          {player.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  onClick={handleStartAnyway}
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Play className="w-5 h-5" />
+                  البدء على أي حال
+                </button>
+                <button
+                  onClick={handleNotifyPlayers}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Bell className="w-5 h-5" />
+                  إعلامهم بالاستعداد
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showNoPlayersDialog && (
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            onClick={() => setShowNoPlayersDialog(false)}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                  لا يوجد لاعب مستعد
+                </h2>
+                <button 
+                  onClick={() => setShowNoPlayersDialog(false)}
+                  className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              <p className="text-gray-600 mb-6 text-center">
+                لا يوجد أي لاعب مستعد في الغرفة. يجب أن يستعد لاعب واحد على الأقل قبل بدء اللعبة.
+              </p>
+
+              <div className="space-y-2">
+                <button
+                  onClick={handleNotifyPlayers}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Bell className="w-5 h-5" />
+                  إعلامهم بالاستعداد
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
