@@ -291,6 +291,15 @@ const handleMessage = (message: any) => {
       store.setReadyPlayers(message.readyPlayers);
       break;
 
+    case "ready_notification":
+      import("sonner").then(({ toast }) => {
+        toast.info("القائد يطلب منك الاستعداد للعب!", {
+          duration: 5000,
+          position: "top-center",
+        });
+      });
+      break;
+
     case "host_changed":
       store.setHostId(message.newHostId);
       break;

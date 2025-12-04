@@ -1288,6 +1288,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         break;
       }
 
+      case "notify_ready": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room) return;
+
+        // Only host can send notifications
+        if (room.hostId !== player.id) {
+          send(ws, { type: "error", message: "فقط قائد الغرفة يمكنه إرسال التنبيهات" });
+          return;
+        }
+
+        console.log(`[notify_ready] Host ${player.name} is notifying players to get ready in room ${room.id}`);
+
+        // Broadcast notification to all players in the room
+        broadcastToRoom(room, {
+          type: "ready_notification",
+          message: "القائد يطلب منك الاستعداد للعب!",
+        });
+        break;
+      }
+
       case "start_game": {
         const player = players.get(ws);
         if (!player) return;
@@ -1307,16 +1330,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
+        // Check if this is a force start
+        const forceStart = (message as any).forceStart === true;
+
         // Count ready players - host is automatically counted as ready
         // So we need at least 1 other ready player (total effective ready = readyPlayers + host if not in set)
         const hostIsInReadySet = room.readyPlayers.has(room.hostId);
         const effectiveReadyCount = hostIsInReadySet ? room.readyPlayers.size : room.readyPlayers.size + 1;
         
-        // Need at least 2 ready players (host + 1 other)
-        if (effectiveReadyCount < 2) {
+        // Need at least 2 ready players (host + 1 other), unless force starting
+        if (!forceStart && effectiveReadyCount < 2) {
           send(ws, { type: "error", message: "يجب أن يكون هناك لاعب واحد جاهز على الأقل (القائد جاهز تلقائياً)" });
           return;
         }
+
+        console.log(`[start_game] Force start: ${forceStart}, ready count: ${effectiveReadyCount}`);
 
         // Clear ready states for the new game
         room.readyPlayers.clear();
