@@ -74,6 +74,7 @@ interface Room {
   game: GameSession | null;
   settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean; cardSettings?: CardSettings };
   roomTimeoutHandle?: NodeJS.Timeout;
+  readyPlayers: Set<string>;
 }
 
 const rooms = new Map<string, Room>();
@@ -854,6 +855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               shieldDuration: 5000
             }
           },
+          readyPlayers: new Set(),
         };
 
         rooms.set(roomId, room);
@@ -864,6 +866,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           roomId,
           playerId,
           hostId: playerId,
+          readyPlayers: [],
         });
         break;
       }
@@ -919,6 +922,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             playerId,
             hostId: room.hostId,
             players: room.players.map((p) => ({ id: p.id, name: p.name })),
+            readyPlayers: Array.from(room.readyPlayers),
           });
 
           send(ws, {
@@ -930,6 +934,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: "players_updated",
             players: room.players.map((p) => ({ id: p.id, name: p.name })),
             hostId: room.hostId,
+            readyPlayers: Array.from(room.readyPlayers),
           });
         } else {
           send(ws, { type: "error", message: "Room not found or full" });
@@ -974,6 +979,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         break;
       }
 
+      case "toggle_ready": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room) return;
+
+        // Can't toggle ready during active game
+        if (room.game && room.game.status === "playing") {
+          send(ws, { type: "error", message: "لا يمكن تغيير حالة الاستعداد أثناء اللعب" });
+          return;
+        }
+
+        // Toggle ready state based on current server state (not client input for security)
+        const wasReady = room.readyPlayers.has(player.id);
+        if (wasReady) {
+          room.readyPlayers.delete(player.id);
+        } else {
+          room.readyPlayers.add(player.id);
+        }
+
+        console.log(`[toggle_ready] Player ${player.name} (${player.id}) is now ${!wasReady ? 'ready' : 'not ready'}. Room ${room.id} has ${room.readyPlayers.size} ready players.`);
+
+        // Broadcast ready state to all players
+        broadcastToRoom(room, {
+          type: "ready_players_updated",
+          readyPlayers: Array.from(room.readyPlayers),
+        });
+        break;
+      }
+
       case "start_game": {
         const player = players.get(ws);
         if (!player) return;
@@ -983,15 +1019,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Only host can start game
         if (room.hostId !== player.id) {
-          send(ws, { type: "error", message: "Only host can start game" });
+          send(ws, { type: "error", message: "فقط قائد الغرفة يمكنه بدء اللعبة" });
           return;
         }
 
         // Need at least 2 players
         if (room.players.length < 2) {
-          send(ws, { type: "error", message: "Need at least 2 players to start" });
+          send(ws, { type: "error", message: "يجب أن يكون هناك لاعبان على الأقل" });
           return;
         }
+
+        // Need at least 2 ready players to start
+        if (room.readyPlayers.size < 2) {
+          send(ws, { type: "error", message: "يجب أن يكون هناك لاعبان جاهزان على الأقل لبدء اللعبة" });
+          return;
+        }
+
+        // Clear ready states for the new game
+        room.readyPlayers.clear();
 
         // Generate shared secret
         const sharedSecret = generateSecretCode(room.settings.numDigits);

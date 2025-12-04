@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "./button";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
-import { Users, Copy, LogOut, Settings, Crown, Play, Link, Check, UserPlus } from "lucide-react";
+import { Users, Copy, LogOut, Settings, Crown, Play, Link, Check, UserPlus, CheckCircle2, Circle } from "lucide-react";
 import { GameSettings } from "./GameSettings";
 import { toast } from "sonner";
 import { FriendsDialog } from "./FriendsDialog";
@@ -17,6 +17,9 @@ export function MultiplayerLobby() {
   const [linkCopied, setLinkCopied] = useState(false);
 
   const roomLink = `${window.location.origin}/room/${multiplayer.roomId}`;
+  const readyCount = multiplayer.readyPlayers.length;
+  const isPlayerReady = multiplayer.readyPlayers.includes(multiplayer.playerId);
+  const canStartGame = multiplayer.isHost && multiplayer.players.length >= 2 && readyCount >= 2;
 
   const handleLeaveRoom = () => {
     send({ type: "leave_room" });
@@ -31,9 +34,13 @@ export function MultiplayerLobby() {
   };
 
   const handleStartGame = () => {
-    if (multiplayer.isHost && multiplayer.players.length >= 2) {
+    if (canStartGame) {
       send({ type: "start_game" });
     }
+  };
+
+  const handleToggleReady = () => {
+    send({ type: "toggle_ready", isReady: !isPlayerReady });
   };
 
   const handleCopyRoomId = () => {
@@ -182,6 +189,7 @@ export function MultiplayerLobby() {
               {multiplayer.players.map((player) => {
                 const isHost = player.id === multiplayer.hostId;
                 const isYou = player.id === multiplayer.playerId;
+                const isReady = multiplayer.readyPlayers.includes(player.id);
                 
                 return (
                   <div
@@ -209,10 +217,23 @@ export function MultiplayerLobby() {
                       )}
                       {isHost && (
                         <span className="mr-2 text-yellow-700 text-xs bg-yellow-200 px-2 py-0.5 rounded-lg font-semibold">
-                          (المضيف)
+                          (القائد)
                         </span>
                       )}
                     </span>
+                    <div className="flex items-center gap-2">
+                      {isReady ? (
+                        <span className="flex items-center gap-1 text-green-600 font-bold text-xs bg-green-100 px-2 py-1 rounded-lg">
+                          <CheckCircle2 className="w-4 h-4" />
+                          جاهز
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-gray-400 font-medium text-xs bg-gray-100 px-2 py-1 rounded-lg">
+                          <Circle className="w-4 h-4" />
+                          غير جاهز
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -230,21 +251,44 @@ export function MultiplayerLobby() {
 
         {/* Action Buttons */}
         <div className="p-4 border-t border-gray-200 space-y-2 flex-shrink-0">
+          <Button
+            onClick={handleToggleReady}
+            className={`w-full font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all ${
+              isPlayerReady
+                ? "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
+                : "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
+            }`}
+          >
+            {isPlayerReady ? (
+              <>
+                <Circle className="w-5 h-5" />
+                إلغاء الاستعداد
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                مستعد للعب
+              </>
+            )}
+          </Button>
+
           {multiplayer.isHost && (
             <Button
               onClick={handleStartGame}
-              disabled={multiplayer.players.length < 2}
-              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all"
+              disabled={!canStartGame}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all"
             >
               <Play className="w-5 h-5" />
-              ابدأ اللعبة
+              ابدأ اللعبة ({readyCount}/{multiplayer.players.length} جاهز)
             </Button>
           )}
 
           {!multiplayer.isHost && (
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-3 rounded-xl border-2 border-purple-300">
               <p className="text-purple-800 text-center font-semibold text-sm">
-                ⏳ في انتظار بدء المضيف للعبة...
+                ⏳ {readyCount >= 2 
+                  ? "في انتظار قائد الغرفة لبدء اللعبة..." 
+                  : `يجب أن يكون لاعبان جاهزان على الأقل (${readyCount}/2)`}
               </p>
             </div>
           )}

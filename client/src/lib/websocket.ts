@@ -254,6 +254,9 @@ const handleMessage = (message: any) => {
       if (message.players) {
         store.setPlayers(message.players);
       }
+      if (message.readyPlayers) {
+        store.setReadyPlayers(message.readyPlayers);
+      }
       store.setIsConnecting(false);
       saveSessionToStorage(store.multiplayer.playerName, message.playerId, message.roomId);
       console.log("Room created:", message.roomId, "Host:", message.hostId);
@@ -266,6 +269,9 @@ const handleMessage = (message: any) => {
         store.setHostId(message.hostId);
       }
       store.setPlayers(message.players);
+      if (message.readyPlayers) {
+        store.setReadyPlayers(message.readyPlayers);
+      }
       store.setIsConnecting(false);
       saveSessionToStorage(store.multiplayer.playerName, message.playerId, message.roomId);
       console.log("Room joined:", message.roomId, "Host:", message.hostId);
@@ -276,6 +282,13 @@ const handleMessage = (message: any) => {
       if (message.hostId) {
         store.setHostId(message.hostId);
       }
+      if (message.readyPlayers) {
+        store.setReadyPlayers(message.readyPlayers);
+      }
+      break;
+
+    case "ready_players_updated":
+      store.setReadyPlayers(message.readyPlayers);
       break;
 
     case "host_changed":

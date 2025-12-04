@@ -20,10 +20,13 @@ export const accounts = pgTable("accounts", {
   currentRoomId: varchar("current_room_id", { length: 10 }),
 });
 
-export const accountRelations = relations(accounts, ({ many }) => ({
+export const accountRelations = relations(accounts, ({ many, one }) => ({
   sentFriendRequests: many(friendRequests, { relationName: "sentRequests" }),
   receivedFriendRequests: many(friendRequests, { relationName: "receivedRequests" }),
   notifications: many(notifications),
+  ownedRooms: many(permanentRooms, { relationName: "roomOwner" }),
+  ledRooms: many(permanentRooms, { relationName: "roomLeader" }),
+  roomMemberships: many(permanentRoomMembers),
 }));
 
 export const friendRequests = pgTable("friend_requests", {
@@ -142,3 +145,73 @@ export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions
 
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+
+export const permanentRooms = pgTable("permanent_rooms", {
+  id: serial("id").primaryKey(),
+  roomId: varchar("room_id", { length: 10 }).notNull().unique(),
+  ownerId: integer("owner_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+  leaderId: integer("leader_id").notNull().references(() => accounts.id),
+  name: varchar("name", { length: 50 }),
+  isActive: boolean("is_active").default(true).notNull(),
+  numDigits: integer("num_digits").default(4).notNull(),
+  maxAttempts: integer("max_attempts").default(20).notNull(),
+  cardsEnabled: boolean("cards_enabled").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
+});
+
+export const permanentRoomMembers = pgTable("permanent_room_members", {
+  id: serial("id").primaryKey(),
+  roomId: integer("room_id").notNull().references(() => permanentRooms.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+  role: varchar("role", { length: 20 }).default("member").notNull(),
+  isReady: boolean("is_ready").default(false).notNull(),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  lastReadyAt: timestamp("last_ready_at"),
+});
+
+export const permanentRoomRelations = relations(permanentRooms, ({ one, many }) => ({
+  owner: one(accounts, {
+    fields: [permanentRooms.ownerId],
+    references: [accounts.id],
+    relationName: "roomOwner",
+  }),
+  leader: one(accounts, {
+    fields: [permanentRooms.leaderId],
+    references: [accounts.id],
+    relationName: "roomLeader",
+  }),
+  members: many(permanentRoomMembers),
+}));
+
+export const permanentRoomMemberRelations = relations(permanentRoomMembers, ({ one }) => ({
+  room: one(permanentRooms, {
+    fields: [permanentRoomMembers.roomId],
+    references: [permanentRooms.id],
+  }),
+  user: one(accounts, {
+    fields: [permanentRoomMembers.userId],
+    references: [accounts.id],
+  }),
+}));
+
+export const insertPermanentRoomSchema = createInsertSchema(permanentRooms).pick({
+  roomId: true,
+  ownerId: true,
+  leaderId: true,
+  name: true,
+  numDigits: true,
+  maxAttempts: true,
+  cardsEnabled: true,
+});
+
+export const insertPermanentRoomMemberSchema = createInsertSchema(permanentRoomMembers).pick({
+  roomId: true,
+  userId: true,
+  role: true,
+});
+
+export type PermanentRoom = typeof permanentRooms.$inferSelect;
+export type InsertPermanentRoom = z.infer<typeof insertPermanentRoomSchema>;
+export type PermanentRoomMember = typeof permanentRoomMembers.$inferSelect;
+export type InsertPermanentRoomMember = z.infer<typeof insertPermanentRoomMemberSchema>;

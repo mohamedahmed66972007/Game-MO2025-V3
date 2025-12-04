@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
-import { Trophy, Medal, XCircle, RefreshCw, Home, Eye, Crown, LogOut, Clock, Target, X, Check, History, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trophy, Medal, XCircle, Home, Eye, Crown, LogOut, Clock, Target, X, Check, History, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import Confetti from "react-confetti";
 
 export function MultiplayerResults() {
@@ -25,9 +25,14 @@ export function MultiplayerResults() {
   const isLoser = multiplayer.losers.some(l => l.playerId === multiplayer.playerId);
   const myResult = [...multiplayer.winners, ...multiplayer.losers].find(r => r.playerId === multiplayer.playerId);
   const hasNoWinners = multiplayer.winners.length === 0;
+  const isLeader = multiplayer.isHost;
 
-  const handleRequestRematch = () => {
-    send({ type: "request_rematch" });
+  const handleStartNewGame = () => {
+    if (isLeader) {
+      setShowResults(false);
+      setGameStatus("waiting");
+      send({ type: "request_rematch_state" });
+    }
   };
 
   const handleBackToLobby = () => {
@@ -300,14 +305,21 @@ export function MultiplayerResults() {
           )}
 
           <div className="p-5 space-y-3 bg-slate-900/50">
-            {(isWinner || isLoser) && !multiplayer.rematchState.requested && multiplayer.stillPlaying.length === 0 && (
+            {isLeader && multiplayer.stillPlaying.length === 0 && (
               <button
-                onClick={handleRequestRematch}
+                onClick={handleStartNewGame}
                 className="w-full bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500 hover:from-emerald-600 hover:via-green-600 hover:to-teal-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-green-500/25 flex items-center justify-center gap-3 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
               >
-                <RefreshCw className="w-6 h-6" />
-                <span className="text-lg">طلب إعادة المباراة</span>
+                <Play className="w-6 h-6" />
+                <span className="text-lg">بدء جولة جديدة</span>
               </button>
+            )}
+
+            {!isLeader && multiplayer.stillPlaying.length === 0 && (
+              <div className="w-full bg-slate-700/60 text-gray-300 font-medium py-4 rounded-2xl flex items-center justify-center gap-3 border border-slate-600">
+                <Clock className="w-5 h-5 text-gray-400" />
+                <span className="text-base">في انتظار قائد الغرفة لبدء جولة جديدة...</span>
+              </div>
             )}
 
             {multiplayer.roundHistory.length > 0 && (
@@ -343,68 +355,6 @@ export function MultiplayerResults() {
           </div>
         </div>
       </div>
-
-      {multiplayer.rematchState.requested && multiplayer.rematchState.countdown !== null && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-[60] p-4">
-          <div className="w-full max-w-lg bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 p-6 text-center space-y-5">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto">
-              <RefreshCw className="w-8 h-8 text-white" />
-            </div>
-            
-            <h2 className="text-2xl font-bold text-white">هل تريد إعادة المباراة؟</h2>
-            <p className="text-gray-400">
-              متبقي <span className="font-bold text-blue-400">{multiplayer.rematchState.countdown}s</span>
-            </p>
-
-            {!multiplayer.rematchState.votes.some(v => v.playerId === multiplayer.playerId) && (
-              <div className="flex gap-3">
-                <button
-                  onClick={() => send({ type: "rematch_vote", accepted: true })}
-                  className="flex-1 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 rounded-xl transition-all"
-                >
-                  ✓ موافق
-                </button>
-                <button
-                  onClick={() => send({ type: "rematch_vote", accepted: false })}
-                  className="flex-1 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 rounded-xl transition-all"
-                >
-                  ✗ رافض
-                </button>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              {multiplayer.players.map(player => {
-                const vote = multiplayer.rematchState.votes.find(v => v.playerId === player.id);
-                return (
-                  <div
-                    key={player.id}
-                    className={`p-3 rounded-xl border-2 ${
-                      vote?.accepted
-                        ? 'bg-green-600/20 border-green-500'
-                        : vote?.accepted === false
-                        ? 'bg-red-600/20 border-red-500'
-                        : 'bg-slate-700/50 border-slate-600'
-                    }`}
-                  >
-                    <p className="text-white font-semibold text-sm flex items-center justify-center gap-2">
-                      {player.name}
-                      {player.id === multiplayer.playerId && (
-                        <span className="text-xs text-blue-300">(أنت)</span>
-                      )}
-                    </p>
-                    <p className={`text-xs mt-1 ${
-                      vote?.accepted ? 'text-green-400' : vote?.accepted === false ? 'text-red-400' : 'text-gray-400'
-                    }`}>
-                      {vote?.accepted ? '✓ موافق' : vote?.accepted === false ? '✗ رافض' : '⏳ في الانتظار'}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       {playerDetails && (
         <div 

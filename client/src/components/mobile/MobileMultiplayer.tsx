@@ -138,7 +138,6 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
 
   const handleNumberInput = (num: string) => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
-    if (focusedIndex >= numDigits) return;
     
     if (isPlayerFrozen()) {
       playError();
@@ -151,13 +150,11 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
       return;
     }
 
-    // تخطي الخانات المكشوفة تلقائياً
-    let targetIndex = focusedIndex;
-    while (targetIndex < numDigits && getRevealedDigitAtPosition(targetIndex) !== null) {
-      targetIndex++;
-    }
+    // البحث عن أول خانة فارغة (سواء كانت مكشوفة أو لا)
+    // الخانات المكشوفة تعتبر كتلميحات يمكن الكتابة فوقها
+    const currentInputLength = multiplayer.currentGuess.length;
     
-    if (targetIndex >= numDigits) {
+    if (currentInputLength >= numDigits) {
       playError();
       return;
     }
@@ -166,26 +163,20 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
     addMultiplayerDigit(parseInt(num));
     
     // تحديث focusedIndex للخانة التالية
-    let nextIndex = targetIndex + 1;
-    while (nextIndex < numDigits && getRevealedDigitAtPosition(nextIndex) !== null) {
-      nextIndex++;
-    }
-    setFocusedIndex(nextIndex);
+    setFocusedIndex(currentInputLength + 1);
   };
 
   const handleBackspace = () => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
-    if (focusedIndex === 0) return;
+    
+    const currentInputLength = multiplayer.currentGuess.length;
+    if (currentInputLength === 0) return;
 
     playDelete();
     deleteMultiplayerDigit();
     
-    // الرجوع للخانة السابقة غير المكشوفة
-    let prevIndex = focusedIndex - 1;
-    while (prevIndex >= 0 && getRevealedDigitAtPosition(prevIndex) !== null) {
-      prevIndex--;
-    }
-    setFocusedIndex(Math.max(0, prevIndex));
+    // الرجوع للخانة السابقة
+    setFocusedIndex(Math.max(0, currentInputLength - 1));
   };
 
   const handleSubmit = () => {
@@ -196,21 +187,8 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
       return;
     }
 
-    // Check if all non-revealed positions are filled
-    let filledCount = 0;
-    for (let i = 0; i < numDigits; i++) {
-      const revealedDigit = getRevealedDigitAtPosition(i);
-      if (revealedDigit !== null) {
-        filledCount++; // Revealed digit counts as filled
-      } else if (filledCount - revealedDigits.length < multiplayer.currentGuess.length) {
-        // User entered digit
-        filledCount++;
-      }
-    }
-
-    // Verify we have all required digits
-    const totalNonRevealed = numDigits - revealedDigits.length;
-    if (multiplayer.currentGuess.length < totalNonRevealed) {
+    // التحقق من أن المستخدم أدخل جميع الأرقام
+    if (multiplayer.currentGuess.length < numDigits) {
       playError();
       return;
     }
@@ -654,7 +632,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={input.some((val, idx) => val === "" && getRevealedDigitAtPosition(idx) === null)}
+                disabled={multiplayer.currentGuess.length < numDigits}
                 className="h-14 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
               >
                 <Check className="w-5 h-5" />

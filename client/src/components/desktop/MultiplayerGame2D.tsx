@@ -145,7 +145,6 @@ export function MultiplayerGame2D() {
 
   const handleNumberInput = (num: string) => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
-    if (focusedIndex >= numDigits) return;
     
     if (isPlayerFrozen()) {
       playError();
@@ -158,13 +157,11 @@ export function MultiplayerGame2D() {
       return;
     }
 
-    // تخطي الخانات المكشوفة تلقائياً
-    let targetIndex = focusedIndex;
-    while (targetIndex < numDigits && getRevealedDigitAtPosition(targetIndex) !== null) {
-      targetIndex++;
-    }
+    // البحث عن أول خانة فارغة (سواء كانت مكشوفة أو لا)
+    // الخانات المكشوفة تعتبر كتلميحات يمكن الكتابة فوقها
+    const currentInputLength = multiplayer.currentGuess.length;
     
-    if (targetIndex >= numDigits) {
+    if (currentInputLength >= numDigits) {
       playError();
       return;
     }
@@ -173,31 +170,25 @@ export function MultiplayerGame2D() {
     addMultiplayerDigit(parseInt(num));
     
     // تحديث focusedIndex للخانة التالية
-    let nextIndex = targetIndex + 1;
-    while (nextIndex < numDigits && getRevealedDigitAtPosition(nextIndex) !== null) {
-      nextIndex++;
-    }
-    setFocusedIndex(nextIndex);
+    setFocusedIndex(currentInputLength + 1);
   };
 
   const handleBackspace = () => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
-    if (focusedIndex === 0) return;
+    
+    const currentInputLength = multiplayer.currentGuess.length;
+    if (currentInputLength === 0) return;
 
     playDelete();
     deleteMultiplayerDigit();
     
-    // الرجوع للخانة السابقة غير المكشوفة
-    let prevIndex = focusedIndex - 1;
-    while (prevIndex >= 0 && getRevealedDigitAtPosition(prevIndex) !== null) {
-      prevIndex--;
-    }
-    setFocusedIndex(Math.max(0, prevIndex));
+    // الرجوع للخانة السابقة
+    setFocusedIndex(Math.max(0, currentInputLength - 1));
   };
 
   const handleSubmit = () => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
-    if (input.some(val => val === "")) {
+    if (multiplayer.currentGuess.length < numDigits) {
       playError();
       return;
     }
@@ -759,7 +750,7 @@ export function MultiplayerGame2D() {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={input.some((val, idx) => val === "" && getRevealedDigitAtPosition(idx) === null)}
+                  disabled={multiplayer.currentGuess.length < numDigits}
                   className="h-14 md:h-16 xl:h-14 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
                 >
                   <Check className="w-6 h-6" />

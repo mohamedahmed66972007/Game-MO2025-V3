@@ -61,7 +61,8 @@ interface MultiplayerState {
   playerName: string;
   hostId: string;
   isHost: boolean;
-  players: { id: string; name: string }[];
+  players: { id: string; name: string; isReady?: boolean }[];
+  readyPlayers: string[];
   gameStatus: GameStatus;
   sharedSecret: number[];
   currentGuess: number[];
@@ -110,7 +111,9 @@ interface NumberGameState {
   setPlayerName: (name: string) => void;
   setHostId: (hostId: string) => void;
   setIsHost: (isHost: boolean) => void;
-  setPlayers: (players: { id: string; name: string }[]) => void;
+  setPlayers: (players: { id: string; name: string; isReady?: boolean }[]) => void;
+  setReadyPlayers: (readyPlayers: string[]) => void;
+  toggleReady: () => void;
   setGameStatus: (status: GameStatus) => void;
   setSharedSecret: (secret: number[]) => void;
   addMultiplayerDigit: (digit: number) => void;
@@ -194,6 +197,7 @@ export const useNumberGame = create<NumberGameState>()(
       hostId: "",
       isHost: false,
       players: [],
+      readyPlayers: [],
       gameStatus: "waiting",
       sharedSecret: [],
       currentGuess: [],
@@ -326,6 +330,13 @@ export const useNumberGame = create<NumberGameState>()(
     })),
     setIsHost: (isHost) => set((state) => ({ multiplayer: { ...state.multiplayer, isHost } })),
     setPlayers: (players) => set((state) => ({ multiplayer: { ...state.multiplayer, players } })),
+    setReadyPlayers: (readyPlayers) => set((state) => ({ multiplayer: { ...state.multiplayer, readyPlayers } })),
+    toggleReady: () => {
+      const { multiplayer } = get();
+      const { send } = require("@/lib/websocket");
+      const isCurrentlyReady = multiplayer.readyPlayers.includes(multiplayer.playerId);
+      send({ type: "toggle_ready", isReady: !isCurrentlyReady });
+    },
     setGameStatus: (gameStatus) => set((state) => ({ multiplayer: { ...state.multiplayer, gameStatus } })),
     setSharedSecret: (sharedSecret) => set((state) => ({ multiplayer: { ...state.multiplayer, sharedSecret } })),
 
