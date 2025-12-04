@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
-import { Trophy, Medal, XCircle, Home, Eye, Crown, LogOut, Clock, Target, X, Check, History, ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { Trophy, Medal, XCircle, Home, Eye, Crown, LogOut, Clock, Target, X, Check, History, ChevronLeft, ChevronRight, Play, CheckCircle2, Circle } from "lucide-react";
 import Confetti from "react-confetti";
 
 export function MultiplayerResults() {
@@ -31,13 +31,18 @@ export function MultiplayerResults() {
     if (isLeader) {
       setShowResults(false);
       setGameStatus("waiting");
-      send({ type: "request_rematch_state" });
+      // Leader is automatically ready when starting new game
+      send({ type: "toggle_ready", isReady: true });
     }
+  };
+
+  const handleToggleReady = () => {
+    const isCurrentlyReady = multiplayer.readyPlayers.includes(multiplayer.playerId);
+    send({ type: "toggle_ready", isReady: !isCurrentlyReady });
   };
 
   const handleBackToLobby = () => {
     console.log("Back to lobby clicked");
-    send({ type: "request_rematch_state" });
     setShowResults(false);
     setGameStatus("waiting");
   };
@@ -316,10 +321,29 @@ export function MultiplayerResults() {
             )}
 
             {!isLeader && multiplayer.stillPlaying.length === 0 && (
-              <div className="w-full bg-slate-700/60 text-gray-300 font-medium py-4 rounded-2xl flex items-center justify-center gap-3 border border-slate-600">
-                <Clock className="w-5 h-5 text-gray-400" />
-                <span className="text-base">في انتظار قائد الغرفة لبدء جولة جديدة...</span>
-              </div>
+              <button
+                onClick={() => {
+                  handleToggleReady();
+                  handleBackToLobby();
+                }}
+                className={`w-full font-bold py-4 rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all transform hover:scale-[1.02] active:scale-[0.98] ${
+                  multiplayer.readyPlayers.includes(multiplayer.playerId)
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 shadow-orange-500/25"
+                    : "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-green-500/25"
+                } text-white`}
+              >
+                {multiplayer.readyPlayers.includes(multiplayer.playerId) ? (
+                  <>
+                    <Circle className="w-6 h-6" />
+                    <span className="text-lg">إلغاء الاستعداد</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-6 h-6" />
+                    <span className="text-lg">مستعد للعب</span>
+                  </>
+                )}
+              </button>
             )}
 
             {multiplayer.roundHistory.length > 0 && (
@@ -332,16 +356,6 @@ export function MultiplayerResults() {
               >
                 <History className="w-6 h-6" />
                 <span className="text-lg">سجل الجولات ({multiplayer.roundHistory.length})</span>
-              </button>
-            )}
-
-            {multiplayer.roomId && multiplayer.stillPlaying.length === 0 && (
-              <button
-                onClick={handleBackToLobby}
-                className="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-purple-500/25 flex items-center justify-center gap-3 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <Home className="w-6 h-6" />
-                <span className="text-lg">العودة إلى الغرفة</span>
               </button>
             )}
 
