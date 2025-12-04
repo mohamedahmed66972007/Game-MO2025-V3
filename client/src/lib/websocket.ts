@@ -13,12 +13,14 @@ const RECONNECT_DELAY = 2000;
 const saveSessionToStorage = (playerName: string, playerId: string, roomId: string) => {
   const store = useNumberGame.getState();
   const isInGame = store.multiplayer.gameStatus === "playing";
+  const isFinished = store.multiplayer.gameStatus === "finished";
+  
   sessionStorage.setItem("multiplayerSession", JSON.stringify({
     playerName,
     playerId,
     roomId,
     timestamp: Date.now(),
-    gameState: isInGame ? {
+    gameState: isInGame || isFinished ? {
       gameStatus: store.multiplayer.gameStatus,
       sharedSecret: store.multiplayer.sharedSecret,
       attempts: store.multiplayer.attempts,
@@ -46,8 +48,8 @@ const getSessionFromStorage = () => {
   if (session) {
     try {
       const parsed = JSON.parse(session);
-      // Only consider sessions less than 30 seconds old as valid for reconnection
-      if (Date.now() - parsed.timestamp < 30 * 1000) {
+      // تمديد الوقت إلى دقيقتين للسماح بإعادة الاتصال بعد إغلاق اللعبة
+      if (Date.now() - parsed.timestamp < 2 * 60 * 1000) {
         return parsed;
       } else {
         sessionStorage.removeItem("multiplayerSession");
@@ -540,8 +542,8 @@ const handleMessage = (message: any) => {
       });
       console.log("Game finished - results received", { winners: message.winners.length, losers: message.losers.length, stillPlaying: message.stillPlaying?.length });
       
-      // Clear session when results are shown to prevent reconnecting to finished game
-      clearSession();
+      // حفظ الجلسة للسماح بإعادة الاتصال حتى بعد النتائج
+      saveSessionToStorage(store.multiplayer.playerName, store.multiplayer.playerId, store.multiplayer.roomId);
       
       if (message.reason === "time_expired") {
         toast.info("انتهى الوقت! انتهت اللعبة 🕐", {
