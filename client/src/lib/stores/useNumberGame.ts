@@ -15,12 +15,23 @@ interface Attempt {
 type ChallengeType = "memory" | "direction" | "raindrops" | "pattern" | "random";
 type CardTypeId = "revealNumber" | "burnNumber" | "revealParity" | "freeze" | "shield";
 
+interface CardSettings {
+  roundDuration: number;
+  maxCards?: number;
+  revealNumberShowPosition?: boolean;
+  burnNumberCount?: number;
+  revealParitySlots?: number;
+  freezeDuration?: number;
+  shieldDuration?: number;
+}
+
 interface GameSettings {
   numDigits: number;
   maxAttempts: number;
   cardsEnabled?: boolean;
   selectedChallenge?: ChallengeType;
   allowedCards?: CardTypeId[];
+  cardSettings?: CardSettings;
 }
 
 interface SingleplayerState {

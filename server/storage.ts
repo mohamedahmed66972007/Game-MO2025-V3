@@ -1,11 +1,13 @@
 import { 
   users, accounts, friendRequests, friendships, notifications, pushSubscriptions,
+  permanentRooms, permanentRoomMembers,
   type User, type InsertUser, type Account, type InsertAccount,
   type FriendRequest, type InsertFriendRequest, type Notification, type InsertNotification,
-  type PushSubscription, type InsertPushSubscription
+  type PushSubscription, type InsertPushSubscription,
+  type PermanentRoom, type InsertPermanentRoom, type PermanentRoomMember, type InsertPermanentRoomMember
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, or, and, like, desc } from "drizzle-orm";
+import { eq, or, and, like, desc, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 const SALT_ROUNDS = 10;
@@ -263,7 +265,8 @@ export class MemStorage implements IStorage {
       return;
     }
     
-    for (const [id, f] of this.friendshipsMap.entries()) {
+    const entries = Array.from(this.friendshipsMap.entries());
+    for (const [id, f] of entries) {
       if ((f.userId1 === userId1 && f.userId2 === userId2) ||
           (f.userId1 === userId2 && f.userId2 === userId1)) {
         this.friendshipsMap.delete(id);
@@ -517,11 +520,268 @@ export class MemStorage implements IStorage {
       return;
     }
     
-    for (const [id, sub] of this.pushSubscriptionsMap.entries()) {
+    const entries = Array.from(this.pushSubscriptionsMap.entries());
+    for (const [id, sub] of entries) {
       if (sub.userId === userId && sub.endpoint === endpoint) {
         this.pushSubscriptionsMap.delete(id);
         break;
       }
+    }
+  }
+
+  private permanentRoomsMap: Map<number, PermanentRoom> = new Map();
+  private permanentRoomMembersMap: Map<number, PermanentRoomMember> = new Map();
+  private permanentRoomId: number = 1;
+  private permanentRoomMemberId: number = 1;
+
+  async createPermanentRoom(room: InsertPermanentRoom): Promise<PermanentRoom> {
+    if (db) {
+      const result = await db.insert(permanentRooms).values(room).returning();
+      return result[0];
+    }
+    const id = this.permanentRoomId++;
+    const newRoom: PermanentRoom = {
+      ...room,
+      id,
+      name: room.name || null,
+      isActive: true,
+      numDigits: room.numDigits || 4,
+      maxAttempts: room.maxAttempts || 20,
+      cardsEnabled: room.cardsEnabled || false,
+      createdAt: new Date(),
+      lastActivityAt: new Date(),
+    };
+    this.permanentRoomsMap.set(id, newRoom);
+    return newRoom;
+  }
+
+  async getPermanentRoomByRoomId(roomId: string): Promise<PermanentRoom | undefined> {
+    if (db) {
+      const result = await db.select().from(permanentRooms)
+        .where(eq(permanentRooms.roomId, roomId))
+        .limit(1);
+      return result[0];
+    }
+    return Array.from(this.permanentRoomsMap.values()).find(r => r.roomId === roomId);
+  }
+
+  async getPermanentRoomById(id: number): Promise<PermanentRoom | undefined> {
+    if (db) {
+      const result = await db.select().from(permanentRooms)
+        .where(eq(permanentRooms.id, id))
+        .limit(1);
+      return result[0];
+    }
+    return this.permanentRoomsMap.get(id);
+  }
+
+  async getUserPermanentRoom(userId: number): Promise<PermanentRoom | undefined> {
+    if (db) {
+      const memberResult = await db.select().from(permanentRoomMembers)
+        .where(eq(permanentRoomMembers.userId, userId))
+        .limit(1);
+      
+      if (memberResult.length === 0) return undefined;
+      
+      const roomResult = await db.select().from(permanentRooms)
+        .where(eq(permanentRooms.id, memberResult[0].roomId))
+        .limit(1);
+      
+      return roomResult[0];
+    }
+    
+    const member = Array.from(this.permanentRoomMembersMap.values())
+      .find(m => m.userId === userId);
+    
+    if (!member) return undefined;
+    return this.permanentRoomsMap.get(member.roomId);
+  }
+
+  async updatePermanentRoomActivity(roomId: string): Promise<void> {
+    if (db) {
+      await db.update(permanentRooms)
+        .set({ lastActivityAt: new Date() })
+        .where(eq(permanentRooms.roomId, roomId));
+      return;
+    }
+    const room = Array.from(this.permanentRoomsMap.values()).find(r => r.roomId === roomId);
+    if (room) {
+      room.lastActivityAt = new Date();
+    }
+  }
+
+  async updatePermanentRoomLeader(roomId: string, leaderId: number): Promise<void> {
+    if (db) {
+      await db.update(permanentRooms)
+        .set({ leaderId, lastActivityAt: new Date() })
+        .where(eq(permanentRooms.roomId, roomId));
+      return;
+    }
+    const room = Array.from(this.permanentRoomsMap.values()).find(r => r.roomId === roomId);
+    if (room) {
+      room.leaderId = leaderId;
+      room.lastActivityAt = new Date();
+    }
+  }
+
+  async updatePermanentRoomSettings(roomId: string, settings: { numDigits?: number; maxAttempts?: number; cardsEnabled?: boolean }): Promise<void> {
+    if (db) {
+      await db.update(permanentRooms)
+        .set({ 
+          ...settings,
+          lastActivityAt: new Date() 
+        })
+        .where(eq(permanentRooms.roomId, roomId));
+      return;
+    }
+    const room = Array.from(this.permanentRoomsMap.values()).find(r => r.roomId === roomId);
+    if (room) {
+      if (settings.numDigits !== undefined) room.numDigits = settings.numDigits;
+      if (settings.maxAttempts !== undefined) room.maxAttempts = settings.maxAttempts;
+      if (settings.cardsEnabled !== undefined) room.cardsEnabled = settings.cardsEnabled;
+      room.lastActivityAt = new Date();
+    }
+  }
+
+  async addPermanentRoomMember(member: InsertPermanentRoomMember): Promise<PermanentRoomMember> {
+    if (db) {
+      const existing = await db.select().from(permanentRoomMembers)
+        .where(and(
+          eq(permanentRoomMembers.roomId, member.roomId),
+          eq(permanentRoomMembers.userId, member.userId)
+        ))
+        .limit(1);
+      
+      if (existing.length > 0) {
+        return existing[0];
+      }
+      
+      const result = await db.insert(permanentRoomMembers).values(member).returning();
+      return result[0];
+    }
+    
+    const existing = Array.from(this.permanentRoomMembersMap.values())
+      .find(m => m.roomId === member.roomId && m.userId === member.userId);
+    
+    if (existing) return existing;
+    
+    const id = this.permanentRoomMemberId++;
+    const newMember: PermanentRoomMember = {
+      ...member,
+      id,
+      role: member.role || "member",
+      isReady: false,
+      joinedAt: new Date(),
+      lastReadyAt: null,
+    };
+    this.permanentRoomMembersMap.set(id, newMember);
+    return newMember;
+  }
+
+  async getPermanentRoomMembers(roomId: number): Promise<(PermanentRoomMember & { user: Account })[]> {
+    if (db) {
+      const members = await db.select().from(permanentRoomMembers)
+        .where(eq(permanentRoomMembers.roomId, roomId));
+      
+      if (members.length === 0) return [];
+      
+      const userIds = members.map(m => m.userId);
+      const users = await db.select().from(accounts)
+        .where(inArray(accounts.id, userIds));
+      
+      const userMap = new Map(users.map(u => [u.id, u]));
+      
+      return members.map(m => ({
+        ...m,
+        user: userMap.get(m.userId)!,
+      })).filter(m => m.user);
+    }
+    
+    const members = Array.from(this.permanentRoomMembersMap.values())
+      .filter(m => m.roomId === roomId);
+    
+    return members.map(m => {
+      const user = this.accountsMap.get(m.userId);
+      return user ? { ...m, user } : null;
+    }).filter(Boolean) as (PermanentRoomMember & { user: Account })[];
+  }
+
+  async updateMemberReady(roomId: number, userId: number, isReady: boolean): Promise<void> {
+    if (db) {
+      await db.update(permanentRoomMembers)
+        .set({ 
+          isReady,
+          lastReadyAt: isReady ? new Date() : null
+        })
+        .where(and(
+          eq(permanentRoomMembers.roomId, roomId),
+          eq(permanentRoomMembers.userId, userId)
+        ));
+      return;
+    }
+    
+    const member = Array.from(this.permanentRoomMembersMap.values())
+      .find(m => m.roomId === roomId && m.userId === userId);
+    
+    if (member) {
+      member.isReady = isReady;
+      member.lastReadyAt = isReady ? new Date() : null;
+    }
+  }
+
+  async resetAllMemberReady(roomId: number): Promise<void> {
+    if (db) {
+      await db.update(permanentRoomMembers)
+        .set({ isReady: false, lastReadyAt: null })
+        .where(eq(permanentRoomMembers.roomId, roomId));
+      return;
+    }
+    
+    this.permanentRoomMembersMap.forEach(m => {
+      if (m.roomId === roomId) {
+        m.isReady = false;
+        m.lastReadyAt = null;
+      }
+    });
+  }
+
+  async removePermanentRoomMember(roomId: number, userId: number): Promise<void> {
+    if (db) {
+      await db.delete(permanentRoomMembers).where(and(
+        eq(permanentRoomMembers.roomId, roomId),
+        eq(permanentRoomMembers.userId, userId)
+      ));
+      return;
+    }
+    
+    const entries = Array.from(this.permanentRoomMembersMap.entries());
+    for (const [id, m] of entries) {
+      if (m.roomId === roomId && m.userId === userId) {
+        this.permanentRoomMembersMap.delete(id);
+        break;
+      }
+    }
+  }
+
+  async deletePermanentRoom(roomId: string): Promise<void> {
+    if (db) {
+      const room = await this.getPermanentRoomByRoomId(roomId);
+      if (room) {
+        await db.delete(permanentRoomMembers).where(eq(permanentRoomMembers.roomId, room.id));
+        await db.delete(permanentRooms).where(eq(permanentRooms.roomId, roomId));
+      }
+      return;
+    }
+    
+    const room = Array.from(this.permanentRoomsMap.values()).find(r => r.roomId === roomId);
+    if (room) {
+      const memberEntries = Array.from(this.permanentRoomMembersMap.entries());
+      for (const [id, m] of memberEntries) {
+        if (m.roomId === room.id) {
+          this.permanentRoomMembersMap.delete(id);
+        }
+      }
+      this.permanentRoomsMap.delete(room.id);
     }
   }
 }

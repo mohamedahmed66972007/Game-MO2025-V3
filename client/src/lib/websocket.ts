@@ -605,9 +605,7 @@ const handleMessage = (message: any) => {
       const preservedCardSettings = { ...cardsStoreRematch.cardSettings };
       
       // Clear all player effects first
-      cardsStoreRematch.playerCards.forEach(player => {
-        cardsStoreRematch.clearAllActiveEffects(player.playerId);
-      });
+      cardsStoreRematch.clearAllActiveEffects();
       
       // Full reset of all card state - always reset revealedDigits, burnedNumbers, and playerCards
       useCards.setState({

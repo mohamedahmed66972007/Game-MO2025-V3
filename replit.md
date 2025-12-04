@@ -97,6 +97,18 @@
 
 ## التحسينات الأخيرة
 
+### إضافة 4 ديسمبر - الغرف الدائمة والإشعارات:
+1. **الغرف الدائمة**: نظام غرف دائمة تستمر في قاعدة البيانات لمدة 24 ساعة
+   - جداول: permanentRooms, permanentRoomMembers
+   - API Endpoints: /api/permanent-rooms/create, /api/permanent-rooms/:roomId, /api/permanent-rooms/user/:userId, /api/permanent-rooms/join, /api/permanent-rooms/leave
+   - كل مستخدم يمكنه إنشاء غرفة دائمة واحدة فقط
+   - صاحب الغرفة هو القائد تلقائياً
+2. **نظام الإشعارات عند الاتصال**: إشعار الأصدقاء وأعضاء الغرفة الدائمة عند اتصال المستخدم
+   - إشعارات Push للأصدقاء عند الاتصال
+   - إشعارات Push لأعضاء الغرفة الدائمة
+3. **إصلاح بدء اللعبة**: القائد يُحتسب جاهزاً تلقائياً - يحتاج لاعب واحد إضافي جاهز فقط لبدء اللعبة
+4. **إصلاحات LSP**: إصلاح أخطاء TypeScript في CardSettings interface و Map iterators
+
 ### إصلاح 3 ديسمبر - إصلاحات متعددة:
 1. **إصلاح شاشة الموبايل البيضاء**: إصلاح hook useIsMobile لتهيئة حالة الموبايل بشكل صحيح من أول عرض
 2. **إصلاح DesktopSingleplayer**: استخدام actions الـ Zustand store الصحيحة (addDigitToGuess, deleteLastDigit, submitGuess) بدلاً من setState اليدوي

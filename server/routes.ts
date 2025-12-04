@@ -59,6 +59,7 @@ interface GameSession {
 
 interface CardSettings {
   roundDuration: number;
+  maxCards?: number;
   revealNumberShowPosition?: boolean;
   burnNumberCount?: number;
   revealParitySlots?: number;
@@ -72,9 +73,12 @@ interface Room {
   players: Player[];
   disconnectedPlayers: Map<string, { player: Player; disconnectTime: number; timeoutHandle: NodeJS.Timeout }>;
   game: GameSession | null;
-  settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean; cardSettings?: CardSettings };
+  settings: { numDigits: number; maxAttempts: number; cardsEnabled?: boolean; cardSettings?: CardSettings; selectedChallenge?: string; allowedCards?: string[] };
   roomTimeoutHandle?: NodeJS.Timeout;
   readyPlayers: Set<string>;
+  isPermanent?: boolean;
+  permanentRoomDbId?: number;
+  hostAccountId?: number;
 }
 
 const rooms = new Map<string, Room>();
@@ -584,6 +588,280 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Permanent Room API Endpoints
+  app.post("/api/permanent-rooms/create", async (req, res) => {
+    try {
+      const { userId, name } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: "معرف المستخدم مطلوب" });
+      }
+      
+      // Check if user already has a permanent room
+      const existingRoom = await storage.getUserPermanentRoom(userId);
+      if (existingRoom) {
+        return res.status(400).json({ error: "لديك غرفة دائمة بالفعل", roomId: existingRoom.roomId });
+      }
+      
+      const roomId = generateRoomId();
+      const permanentRoom = await storage.createPermanentRoom({
+        roomId,
+        ownerId: userId,
+        leaderId: userId,
+        name: name || null,
+      });
+      
+      // Add owner as member with leader role
+      await storage.addPermanentRoomMember({
+        roomId: permanentRoom.id,
+        userId,
+        role: "leader",
+      });
+      
+      res.json({ 
+        success: true, 
+        roomId: permanentRoom.roomId,
+        room: permanentRoom,
+      });
+    } catch (error) {
+      console.error("Error creating permanent room:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء إنشاء الغرفة" });
+    }
+  });
+
+  app.get("/api/permanent-rooms/user/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const room = await storage.getUserPermanentRoom(userId);
+      
+      if (!room) {
+        return res.json({ room: null });
+      }
+      
+      const members = await storage.getPermanentRoomMembers(room.id);
+      
+      res.json({ 
+        room,
+        members: members.map(m => ({
+          id: m.userId,
+          displayName: m.user.displayName,
+          username: m.user.username,
+          role: m.role,
+          isReady: m.isReady,
+          isOnline: m.user.isOnline,
+        })),
+      });
+    } catch (error) {
+      console.error("Error getting user permanent room:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.get("/api/permanent-rooms/:roomId", async (req, res) => {
+    try {
+      const roomId = req.params.roomId;
+      const room = await storage.getPermanentRoomByRoomId(roomId);
+      
+      if (!room) {
+        return res.status(404).json({ error: "الغرفة غير موجودة" });
+      }
+      
+      const members = await storage.getPermanentRoomMembers(room.id);
+      
+      res.json({ 
+        room,
+        members: members.map(m => ({
+          id: m.userId,
+          displayName: m.user.displayName,
+          username: m.user.username,
+          role: m.role,
+          isReady: m.isReady,
+          isOnline: m.user.isOnline,
+        })),
+      });
+    } catch (error) {
+      console.error("Error getting permanent room:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/permanent-rooms/join", async (req, res) => {
+    try {
+      const { userId, roomId } = req.body;
+      
+      if (!userId || !roomId) {
+        return res.status(400).json({ error: "معرف المستخدم ومعرف الغرفة مطلوبان" });
+      }
+      
+      const room = await storage.getPermanentRoomByRoomId(roomId);
+      if (!room) {
+        return res.status(404).json({ error: "الغرفة غير موجودة" });
+      }
+      
+      // Check if already in another permanent room
+      const existingRoom = await storage.getUserPermanentRoom(userId);
+      if (existingRoom && existingRoom.id !== room.id) {
+        return res.status(400).json({ error: "أنت موجود في غرفة دائمة أخرى", roomId: existingRoom.roomId });
+      }
+      
+      await storage.addPermanentRoomMember({
+        roomId: room.id,
+        userId,
+        role: "member",
+      });
+      
+      await storage.updatePermanentRoomActivity(roomId);
+      
+      res.json({ success: true, room });
+    } catch (error) {
+      console.error("Error joining permanent room:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  app.post("/api/permanent-rooms/leave", async (req, res) => {
+    try {
+      const { userId, roomId } = req.body;
+      
+      const room = await storage.getPermanentRoomByRoomId(roomId);
+      if (!room) {
+        return res.status(404).json({ error: "الغرفة غير موجودة" });
+      }
+      
+      // If leaving user is the owner, delete the room
+      if (room.ownerId === userId) {
+        await storage.deletePermanentRoom(roomId);
+        res.json({ success: true, roomDeleted: true });
+      } else {
+        await storage.removePermanentRoomMember(room.id, userId);
+        res.json({ success: true, roomDeleted: false });
+      }
+    } catch (error) {
+      console.error("Error leaving permanent room:", error);
+      res.status(500).json({ error: "حدث خطأ" });
+    }
+  });
+
+  // Send notification to permanent room members and friends when user comes online
+  async function notifyOnlineStatus(userId: number) {
+    try {
+      const user = await storage.getAccount(userId);
+      if (!user) return;
+      
+      // Notify friends
+      const friends = await storage.getFriends(userId);
+      for (const friend of friends) {
+        const friendWs = onlineUsers.get(friend.id);
+        if (friendWs && friendWs.readyState === WebSocket.OPEN) {
+          friendWs.send(JSON.stringify({
+            type: "friend_online",
+            userId: userId,
+            displayName: user.displayName,
+          }));
+        }
+        
+        // Send push notification if friend has subscriptions
+        if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+          try {
+            const subscriptions = await storage.getPushSubscriptions(friend.id);
+            if (subscriptions.length > 0) {
+              const webpush = require("web-push");
+              webpush.setVapidDetails(
+                `mailto:${process.env.VAPID_EMAIL || "admin@example.com"}`,
+                process.env.VAPID_PUBLIC_KEY,
+                process.env.VAPID_PRIVATE_KEY
+              );
+              
+              const payload = JSON.stringify({
+                title: "صديق متصل!",
+                body: `${user.displayName} أصبح متصلاً الآن`,
+                icon: "/favicon.svg",
+                badge: "/favicon.svg",
+                tag: `friend-online-${userId}`,
+                data: { userId, displayName: user.displayName, type: "friend_online" }
+              });
+              
+              for (const sub of subscriptions) {
+                try {
+                  await webpush.sendNotification({
+                    endpoint: sub.endpoint,
+                    keys: { p256dh: sub.p256dh, auth: sub.auth }
+                  }, payload);
+                } catch (pushError: any) {
+                  if (pushError.statusCode === 410) {
+                    await storage.deletePushSubscription(sub.id);
+                  }
+                }
+              }
+            }
+          } catch (pushError) {
+            console.error("Push notification error:", pushError);
+          }
+        }
+      }
+      
+      // Notify permanent room members
+      const permanentRoom = await storage.getUserPermanentRoom(userId);
+      if (permanentRoom) {
+        const members = await storage.getPermanentRoomMembers(permanentRoom.id);
+        for (const member of members) {
+          if (member.userId === userId) continue;
+          
+          const memberWs = onlineUsers.get(member.userId);
+          if (memberWs && memberWs.readyState === WebSocket.OPEN) {
+            memberWs.send(JSON.stringify({
+              type: "room_member_online",
+              userId: userId,
+              displayName: user.displayName,
+              roomId: permanentRoom.roomId,
+            }));
+          }
+          
+          // Send push notification
+          if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+            try {
+              const subscriptions = await storage.getPushSubscriptions(member.userId);
+              if (subscriptions.length > 0) {
+                const webpush = require("web-push");
+                webpush.setVapidDetails(
+                  `mailto:${process.env.VAPID_EMAIL || "admin@example.com"}`,
+                  process.env.VAPID_PUBLIC_KEY,
+                  process.env.VAPID_PRIVATE_KEY
+                );
+                
+                const payload = JSON.stringify({
+                  title: "عضو الغرفة متصل!",
+                  body: `${user.displayName} متصل الآن في غرفتك الدائمة`,
+                  icon: "/favicon.svg",
+                  badge: "/favicon.svg",
+                  tag: `room-member-online-${userId}`,
+                  data: { userId, displayName: user.displayName, roomId: permanentRoom.roomId, type: "room_member_online" }
+                });
+                
+                for (const sub of subscriptions) {
+                  try {
+                    await webpush.sendNotification({
+                      endpoint: sub.endpoint,
+                      keys: { p256dh: sub.p256dh, auth: sub.auth }
+                    }, payload);
+                  } catch (pushError: any) {
+                    if (pushError.statusCode === 410) {
+                      await storage.deletePushSubscription(sub.id);
+                    }
+                  }
+                }
+              }
+            } catch (pushError) {
+              console.error("Push notification error:", pushError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error notifying online status:", error);
+    }
+  }
+
   httpServer.on("upgrade", (request, socket, head) => {
     const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
     
@@ -1029,9 +1307,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        // Need at least 2 ready players to start
-        if (room.readyPlayers.size < 2) {
-          send(ws, { type: "error", message: "يجب أن يكون هناك لاعبان جاهزان على الأقل لبدء اللعبة" });
+        // Count ready players - host is automatically counted as ready
+        // So we need at least 1 other ready player (total effective ready = readyPlayers + host if not in set)
+        const hostIsInReadySet = room.readyPlayers.has(room.hostId);
+        const effectiveReadyCount = hostIsInReadySet ? room.readyPlayers.size : room.readyPlayers.size + 1;
+        
+        // Need at least 2 ready players (host + 1 other)
+        if (effectiveReadyCount < 2) {
+          send(ws, { type: "error", message: "يجب أن يكون هناك لاعب واحد جاهز على الأقل (القائد جاهز تلقائياً)" });
           return;
         }
 
