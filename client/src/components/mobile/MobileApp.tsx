@@ -76,12 +76,14 @@ export function MobileApp() {
         setIsConnecting(true);
         reconnectWithRetry(session.playerName, session.playerId, session.roomId);
         
+        // زيادة وقت timeout إلى 10 ثواني للاتصالات البطيئة
         timeoutHandle = setTimeout(() => {
           if (isMounted && useNumberGame.getState().isConnecting) {
             console.error("Connection timeout");
             setIsConnecting(false);
+            setConnectionError("فشل الاتصال. يرجى المحاولة مرة أخرى.");
           }
-        }, 5000);
+        }, 10000);
       } else {
         const lastRoom = getLastRoomSession();
         if (lastRoom && lastRoom.roomId === roomId && lastRoom.playerId) {
@@ -90,12 +92,14 @@ export function MobileApp() {
           setIsConnecting(true);
           reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
           
+          // زيادة وقت timeout إلى 10 ثواني للاتصالات البطيئة
           timeoutHandle = setTimeout(() => {
             if (isMounted && useNumberGame.getState().isConnecting) {
               console.error("Connection timeout");
               setIsConnecting(false);
+              setConnectionError("فشل الاتصال. يرجى المحاولة مرة أخرى.");
             }
-          }, 5000);
+          }, 10000);
         }
       }
     }
