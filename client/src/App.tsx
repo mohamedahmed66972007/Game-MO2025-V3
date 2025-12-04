@@ -348,12 +348,14 @@ function RoomPage() {
       setIsConnecting(true);
       reconnectWithRetry(session.playerName, session.playerId, session.roomId);
 
+      // زيادة وقت timeout إلى 10 ثواني للاتصالات البطيئة
       setTimeout(() => {
         if (useNumberGame.getState().isConnecting) {
           console.error("Connection timeout");
           setIsConnecting(false);
+          setConnectionError("فشل الاتصال. يرجى المحاولة مرة أخرى.");
         }
-      }, 5000);
+      }, 10000);
       return;
     }
 
@@ -365,12 +367,14 @@ function RoomPage() {
       setIsConnecting(true);
       reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
 
+      // زيادة وقت timeout إلى 10 ثواني للاتصالات البطيئة
       setTimeout(() => {
         if (useNumberGame.getState().isConnecting) {
           console.error("Connection timeout");
           setIsConnecting(false);
+          setConnectionError("فشل الاتصال. يرجى المحاولة مرة أخرى.");
         }
-      }, 5000);
+      }, 10000);
       return;
     }
 
