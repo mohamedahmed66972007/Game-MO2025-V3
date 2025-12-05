@@ -892,43 +892,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Remove from active players
           room.players = room.players.filter((p) => p.id !== player.id);
           
-          // Keep player in disconnectedPlayers for reconnection (both during game AND on results page)
+          // Keep player in disconnectedPlayers for reconnection indefinitely
           const disconnectTime = Date.now();
           player.disconnectTime = disconnectTime;
           
-          // Timeout duration: 2 minutes for finished games, 5 minutes for active games
-          const timeoutDuration = (room.game && room.game.status === "finished") ? 2 * 60 * 1000 : 5 * 60 * 1000;
+          // No timeout - keep players in room indefinitely until they explicitly leave
+          // Create a dummy timeout handle that never fires (for interface compatibility)
+          const dummyTimeoutHandle = setTimeout(() => {}, 365 * 24 * 60 * 60 * 1000); // 1 year (effectively never)
           
-          const timeoutHandle = setTimeout(() => {
-            const disconnected = room.disconnectedPlayers.get(player.id);
-            if (disconnected) {
-              room.disconnectedPlayers.delete(player.id);
-              
-              // If player is in active game, mark them as quit
-              if (room.game && room.game.status === "playing") {
-                const playerData = room.game.players.get(player.id);
-                if (playerData && !playerData.finished) {
-                  playerData.finished = true;
-                  playerData.endTime = Date.now();
-                  
-                  // Notify others player timed out
-                  broadcastToRoom(room, {
-                    type: "player_timeout",
-                    playerId: player.id,
-                    playerName: player.name,
-                  });
-                  
-                  checkGameEnd(room);
-                }
-              }
-            }
-            
-            // Check if room should be deleted after timeout
-            checkAndDeleteRoomIfNeeded(room);
-          }, timeoutDuration);
-          
-          room.disconnectedPlayers.set(player.id, { player, disconnectTime, timeoutHandle });
-          console.log(`Player ${player.name} disconnected from ${room.game?.status === "finished" ? "finished" : "active"} game - allowing reconnection for ${timeoutDuration / 1000}s`);
+          room.disconnectedPlayers.set(player.id, { player, disconnectTime, timeoutHandle: dummyTimeoutHandle });
+          console.log(`Player ${player.name} disconnected from ${room.game?.status === "finished" ? "finished" : "active"} game - allowing reconnection indefinitely`);
           
           // Notify others that player disconnected (but only if game is active)
           if (!room.game || room.game.status !== "finished") {
@@ -939,10 +912,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
           
-          // Check if room should be deleted (1 player left or empty)
-          if (!checkAndDeleteRoomIfNeeded(room)) {
-            // Room still has enough players
-            // If host left, assign new host
+          // Check if room should be deleted (only if all players left explicitly, not just disconnected)
+          // Only delete if no active AND no disconnected players
+          if (room.players.length === 0 && room.disconnectedPlayers.size === 0) {
+            // Clean up all timers
+            if (room.game?.rematchState.countdownHandle) {
+              clearInterval(room.game.rematchState.countdownHandle);
+            }
+            if (room.game?.gameTimerHandle) {
+              clearTimeout(room.game.gameTimerHandle);
+            }
+            rooms.delete(room.id);
+            console.log(`Room ${room.id} deleted (no players)`);
+          } else {
+            // Room still has players (active or disconnected)
+            // If host left, assign new host from active players
             if (room.hostId === player.id && room.players.length > 0) {
               room.hostId = room.players[0].id;
               broadcastToRoom(room, {
@@ -1898,6 +1882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: "room_rejoined",
           roomId: room.id,
           playerId: message.playerId,
+          playerName: message.playerName,
           hostId: room.hostId,
           players: room.players.map((p) => ({ id: p.id, name: p.name })),
         });

@@ -15,7 +15,7 @@ const saveSessionToStorage = (playerName: string, playerId: string, roomId: stri
   const isInGame = store.multiplayer.gameStatus === "playing";
   const isFinished = store.multiplayer.gameStatus === "finished";
   
-  sessionStorage.setItem("multiplayerSession", JSON.stringify({
+  const sessionData = {
     playerName,
     playerId,
     roomId,
@@ -27,9 +27,10 @@ const saveSessionToStorage = (playerName: string, playerId: string, roomId: stri
       startTime: store.multiplayer.startTime,
       settings: store.multiplayer.settings,
     } : null,
-  }));
+  };
+  
+  localStorage.setItem("multiplayerSession", JSON.stringify(sessionData));
   localStorage.setItem("lastPlayerName", playerName);
-  // Save room for persistent reconnection (for 24 hours)
   localStorage.setItem("lastRoomSession", JSON.stringify({
     playerName,
     playerId,
@@ -44,21 +45,34 @@ export const getLastPlayerName = () => {
 };
 
 const getSessionFromStorage = () => {
-  const session = sessionStorage.getItem("multiplayerSession");
+  const session = localStorage.getItem("multiplayerSession");
   if (session) {
     try {
       const parsed = JSON.parse(session);
-      // تمديد الوقت إلى دقيقتين للسماح بإعادة الاتصال بعد إغلاق اللعبة
-      if (Date.now() - parsed.timestamp < 2 * 60 * 1000) {
+      if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
         return parsed;
       } else {
-        sessionStorage.removeItem("multiplayerSession");
-        return null;
+        localStorage.removeItem("multiplayerSession");
       }
     } catch (e) {
-      return null;
+      localStorage.removeItem("multiplayerSession");
     }
   }
+  
+  const lastRoomSession = localStorage.getItem("lastRoomSession");
+  if (lastRoomSession) {
+    try {
+      const parsed = JSON.parse(lastRoomSession);
+      if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+        return parsed;
+      } else {
+        localStorage.removeItem("lastRoomSession");
+      }
+    } catch (e) {
+      localStorage.removeItem("lastRoomSession");
+    }
+  }
+  
   return null;
 };
 
@@ -147,7 +161,7 @@ export const send = (message: any) => {
 };
 
 export const clearSession = () => {
-  sessionStorage.removeItem("multiplayerSession");
+  localStorage.removeItem("multiplayerSession");
 };
 
 export const clearPersistentRoom = () => {
@@ -193,6 +207,24 @@ export const reconnectToSession = () => {
     return session;
   }
   return null;
+};
+
+export const autoReconnectOnLoad = () => {
+  const session = getSessionFromStorage();
+  if (session && session.playerId && session.roomId && session.playerName) {
+    console.log("Found saved session, attempting auto-reconnect to room:", session.roomId);
+    isManualDisconnect = false;
+    reconnectAttempts = 0;
+    
+    toast.loading("جاري إعادة الاتصال بالغرفة...", {
+      id: "auto-reconnect-toast",
+      duration: 5000,
+    });
+    
+    reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+    return true;
+  }
+  return false;
 };
 
 export const reconnectWithRetry = (playerName: string, playerId: string, roomId: string) => {
@@ -406,14 +438,27 @@ const handleMessage = (message: any) => {
       break;
     }
 
-    case "room_rejoined":
+    case "room_rejoined": {
+      const session = getSessionFromStorage();
+      const playerName = session?.playerName || message.playerName || "";
+      
+      toast.dismiss("auto-reconnect-toast");
+      toast.dismiss("reconnect-toast");
+      
       store.setRoomId(message.roomId);
       store.setPlayerId(message.playerId);
       store.setHostId(message.hostId);
       store.setPlayers(message.players);
+      if (playerName) {
+        store.setPlayerName(playerName);
+      }
       store.setIsConnecting(false);
-      console.log("Successfully reconnected to room", message.roomId);
+      
+      saveSessionToStorage(playerName, message.playerId, message.roomId);
+      toast.success("تم إعادة الاتصال بالغرفة بنجاح!", { duration: 3000 });
+      console.log("Successfully reconnected to room", message.roomId, "as player", playerName);
       break;
+    }
 
     case "game_state":
       store.setGameStatus(message.status);
