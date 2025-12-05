@@ -1,206 +1,37 @@
 # لعبة تخمين الأرقام العربية
 
-## نظرة عامة
+## Overview
+An interactive Arabic number guessing game with a modern 2D interface. Players guess a secret number and receive feedback on their accuracy. The game supports single-player and multi-player modes with real-time WebSocket communication and mini-challenges for hints. It is designed to work seamlessly on both mobile and desktop devices, featuring full Arabic localization with a right-to-left layout. The project aims to provide an engaging and accessible gaming experience, fostering community through multi-player interactions and persistent rooms.
 
-لعبة تخمين أرقام تفاعلية عربية مع واجهة 2D حديثة. اللاعبون يخمنون رقماً سرياً ويتلقون تعليقات على دقة التخمين. تدعم اللعبة الوضع الفردي والجماعي مع تواصل فوري عبر WebSocket وتحديات صغيرة للحصول على تلميحات. اللعبة مصممة للعمل على الهاتف والحاسوب بسلاسة.
-
-## تفضيلات المستخدم
-
+## User Preferences
 أسلوب التواصل المفضل: لغة بسيطة وسهلة الفهم.
 
-## البنية المعمارية
+## System Architecture
 
-### الواجهة الأمامية (Frontend)
+### Frontend
+- **Technology Stack**: React 18 with TypeScript, Vite for bundling, TailwindCSS for styling, Radix UI for components, Zustand for state management.
+- **Rendering Strategy**: Responsive design optimized for desktop (full interface with previous attempts panel) and mobile (dedicated number pad, auto-detection at 768px).
+- **Core Components**: `MobileSingleplayer`, `DesktopSingleplayer`, `MultiplayerLobby`, `MultiplayerGame2D`, `MobileMultiplayer`, various challenge components (`RainDropsChallenge`, `DirectionChallenge`, `MemoryChallenge`, `GuessChallenge`), and `CardSystem` for multi-player exclusive cards.
+- **State Management**: `useNumberGame` (main game state), `useChallenges` (challenges and hints), `useCards` (card system), `useAudio` (sound effects), `useAccount` (accounts and friends with localStorage persistence).
+- **Client-Server Communication**: WebSocket for real-time multi-player, localStorage for session persistence (24-hour validity) for reconnection.
 
-**مجموعة التقنيات:**
-- React 18 مع TypeScript
-- Vite للبناء والتطوير
-- TailwindCSS للتصميم
-- Radix UI للمكونات الأساسية
-- Zustand لإدارة الحالة
+### Backend
+- **Technology Stack**: Express.js with TypeScript, WebSocket (ws) for real-time communication, Neon PostgreSQL with Drizzle ORM (for future use).
+- **Server Structure**: `server/index.ts` (Express setup), `server/routes.ts` (WebSocket server and game logic), `server/db.ts` (DB connection), `server/storage.ts` (in-memory storage).
+- **Game Logic**: Room system with unique IDs, independent and real-time play, auto-generated shared secret numbers, pre-game challenges, comprehensive reconnection system (disconnected players remain in rooms indefinitely, game data saved, rooms persist as long as players exist, game state synchronization).
+- **Data Storage**: PostgreSQL via Neon with Drizzle ORM. Tables: `accounts`, `friendRequests`, `friendships`, `notifications`, `permanentRooms`, `permanentRoomMembers`. Session management tracks WebSocket connections; room state in server memory (Map); localStorage for client-side session.
 
-**استراتيجية العرض:**
-- **ديسكتوب**: واجهة كاملة مع لوحة المحاولات السابقة على الجانب
-- **موبايل**: واجهة محسنة مع لوحة أرقام مخصصة، كشف تلقائي عند 768px
+### System Design Choices
+- **UI/UX**: Responsive design for desktop and mobile, full Arabic localization with RTL layout, replay voting system, enhanced results screen with ranks and celebrations, waiting screen for challenge completion.
+- **Technical Implementations**: Live timer with 100ms updates and 5-minute timeout, instant loss detection, robust reconnection, mini-challenges with visual/auditory feedback, unique card system (show number, burn number, reveal even/odd, freeze, shield, disable display).
+- **Accounts and Friends**: Simple account creation, friend requests, room invitations, notification system with unread counts.
+- **Permanent Rooms**: Persistent rooms stored in DB for 24 hours with API endpoints for creation, joining, and management.
 
-**المكونات الرئيسية:**
-- `MobileSingleplayer` و `DesktopSingleplayer`: واجهات اللعب الفردي (موحدة التصميم)
-- `MultiplayerLobby`: غرفة انتظار اللعب الجماعي
-- `MultiplayerGame2D`: واجهة اللعب الجماعي (ديسكتوب) و `MobileMultiplayer` (موبايل)
-- `RainDropsChallenge`, `DirectionChallenge`, `MemoryChallenge`, `GuessChallenge`: التحديات الأربعة
-- `CardSystem`: نظام البطاقات الحصري للعب الجماعي
+## External Dependencies
 
-**إدارة الحالة:**
-- `useNumberGame`: الحالة الرئيسية للعبة (وضع فردي وجماعي)
-- `useChallenges`: حالة التحديات والتلميحات
-- `useCards`: نظام البطاقات الخاص
-- `useAudio`: إدارة المؤثرات الصوتية
-- `useAccount`: نظام الحسابات والأصدقاء (مع persist في localStorage)
-
-**التواصل بين العميل والخادم:**
-- WebSocket للعب الجماعي الفوري
-- حفظ الجلسة عبر localStorage للاتصال المفقود (24 ساعة صلاحية)
-- رسائل: challenge_completed, start_game, submit_guess, وغيرها
-
-### الخادم (Backend)
-
-**مجموعة التقنيات:**
-- Express.js مع TypeScript
-- WebSocket (ws) للتواصل الفوري
-- Neon PostgreSQL مع Drizzle ORM (متوفر للاستخدام المستقبلي)
-
-**بنية الخادم:**
-- `server/index.ts`: إعداد Express والـ middleware
-- `server/routes.ts`: خادم WebSocket ومنطق اللعبة
-- `server/db.ts`: اتصال قاعدة البيانات
-- `server/storage.ts`: واجهة التخزين (في الذاكرة حالياً)
-
-**منطق اللعبة:**
-- نظام غرف مع معرفات فريدة
-- لعب مستقل وفوري (الاثنان يلعبان بنفس الوقت)
-- أكواز سرية مشتركة تولد تلقائياً
-- تحديات ما قبل اللعبة: جميع اللاعبين يكملون التحدي قبل بدء المؤقت
-- نظام إعادة اتصال شامل:
-  - تخزين اللاعبين المقطوعين بدون timeout (يبقون للأبد حتى يخرجون يدوياً)
-  - حفظ بيانات اللعبة (المحاولات والنقاط)
-  - الغرفة تبقى طالما هناك لاعبين (متصلين أو مقطوعين)
-  - مزامنة حالة اللعبة بين جميع العملاء
-
-## تخزين البيانات
-
-**قاعدة البيانات:**
-- PostgreSQL عبر Neon
-- Drizzle ORM لاستعلامات آمنة
-- جداول: accounts, friendRequests, friendships, notifications
-
-**إدارة الجلسات:**
-- تتبع اتصالات WebSocket لكل لاعب
-- حالة الغرفة محفوظة في ذاكرة الخادم (Map)
-- تخزين الجلسة في localStorage للاتصال بعد التحديث (صلاحية 24 ساعة)
-- بدون timeout للاعبين المقطوعين - يبقون في الغرفة حتى يخرجون يدوياً
-
-## اختيارات التصميم النظامي
-
-**تجربة المستخدم:**
-- تصميم متجاوب لكل من ديسكتوب وموبايل
-- واجهة عربية كاملة مع تخطيط من اليمين لليسار
-- نظام التصويت على إعادة اللعب مع بدء لحظي عند الموافقة
-- شاشة نتائج محسنة مع رتب وحركات احتفال
-- شاشة انتظار عندما ينتهي لاعب من التحدي قبل الآخرين
-
-**التطبيقات التقنية:**
-- مؤقت حي مع تحديثات 100ms وTimeout 5 دقائق
-- كشف الخسارة الفوري عند الوصول لأقصى عدد محاولات
-- نظام إعادة اتصال قوي يستعيد كل حالة اللعبة
-- تحديات صغيرة: "تحدي الذاكرة" و"تحدي الاتجاهات" و"تحدي حبات المطر" و"تحدي التسلسل" مع تعليقات بصرية وسمعية
-- نظام بطاقات فريد مع 6 أنواع (إظهار رقم، حرق رقم، كشف زوجي/فردي، تجميد، درع، تعطيل عرض)
-
-## التحسينات الأخيرة
-
-### إصلاح 5 ديسمبر - تحسين إعادة الاتصال للموبايل:
-1. **localStorage بدلاً من sessionStorage**: تغيير تخزين الجلسة إلى localStorage لدعم إغلاق وإعادة فتح التطبيق على الموبايل
-2. **إزالة timeout الانقطاع**: اللاعبون المقطوعون يبقون في الغرفة بلا حد زمني حتى يخرجون يدوياً
-3. **إصلاح عرض أسماء اللاعبين**: إصلاح عدم ظهور اسم اللاعب بعد إعادة الاتصال
-4. **تحسين منطق إعادة الاتصال**: إضافة fallback من sessionStorage إلى lastRoomSession في localStorage
-5. **إشعارات إعادة الاتصال**: إضافة رسائل toast عند بدء ونجاح إعادة الاتصال
-
-### إضافة 4 ديسمبر - الغرف الدائمة والإشعارات:
-1. **الغرف الدائمة**: نظام غرف دائمة تستمر في قاعدة البيانات لمدة 24 ساعة
-   - جداول: permanentRooms, permanentRoomMembers
-   - API Endpoints: /api/permanent-rooms/create, /api/permanent-rooms/:roomId, /api/permanent-rooms/user/:userId, /api/permanent-rooms/join, /api/permanent-rooms/leave
-   - كل مستخدم يمكنه إنشاء غرفة دائمة واحدة فقط
-   - صاحب الغرفة هو القائد تلقائياً
-2. **نظام الإشعارات عند الاتصال**: إشعار الأصدقاء وأعضاء الغرفة الدائمة عند اتصال المستخدم
-   - إشعارات Push للأصدقاء عند الاتصال
-   - إشعارات Push لأعضاء الغرفة الدائمة
-3. **إصلاح بدء اللعبة**: القائد يُحتسب جاهزاً تلقائياً - يحتاج لاعب واحد إضافي جاهز فقط لبدء اللعبة
-4. **إصلاحات LSP**: إصلاح أخطاء TypeScript في CardSettings interface و Map iterators
-
-### إصلاح 3 ديسمبر - إصلاحات متعددة:
-1. **إصلاح شاشة الموبايل البيضاء**: إصلاح hook useIsMobile لتهيئة حالة الموبايل بشكل صحيح من أول عرض
-2. **إصلاح DesktopSingleplayer**: استخدام actions الـ Zustand store الصحيحة (addDigitToGuess, deleteLastDigit, submitGuess) بدلاً من setState اليدوي
-3. **تحديث واجهة DesktopSingleplayer**: توحيد التصميم مع MultiplayerGame2D (شريط علوي، عمودين، أزرار الإعدادات)
-4. **تخطيط ChallengesHub**: عرض التحديات جنباً لجنب على الديسكتوب (grid-cols-2 lg:grid-cols-3)
-5. **تحديث Service Worker**: تحديث إصدار الكاش إلى v3 لضمان تحديث المستخدمين
-
-### إضافة 2 ديسمبر - نظام الحسابات والأصدقاء:
-1. **نظام الحسابات**: إنشاء حسابات بسيطة (اسم + اسم مستخدم فريد) بدون بريد إلكتروني
-2. **نظام الأصدقاء**: بحث عن مستخدمين، إرسال طلبات صداقة، قبول/رفض الطلبات
-3. **دعوات الغرف**: دعوة الأصدقاء للانضمام للغرف في اللعب الجماعي
-4. **الإشعارات**: نظام إشعارات مع عداد للإشعارات غير المقروءة
-5. **مكونات UI جديدة**:
-   - AccountDialog: تسجيل الدخول وإنشاء الحسابات
-   - FriendsDialog: إدارة الأصدقاء ودعوتهم للغرف
-   - NotificationsDropdown: عرض الإشعارات
-   - RoomInviteDialog: قبول دعوات الغرف
-6. **API Routes جديدة**: /api/accounts/*, /api/friends/*, /api/notifications/*, /api/invite/*
-
-### إصلاح 29 نوفمبر (3):
-1. **سرعة تحدي حبات المطر**: إزالة تسارع السرعة المفرط في آخر 10-15 ثانية
-2. **موضع الإشعارات**: تغيير موضع إشعارات الموبايل من أعلى-وسط إلى أسفل-وسط مع z-index مناسب
-3. **حفظ إعدادات الغرفة**: إضافة localStorage لحفظ واستعادة الإعدادات عبر الجلسات
-4. **مزامنة المؤقت**: إضافة timestamp الخادم في رسالة game_starting للمزامنة
-5. **عرض المؤقت**: تغيير العرض من الوقت المتبقي إلى الوقت المنقضي
-6. **عرض زوجي/فردي**: إضافة معلومات التكافؤ كنص خلفية في خانات الإدخال (ديسكتوب وموبايل)
-7. **منع تكرار البطاقات**: إصلاح مشكلة تكرار البطاقات عند إعادة اللعب بمسح playerCards
-8. **حفظ إعدادات البطاقات**: حفظ cardSettings عند إعادة اللعب بدلاً من إعادة تعيينها
-
-### إصلاح 29 نوفمبر (2):
-1. **مزامنة مؤقت الجولة**: إصلاح مشكلة عدم تزامن إعدادات البطاقات بين اللاعبين عند تغيير المضيف للإعدادات
-2. **إخفاء إشعار بطاقة الحرق**: البطاقة تعمل لكن دون إظهار إشعار للمستخدم
-3. **إصلاح البطاقات عند إعادة اللعب**: إعادة تعيين حالة التحديات والبطاقات بشكل صحيح
-4. **سجل الجولات**: إضافة زر لعرض سجل الجولات السابقة في صفحة النتائج مع عرض الفائزين والخاسرين
-
-### إصلاح 29 نوفمبر (1):
-1. **تصحيح CardIcon**: الأيقونات الآن مطابقة صحيحة للبطاقات (eye, x-circle, hash, snowflake, shield, eye-off)
-2. **توحيد تصميم UI**: MobileSingleplayer و MobileMultiplayer الآن بنفس الهيكل والتصميم
-3. **شاشة الانتظار**: إضافة رسالة انتظار عندما ينتهي لاعب من التحدي قبل اللاعبين الآخرين
-4. **رسالة challenge_completed**: إرسال رسالة للخادم عند انتهاء لاعب من التحدي
-
-## التبعيات الخارجية
-
-**مكتبة مكونات الواجهة:**
-- `@radix-ui/*`: مجموعة شاملة من العناصر الآمنة
-- `lucide-react`: أيقونات عالية الجودة
-
-**قاعدة البيانات والخادم:**
-- `@neondatabase/serverless`, `drizzle-orm`, `drizzle-kit`, `ws`
-
-**التصميم:**
-- `tailwindcss`, `class-variance-authority`, `clsx`, `tailwind-merge`
-
-**إدارة الحالة والبيانات:**
-- `@tanstack/react-query`, `zustand`
-
-**الوسائط والأصوات:**
-- `@fontsource/inter`, `howler`, `react-confetti`, `framer-motion`
-
-**أدوات التطوير:**
-- `@replit/vite-plugin-runtime-error-modal`, `tsx`, `esbuild`, `vite`
-
-## ملاحظات التطوير
-
-### نقاط مهمة:
-1. تأكد من أن الواجهات يمكن تمريرها عند اللعب
-2. الأسهم في تحدي الاتجاهات معكوسة على الكمبيوتر (RTL) لكن صحيحة على الموبايل
-3. الأخطاء تنقص الفرص من 3 إلى 2 إلى 1
-4. نظام البطاقات حصري للعب الجماعي فقط
-5. جميع النصوص يجب أن تكون بالعربية
-6. شاشة الانتظار تظهر عندما startTime === 0 (الانتظار لجميع اللاعبين)
-
-### الملفات المهمة:
-- `client/src/components/mobile/MobileSingleplayer.tsx` (موحد مع المتعدد الآن)
-- `client/src/components/desktop/DesktopSingleplayer.tsx`
-- `client/src/components/mobile/MobileMultiplayer.tsx` (مع شاشة انتظار)
-- `client/src/components/desktop/MultiplayerGame2D.tsx` (مع شاشة انتظار)
-- `client/src/components/game/challenges/`
-- `client/src/lib/stores/useChallenges.ts`
-- `client/src/lib/stores/useCards.ts`
-- `client/src/lib/stores/useAccount.ts` (نظام الحسابات والأصدقاء)
-- `client/src/components/game/cards/CardSystem.tsx` (أيقونات مصححة)
-- `client/src/components/ui/AccountDialog.tsx` (تسجيل الدخول)
-- `client/src/components/ui/FriendsDialog.tsx` (إدارة الأصدقاء)
-- `client/src/components/ui/NotificationsDropdown.tsx` (الإشعارات)
-- `server/routes.ts`
-- `server/storage.ts` (مع functions للحسابات والأصدقاء)
-- `shared/schema.ts` (جداول قاعدة البيانات)
+- **UI Components**: `@radix-ui/*`, `lucide-react`
+- **Database & Server**: `@neondatabase/serverless`, `drizzle-orm`, `drizzle-kit`, `ws`
+- **Styling**: `tailwindcss`, `class-variance-authority`, `clsx`, `tailwind-merge`
+- **State Management**: `@tanstack/react-query`, `zustand`
+- **Media & Animation**: `@fontsource/inter`, `howler`, `react-confetti`, `framer-motion`
+- **Developer Tools**: `@replit/vite-plugin-runtime-error-modal`, `tsx`, `esbuild`, `vite`
