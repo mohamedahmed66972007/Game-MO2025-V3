@@ -1865,10 +1865,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clearTimeout(disconnected.timeoutHandle);
         room.disconnectedPlayers.delete(message.playerId);
         
+        // Use the saved player name if the incoming name is empty/missing
+        // This ensures the name is preserved even if client localStorage was cleared
+        const playerName = message.playerName && message.playerName.trim() !== "" 
+          ? message.playerName 
+          : disconnected.player.name;
+        
         // Restore player to active
         const reconnectedPlayer: Player = {
           id: message.playerId,
-          name: message.playerName,
+          name: playerName,
           ws,
           roomId: room.id,
         };
@@ -1876,15 +1882,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         room.players.push(reconnectedPlayer);
         players.set(ws, reconnectedPlayer);
         
-        console.log(`Player ${message.playerName} reconnected to room ${room.id}`);
+        console.log(`Player ${playerName} reconnected to room ${room.id}`);
+        
+        // Also include disconnected players' names so reconnecting players can see them
+        const allPlayersInfo = [
+          ...room.players.map((p) => ({ id: p.id, name: p.name })),
+          ...Array.from(room.disconnectedPlayers.entries()).map(([id, data]) => ({ 
+            id, 
+            name: data.player.name,
+            disconnected: true 
+          }))
+        ];
         
         send(ws, {
           type: "room_rejoined",
           roomId: room.id,
           playerId: message.playerId,
-          playerName: message.playerName,
+          playerName: playerName,
           hostId: room.hostId,
-          players: room.players.map((p) => ({ id: p.id, name: p.name })),
+          players: allPlayersInfo,
         });
         
         if (room.game) {
@@ -1926,12 +1942,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         broadcastToRoom(room, {
           type: "player_reconnected",
           playerId: message.playerId,
-          playerName: message.playerName,
+          playerName: playerName,
         }, ws);
+        
+        // Send players_updated with all players (active + disconnected)
+        const allPlayersForBroadcast = [
+          ...room.players.map((p) => ({ id: p.id, name: p.name })),
+          ...Array.from(room.disconnectedPlayers.entries()).map(([id, data]) => ({ 
+            id, 
+            name: data.player.name,
+            disconnected: true 
+          }))
+        ];
         
         broadcastToRoom(room, {
           type: "players_updated",
-          players: room.players.map((p) => ({ id: p.id, name: p.name })),
+          players: allPlayersForBroadcast,
           hostId: room.hostId,
         });
         break;
