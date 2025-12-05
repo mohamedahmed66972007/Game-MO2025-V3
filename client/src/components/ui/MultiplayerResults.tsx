@@ -78,12 +78,16 @@ export function MultiplayerResults() {
   };
 
   const handleBackToMenu = () => {
-    send({ type: "leave_room" });
+    // قطع الاتصال أولاً لمنع إعادة الاتصال التلقائي
+    disconnect();
     clearSession();
     clearPersistentRoom();
-    disconnect();
+    
+    // إعادة تعيين حالة اللعبة
     resetMultiplayer();
     setMode("menu");
+    
+    // التنقل للقائمة الرئيسية
     navigate("/");
   };
 
@@ -415,6 +419,14 @@ export function MultiplayerResults() {
                 <span className="text-lg">سجل الجولات ({multiplayer.roundHistory.length})</span>
               </button>
             )}
+
+            <button
+              onClick={handleBackToLobby}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Home className="w-6 h-6" />
+              <span className="text-lg">العودة للغرفة</span>
+            </button>
 
             <button
               onClick={handleBackToMenu}
