@@ -1,7 +1,21 @@
 import { useNumberGame } from "./stores/useNumberGame";
 import { useCards } from "./stores/useCards";
 import { useChallenges } from "./stores/useChallenges";
+import { useAccount } from "./stores/useAccount";
 import { toast } from "sonner";
+
+// Helper function to get the best available player name
+const getBestPlayerName = (sessionName?: string): string => {
+  // Priority: 1. Account displayName, 2. Session name, 3. localStorage lastPlayerName
+  const account = useAccount.getState().account;
+  if (account?.displayName) {
+    return account.displayName;
+  }
+  if (sessionName && sessionName.trim() !== "") {
+    return sessionName;
+  }
+  return localStorage.getItem("lastPlayerName") || "";
+};
 
 let socket: WebSocket | null = null;
 let reconnectAttempts = 0;
@@ -101,7 +115,9 @@ const attemptReconnect = () => {
     duration: RECONNECT_DELAY,
   });
 
-  reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+  // Use best available player name (account displayName takes priority)
+  const playerName = getBestPlayerName(session.playerName);
+  reconnectWithRetry(playerName, session.playerId, session.roomId);
 };
 
 export const connectWebSocket = (playerName: string, roomId?: string) => {
@@ -211,8 +227,17 @@ export const reconnectToSession = () => {
 
 export const autoReconnectOnLoad = () => {
   const session = getSessionFromStorage();
-  if (session && session.playerId && session.roomId && session.playerName) {
-    console.log("Found saved session, attempting auto-reconnect to room:", session.roomId);
+  if (session && session.playerId && session.roomId) {
+    // Use best available player name (account displayName takes priority)
+    const playerName = getBestPlayerName(session.playerName);
+    
+    // Only proceed if we have a valid player name
+    if (!playerName) {
+      console.log("No player name available for reconnect");
+      return false;
+    }
+    
+    console.log("Found saved session, attempting auto-reconnect to room:", session.roomId, "as:", playerName);
     isManualDisconnect = false;
     reconnectAttempts = 0;
     
@@ -221,7 +246,7 @@ export const autoReconnectOnLoad = () => {
       duration: 5000,
     });
     
-    reconnectWithRetry(session.playerName, session.playerId, session.roomId);
+    reconnectWithRetry(playerName, session.playerId, session.roomId);
     return true;
   }
   return false;
@@ -439,8 +464,9 @@ const handleMessage = (message: any) => {
     }
 
     case "room_rejoined": {
-      const session = getSessionFromStorage();
-      const playerName = session?.playerName || message.playerName || "";
+      // Prioritize: 1. Server's playerName (most reliable), 2. Account displayName, 3. Session
+      // Server now preserves the original name if client sends empty
+      const playerName = message.playerName || getBestPlayerName();
       
       toast.dismiss("auto-reconnect-toast");
       toast.dismiss("reconnect-toast");
@@ -451,6 +477,8 @@ const handleMessage = (message: any) => {
       store.setPlayers(message.players);
       if (playerName) {
         store.setPlayerName(playerName);
+        // Also update localStorage to keep it in sync
+        localStorage.setItem("lastPlayerName", playerName);
       }
       store.setIsConnecting(false);
       
