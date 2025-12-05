@@ -67,6 +67,12 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   }, [account]);
 
   useEffect(() => {
+    if (multiplayer.playerName && multiplayer.playerName.trim()) {
+      setPlayerName(multiplayer.playerName);
+    }
+  }, [multiplayer.playerName]);
+
+  useEffect(() => {
     if (playerName.trim()) {
       localStorage.setItem("lastPlayerName", playerName);
     }
