@@ -14,7 +14,7 @@ const DEFAULT_TITLE = "لعبة التخمين";
 export function MobileApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { mode, setMode, setPlayerName, setRoomId, setPlayerId, setIsConnecting, setConnectionError, multiplayer, singleplayer, restartSingleplayer, resetMultiplayer } = useNumberGame();
+  const { mode, setMode, setPlayerName, setRoomId, setPlayerId, setIsConnecting, setConnectionError, connectionError, multiplayer, singleplayer, restartSingleplayer, resetMultiplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
   const [showChallengesHub, setShowChallengesHub] = useState(false);
   const challenges = useChallenges();
@@ -29,14 +29,20 @@ export function MobileApp() {
   useEffect(() => {
     if (location.pathname === "/" || location.pathname === "") {
       document.title = DEFAULT_TITLE;
-      
+
+      // لا تحاول إعادة الاتصال إذا كان هناك خطأ في الاتصال
+      if (connectionError) {
+        console.log("Connection error exists, skipping auto-reconnect");
+        return;
+      }
+
       const lastRoom = getLastRoomSession();
       if (lastRoom && lastRoom.roomId && lastRoom.playerId) {
         console.log("Found saved session on app load, redirecting to room:", lastRoom.roomId);
         navigate(`/room/${lastRoom.roomId}`, { replace: true });
         return;
       }
-      
+
       resetMultiplayer();
       setMode("menu");
       clearSession();
@@ -69,7 +75,7 @@ export function MobileApp() {
     } else if (location.pathname.startsWith("/room/")) {
       setMode("multiplayer");
       const roomId = location.pathname.split("/room/")[1];
-      
+
       if (multiplayer.roomId === roomId && multiplayer.playerId) {
         return () => {
           isMounted = false;
@@ -77,13 +83,23 @@ export function MobileApp() {
         };
       }
 
+      // لا تحاول إعادة الاتصال إذا كان هناك خطأ في الاتصال
+      if (connectionError) {
+        console.log("Connection error exists, skipping reconnect");
+        return () => {
+          isMounted = false;
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+        };
+      }
+
+      // تحقق من عدم وجود قطع اتصال يدوي قبل محاولة إعادة الاتصال
       const session = reconnectToSession();
       if (session && session.roomId === roomId && session.playerId) {
         console.log("Reconnecting to room from session:", roomId);
         setPlayerName(session.playerName);
         setIsConnecting(true);
         reconnectWithRetry(session.playerName, session.playerId, session.roomId);
-        
+
         // زيادة وقت timeout إلى 10 ثواني للاتصالات البطيئة
         timeoutHandle = setTimeout(() => {
           if (isMounted && useNumberGame.getState().isConnecting) {
@@ -99,7 +115,7 @@ export function MobileApp() {
           setPlayerName(lastRoom.playerName);
           setIsConnecting(true);
           reconnectWithRetry(lastRoom.playerName, lastRoom.playerId, lastRoom.roomId);
-          
+
           // زيادة وقت timeout إلى 10 ثواني للاتصالات البطيئة
           timeoutHandle = setTimeout(() => {
             if (isMounted && useNumberGame.getState().isConnecting) {
@@ -116,7 +132,7 @@ export function MobileApp() {
       isMounted = false;
       if (timeoutHandle) clearTimeout(timeoutHandle);
     };
-  }, [location.pathname]);
+  }, [location.pathname, connectionError]);
 
   useEffect(() => {
     if (multiplayer.roomId && location.pathname !== `/room/${multiplayer.roomId}`) {
@@ -156,6 +172,38 @@ export function MobileApp() {
         />
       )}
       {isMultiplayerPage && <MobileMultiplayer joinRoomIdFromUrl={urlRoomId} />}
+      
+      {/* Connection Error */}
+      {connectionError && (
+        <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 z-50 p-4">
+          <div className="text-center relative max-w-md mx-4">
+            <div className="inline-flex items-center justify-center mb-4">
+              <div className="text-6xl">❌</div>
+            </div>
+            <p className="text-gray-800 text-xl font-semibold mb-4">{connectionError}</p>
+            <button
+              onClick={() => {
+                // قطع الاتصال وإيقاف كل محاولات إعادة الاتصال
+                disconnect();
+                clearSession();
+                clearPersistentRoom();
+
+                // إعادة تعيين الحالة بالكامل
+                setConnectionError(null);
+                setIsConnecting(false);
+                resetMultiplayer();
+                setMode("menu");
+
+                // التنقل للصفحة الرئيسية - استخدام window.location للتأكد من إعادة التحميل الكامل
+                window.location.href = "/";
+              }}
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              العودة للقائمة الرئيسية
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
