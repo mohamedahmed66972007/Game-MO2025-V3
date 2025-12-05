@@ -14,7 +14,7 @@ const DEFAULT_TITLE = "لعبة التخمين";
 export function MobileApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { mode, setMode, setPlayerName, setRoomId, setPlayerId, setIsConnecting, multiplayer, singleplayer, restartSingleplayer, resetMultiplayer } = useNumberGame();
+  const { mode, setMode, setPlayerName, setRoomId, setPlayerId, setIsConnecting, setConnectionError, multiplayer, singleplayer, restartSingleplayer, resetMultiplayer } = useNumberGame();
   const { setSuccessSound } = useAudio();
   const [showChallengesHub, setShowChallengesHub] = useState(false);
   const challenges = useChallenges();
@@ -29,6 +29,14 @@ export function MobileApp() {
   useEffect(() => {
     if (location.pathname === "/" || location.pathname === "") {
       document.title = DEFAULT_TITLE;
+      
+      const lastRoom = getLastRoomSession();
+      if (lastRoom && lastRoom.roomId && lastRoom.playerId) {
+        console.log("Found saved session on app load, redirecting to room:", lastRoom.roomId);
+        navigate(`/room/${lastRoom.roomId}`, { replace: true });
+        return;
+      }
+      
       resetMultiplayer();
       setMode("menu");
       clearSession();
