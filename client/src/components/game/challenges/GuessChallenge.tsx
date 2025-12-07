@@ -23,7 +23,6 @@ export function GuessChallenge({ onExit }: { onExit?: () => void } = {}) {
   } = useChallenges();
 
   const [activeButton, setActiveButton] = useState<number | null>(null);
-  const [isProcessingClick, setIsProcessingClick] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -88,17 +87,15 @@ export function GuessChallenge({ onExit }: { onExit?: () => void } = {}) {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (guessChallenge.isShowingSequence || isProcessingClick) return;
+    if (guessChallenge.isShowingSequence) return;
     
-    setIsProcessingClick(true);
     setActiveButton(index);
     playSound(BUTTON_COLORS[index].sound);
     guessAddToSequence(index);
 
     setTimeout(() => {
       setActiveButton(null);
-      setIsProcessingClick(false);
-    }, 350);
+    }, 150);
   };
 
   return (
@@ -153,9 +150,9 @@ export function GuessChallenge({ onExit }: { onExit?: () => void } = {}) {
                   <motion.button
                     key={index}
                     onPointerDown={(e) => handleButtonClick(index, e)}
-                    disabled={guessChallenge.isShowingSequence || isProcessingClick}
+                    disabled={guessChallenge.isShowingSequence}
                     className={`w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 xl:w-32 xl:h-32 font-bold text-white touch-none rounded-2xl border-4 ${
-                      guessChallenge.isShowingSequence || isProcessingClick ? "cursor-not-allowed" : "cursor-pointer"
+                      guessChallenge.isShowingSequence ? "cursor-not-allowed" : "cursor-pointer"
                     }`}
                     style={{
                       backgroundColor: btn.color,
@@ -174,8 +171,8 @@ export function GuessChallenge({ onExit }: { onExit?: () => void } = {}) {
                       stiffness: 400, 
                       damping: 20 
                     }}
-                    whileHover={!(guessChallenge.isShowingSequence || isProcessingClick) ? { scale: 1.08 } : {}}
-                    whileTap={!(guessChallenge.isShowingSequence || isProcessingClick) ? { scale: 0.95 } : {}}
+                    whileHover={!guessChallenge.isShowingSequence ? { scale: 1.08 } : {}}
+                    whileTap={!guessChallenge.isShowingSequence ? { scale: 0.95 } : {}}
                   />
                 );
               })}
@@ -191,9 +188,9 @@ export function GuessChallenge({ onExit }: { onExit?: () => void } = {}) {
                   <motion.button
                     key={actualIndex}
                     onPointerDown={(e) => handleButtonClick(actualIndex, e)}
-                    disabled={guessChallenge.isShowingSequence || isProcessingClick}
+                    disabled={guessChallenge.isShowingSequence}
                     className={`w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 xl:w-32 xl:h-32 font-bold text-white touch-none rounded-2xl border-4 ${
-                      guessChallenge.isShowingSequence || isProcessingClick ? "cursor-not-allowed" : "cursor-pointer"
+                      guessChallenge.isShowingSequence ? "cursor-not-allowed" : "cursor-pointer"
                     }`}
                     style={{
                       backgroundColor: btn.color,
@@ -212,8 +209,8 @@ export function GuessChallenge({ onExit }: { onExit?: () => void } = {}) {
                       stiffness: 400, 
                       damping: 20 
                     }}
-                    whileHover={!(guessChallenge.isShowingSequence || isProcessingClick) ? { scale: 1.08 } : {}}
-                    whileTap={!(guessChallenge.isShowingSequence || isProcessingClick) ? { scale: 0.95 } : {}}
+                    whileHover={!guessChallenge.isShowingSequence ? { scale: 1.08 } : {}}
+                    whileTap={!guessChallenge.isShowingSequence ? { scale: 0.95 } : {}}
                   />
                 );
               })}
