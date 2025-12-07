@@ -35,7 +35,7 @@ const directionLabels: Record<DirectionType, string> = {
   notYellow: "ليس أصفر",
   notGreen: "ليس أخضر",
   notBlue: "ليس أزرق",
-  nothing: "لا تتحرك",
+  nothing: "ليس تتحرك",
 };
 
 const colorLabels: Record<ColorDirection, string> = {
