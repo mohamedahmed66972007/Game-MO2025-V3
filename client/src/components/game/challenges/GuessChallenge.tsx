@@ -95,7 +95,7 @@ export function GuessChallenge({ onExit }: { onExit?: () => void } = {}) {
 
     setTimeout(() => {
       setActiveButton(null);
-    }, 150);
+    }, 100);
   };
 
   return (
