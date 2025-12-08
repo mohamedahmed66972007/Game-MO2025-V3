@@ -1303,21 +1303,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        // Check if this is a force start
+        // Check if this is a force start or a restart after a game
         const forceStart = (message as any).forceStart === true;
+        const isRestart = (message as any).isRestart === true;
 
-        // Count ready players - host is automatically counted as ready
-        // So we need at least 1 other ready player (total effective ready = readyPlayers + host if not in set)
-        const hostIsInReadySet = room.readyPlayers.has(room.hostId);
-        const effectiveReadyCount = hostIsInReadySet ? room.readyPlayers.size : room.readyPlayers.size + 1;
-        
-        // Need at least 2 ready players (host + 1 other), unless force starting
-        if (!forceStart && effectiveReadyCount < 2) {
-          send(ws, { type: "error", message: "يجب أن يكون هناك لاعب واحد جاهز على الأقل (القائد جاهز تلقائياً)" });
-          return;
+        // Skip ready check if this is a restart after a game ended
+        if (!isRestart && !forceStart) {
+          // Count ready players - host is automatically counted as ready
+          // So we need at least 1 other ready player (total effective ready = readyPlayers + host if not in set)
+          const hostIsInReadySet = room.readyPlayers.has(room.hostId);
+          const effectiveReadyCount = hostIsInReadySet ? room.readyPlayers.size : room.readyPlayers.size + 1;
+          
+          // Need at least 2 ready players (host + 1 other), unless force starting
+          if (effectiveReadyCount < 2) {
+            send(ws, { type: "error", message: "يجب أن يكون هناك لاعب واحد جاهز على الأقل (القائد جاهز تلقائياً)" });
+            return;
+          }
         }
 
-        console.log(`[start_game] Force start: ${forceStart}, ready count: ${effectiveReadyCount}`);
+        console.log(`[start_game] Force start: ${forceStart}, isRestart: ${isRestart}`);
 
         // Clear ready states for the new game
         room.readyPlayers.clear();

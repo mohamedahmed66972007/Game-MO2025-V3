@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Button } from "./button";
 import { useNumberGame } from "@/lib/stores/useNumberGame";
-import { send, clearSession, clearPersistentRoom, disconnect } from "@/lib/websocket";
-import { Users, Copy, LogOut, Settings, Crown, Play, Link, Check, UserPlus, CheckCircle2, Circle, Bell, AlertTriangle, X } from "lucide-react";
+import { send, clearSession, clearPersistentRoom, disconnect, kickPlayer, transferHost } from "@/lib/websocket";
+import { Users, Copy, LogOut, Settings, Crown, Play, Link, Check, UserPlus, CheckCircle2, Circle, Bell, AlertTriangle, X, UserX, ArrowRightLeft, MoreVertical } from "lucide-react";
 import { GameSettings } from "./GameSettings";
 import { toast } from "sonner";
 import { FriendsDialog } from "./FriendsDialog";
@@ -17,6 +17,9 @@ export function MultiplayerLobby() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [showNoPlayersDialog, setShowNoPlayersDialog] = useState(false);
+  const [playerMenuId, setPlayerMenuId] = useState<string | null>(null);
+  const [showKickConfirm, setShowKickConfirm] = useState<string | null>(null);
+  const [showTransferConfirm, setShowTransferConfirm] = useState<string | null>(null);
 
   const roomLink = `${window.location.origin}/room/${multiplayer.roomId}`;
   
@@ -84,6 +87,22 @@ export function MultiplayerLobby() {
     setLinkCopied(true);
     toast.success("تم نسخ الرابط! شاركه مع أصدقائك 🎮");
     setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const handleKickPlayer = (playerId: string) => {
+    const player = multiplayer.players.find(p => p.id === playerId);
+    kickPlayer(playerId);
+    toast.success(`تم طرد اللاعب ${player?.name || ""}`, { duration: 3000 });
+    setShowKickConfirm(null);
+    setPlayerMenuId(null);
+  };
+
+  const handleTransferHost = (playerId: string) => {
+    const player = multiplayer.players.find(p => p.id === playerId);
+    transferHost(playerId);
+    toast.success(`تم نقل القيادة إلى ${player?.name || ""}`, { duration: 3000 });
+    setShowTransferConfirm(null);
+    setPlayerMenuId(null);
   };
 
   // Render GameSettings if showSettings is true
@@ -220,11 +239,13 @@ export function MultiplayerLobby() {
                 const isHost = player.id === multiplayer.hostId;
                 const isYou = player.id === multiplayer.playerId;
                 const isReady = isHost || multiplayer.readyPlayers.includes(player.id);
+                const showMenu = playerMenuId === player.id;
+                const canManage = multiplayer.isHost && !isYou && !isHost;
                 
                 return (
                   <div
                     key={player.id}
-                    className={`p-3 rounded-xl flex items-center justify-between transition-all duration-200 ${
+                    className={`p-3 rounded-xl flex items-center justify-between transition-all duration-200 relative ${
                       isYou
                         ? "bg-gradient-to-r from-blue-100 to-purple-100 border-2 border-blue-300 shadow-md"
                         : "bg-white border border-gray-300"
@@ -262,6 +283,36 @@ export function MultiplayerLobby() {
                           <Circle className="w-4 h-4" />
                           غير جاهز
                         </span>
+                      )}
+                      
+                      {canManage && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setPlayerMenuId(showMenu ? null : player.id)}
+                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            <MoreVertical className="w-4 h-4 text-gray-500" />
+                          </button>
+                          
+                          {showMenu && (
+                            <div className="absolute left-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-200 z-20 min-w-[140px]">
+                              <button
+                                onClick={() => setShowTransferConfirm(player.id)}
+                                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 text-blue-700 text-sm font-medium rounded-t-xl transition-colors"
+                              >
+                                <ArrowRightLeft className="w-4 h-4" />
+                                نقل القيادة
+                              </button>
+                              <button
+                                onClick={() => setShowKickConfirm(player.id)}
+                                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-red-50 text-red-600 text-sm font-medium rounded-b-xl transition-colors"
+                              >
+                                <UserX className="w-4 h-4" />
+                                طرد اللاعب
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
