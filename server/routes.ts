@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import bcrypt from "bcrypt";
 import { storage } from "./storage";
+import * as gameStorage from "./game-storage";
 
 interface Player {
   id: string;
@@ -1086,121 +1087,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
   function handleMessage(ws: WebSocket, message: any) {
     switch (message.type) {
       case "create_room": {
-        const roomId = generateRoomId();
-        const playerId = generatePlayerId();
+        const result = gameStorage.createRoom(message.playerName, message.gameMode);
+        const { room: gsRoom, playerId, sessionToken } = result;
+        
         const player: Player = {
           id: playerId,
           name: message.playerName,
           ws,
-          roomId,
+          roomId: gsRoom.id,
         };
 
         const room: Room = {
-          id: roomId,
+          id: gsRoom.id,
           hostId: playerId,
           players: [player],
           disconnectedPlayers: new Map(),
           game: null,
-          settings: { 
-            numDigits: 4, 
-            maxAttempts: 20,
-            cardsEnabled: false,
-            selectedChallenge: "random",
-            allowedCards: ["revealNumber", "burnNumber", "revealParity", "freeze", "shield"],
-            cardSettings: {
-              roundDuration: 5,
-              maxCards: 3,
-              revealNumberShowPosition: true,
-              burnNumberCount: 1,
-              revealParitySlots: 2,
-              freezeDuration: 5000,
-              shieldDuration: 5000
-            }
-          },
+          settings: gsRoom.settings as any,
           readyPlayers: new Set(),
         };
 
-        rooms.set(roomId, room);
+        rooms.set(gsRoom.id, room);
         players.set(ws, player);
+        
+        gameStorage.setPlayerConnection(playerId, ws);
+        const gsPlayer = gsRoom.players.find((p: gameStorage.Player) => p.id === playerId);
+        if (gsPlayer) {
+          gsPlayer.ws = ws;
+        }
 
         send(ws, {
           type: "room_created",
-          roomId,
+          roomId: gsRoom.id,
           playerId,
+          sessionToken,
           hostId: playerId,
+          players: [{ id: playerId, name: message.playerName, isHost: true, isReady: false }],
           readyPlayers: [],
         });
+        
+        console.log(`[create_room] Room ${gsRoom.id} created by ${message.playerName} (${playerId})`);
         break;
       }
 
       case "join_room": {
-        const room = rooms.get(message.roomId);
+        const roomCode = message.roomId.toUpperCase();
+        const joinResult = gameStorage.joinRoom(message.playerName, roomCode);
         
-        // Room doesn't exist
+        if ("error" in joinResult) {
+          send(ws, { type: "error", message: joinResult.error });
+          return;
+        }
+        
+        const { room: gsRoom, playerId, sessionToken } = joinResult;
+        
+        let room = rooms.get(roomCode);
         if (!room) {
-          send(ws, { type: "error", message: "الغرفة غير موجودة - لربما تم حذفها" });
+          send(ws, { type: "error", message: "الغرفة غير موجودة" });
           return;
         }
         
-        // Check if room is full
-        if (room.players.length >= 10) {
-          send(ws, { type: "error", message: "الغرفة ممتلئة" });
-          return;
+        const player: Player = {
+          id: playerId,
+          name: message.playerName,
+          ws,
+          roomId: room.id,
+        };
+
+        if (!room.disconnectedPlayers) {
+          room.disconnectedPlayers = new Map();
         }
+
+        room.players.push(player);
+        players.set(ws, player);
         
-        // Don't allow joining if game is in progress
-        if (room.game && room.game.status === "playing") {
-          send(ws, { type: "error", message: "اللعبة جاري الآن - لا يمكن الانضمام" });
-          return;
+        gameStorage.setPlayerConnection(playerId, ws);
+        const gsPlayer = gsRoom.players.find((p: gameStorage.Player) => p.id === playerId);
+        if (gsPlayer) {
+          gsPlayer.ws = ws;
         }
+
+        send(ws, {
+          type: "room_joined",
+          roomId: room.id,
+          playerId,
+          sessionToken,
+          hostId: room.hostId,
+          players: room.players.map((p) => ({ id: p.id, name: p.name, isHost: p.id === room!.hostId, isReady: room!.readyPlayers.has(p.id) })),
+          readyPlayers: Array.from(room.readyPlayers),
+        });
+
+        send(ws, {
+          type: "settings_updated",
+          settings: room.settings,
+        });
+
+        broadcastToRoom(room, {
+          type: "players_updated",
+          players: room.players.map((p) => ({ id: p.id, name: p.name, isHost: p.id === room!.hostId, isReady: room!.readyPlayers.has(p.id) })),
+          hostId: room.hostId,
+          readyPlayers: Array.from(room.readyPlayers),
+        });
         
-        // Don't allow joining if game is finished (results screen)
-        if (room.game && room.game.status === "finished") {
-          send(ws, { type: "error", message: "انتهت اللعبة - يرجى إنشاء غرفة جديدة" });
-          return;
-        }
-        
-        // Proceed with join only if conditions are met
-        if (room && room.players.length < 10) {
-          
-          const playerId = generatePlayerId();
-          const player: Player = {
-            id: playerId,
-            name: message.playerName,
-            ws,
-            roomId: room.id,
-          };
-
-          if (!room.disconnectedPlayers) {
-            room.disconnectedPlayers = new Map();
-          }
-
-          room.players.push(player);
-          players.set(ws, player);
-
-          send(ws, {
-            type: "room_joined",
-            roomId: room.id,
-            playerId,
-            hostId: room.hostId,
-            players: room.players.map((p) => ({ id: p.id, name: p.name })),
-            readyPlayers: Array.from(room.readyPlayers),
-          });
-
-          send(ws, {
-            type: "settings_updated",
-            settings: room.settings,
-          });
-
-          broadcastToRoom(room, {
-            type: "players_updated",
-            players: room.players.map((p) => ({ id: p.id, name: p.name })),
-            hostId: room.hostId,
-            readyPlayers: Array.from(room.readyPlayers),
-          });
-        } else {
-          send(ws, { type: "error", message: "Room not found or full" });
-        }
+        console.log(`[join_room] Player ${message.playerName} (${playerId}) joined room ${roomCode}`);
         break;
       }
 
@@ -1849,117 +1838,189 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       case "reconnect": {
-        const room = rooms.get(message.roomId);
-        if (!room) {
-          send(ws, { type: "error", message: "Room not found" });
+        const roomCode = message.roomCode || message.roomId;
+        if (!roomCode) {
+          send(ws, { type: "error", message: "رمز الغرفة مطلوب" });
           return;
         }
         
-        const disconnected = room.disconnectedPlayers?.get(message.playerId);
-        if (!disconnected) {
-          send(ws, { type: "error", message: "Player session not found or expired" });
-          return;
-        }
+        const gsResult = gameStorage.reconnectPlayer(message.sessionToken, roomCode.toUpperCase());
         
-        // Clear the timeout since player reconnected
-        clearTimeout(disconnected.timeoutHandle);
-        room.disconnectedPlayers.delete(message.playerId);
-        
-        // Use the saved player name if the incoming name is empty/missing
-        // This ensures the name is preserved even if client localStorage was cleared
-        const playerName = message.playerName && message.playerName.trim() !== "" 
-          ? message.playerName 
-          : disconnected.player.name;
-        
-        // Restore player to active
-        const reconnectedPlayer: Player = {
-          id: message.playerId,
-          name: playerName,
-          ws,
-          roomId: room.id,
-        };
-        
-        room.players.push(reconnectedPlayer);
-        players.set(ws, reconnectedPlayer);
-        
-        console.log(`Player ${playerName} reconnected to room ${room.id}`);
-        
-        // Also include disconnected players' names so reconnecting players can see them
-        const allPlayersInfo = [
-          ...room.players.map((p) => ({ id: p.id, name: p.name })),
-          ...Array.from(room.disconnectedPlayers.entries()).map(([id, data]) => ({ 
-            id, 
-            name: data.player.name,
-            disconnected: true 
-          }))
-        ];
-        
-        send(ws, {
-          type: "room_rejoined",
-          roomId: room.id,
-          playerId: message.playerId,
-          playerName: playerName,
-          hostId: room.hostId,
-          players: allPlayersInfo,
-        });
-        
-        if (room.game) {
-          send(ws, {
-            type: "game_state",
-            sharedSecret: room.game.sharedSecret,
-            status: room.game.status,
-            settings: room.settings,
-            gameStartTime: room.game.startTime,
-          });
-          
-          // Send current game data for this player
-          const playerData = room.game.players.get(message.playerId);
-          if (playerData) {
-            send(ws, {
-              type: "player_game_state",
-              attempts: playerData.attempts,
-              finished: playerData.finished,
-              won: playerData.won,
-            });
-            
-            // If player has finished, send them latest results with fresh stillPlaying data
-            if (playerData.finished) {
-              const freshResults = calculateGameResults(room);
-              const reason = room.game.lastResults?.reason || "player_finished";
-              send(ws, {
-                type: "game_results",
-                winners: freshResults.winners,
-                losers: freshResults.losers,
-                stillPlaying: freshResults.stillPlaying,
-                sharedSecret: room.game.sharedSecret,
-                reason: reason,
-              });
-            }
+        if ("error" in gsResult) {
+          const room = rooms.get(roomCode.toUpperCase());
+          if (!room) {
+            send(ws, { type: "error", message: gsResult.error });
+            return;
           }
+          
+          const disconnected = room.disconnectedPlayers?.get(message.playerId);
+          if (!disconnected) {
+            send(ws, { type: "error", message: gsResult.error });
+            return;
+          }
+          
+          clearTimeout(disconnected.timeoutHandle);
+          room.disconnectedPlayers.delete(message.playerId);
+          
+          const playerName = message.playerName && message.playerName.trim() !== "" 
+            ? message.playerName 
+            : disconnected.player.name;
+          
+          const reconnectedPlayer: Player = {
+            id: message.playerId,
+            name: playerName,
+            ws,
+            roomId: room.id,
+          };
+          
+          room.players.push(reconnectedPlayer);
+          players.set(ws, reconnectedPlayer);
+          
+          handleReconnectSuccess(ws, room, message.playerId, playerName);
+          return;
         }
         
-        // Notify others of reconnection
+        const { room: gsRoom, player: gsPlayer } = gsResult;
+        
+        let room = rooms.get(gsRoom.id);
+        if (!room) {
+          send(ws, { type: "error", message: "الغرفة غير موجودة" });
+          return;
+        }
+        
+        room.disconnectedPlayers?.delete(gsPlayer.id);
+        
+        const existingPlayerIndex = room.players.findIndex(p => p.id === gsPlayer.id);
+        if (existingPlayerIndex !== -1) {
+          room.players[existingPlayerIndex].ws = ws;
+        } else {
+          const reconnectedPlayer: Player = {
+            id: gsPlayer.id,
+            name: gsPlayer.name,
+            ws,
+            roomId: room.id,
+          };
+          room.players.push(reconnectedPlayer);
+        }
+        
+        players.set(ws, { id: gsPlayer.id, name: gsPlayer.name, ws, roomId: room.id });
+        gameStorage.setPlayerConnection(gsPlayer.id, ws);
+        gsPlayer.ws = ws;
+        
+        handleReconnectSuccess(ws, room, gsPlayer.id, gsPlayer.name);
+        break;
+      }
+
+      case "transfer_host": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room) return;
+
+        if (room.hostId !== player.id) {
+          send(ws, { type: "error", message: "فقط المضيف يمكنه نقل القيادة" });
+          return;
+        }
+
+        const newHostId = message.newHostId;
+        const newHost = room.players.find(p => p.id === newHostId);
+        
+        if (!newHost) {
+          send(ws, { type: "error", message: "اللاعب غير موجود" });
+          return;
+        }
+
+        const gsResult = gameStorage.transferHost(room.id, player.id, newHostId);
+        if (!gsResult.success) {
+          send(ws, { type: "error", message: gsResult.error });
+          return;
+        }
+
+        room.hostId = newHostId;
+        
         broadcastToRoom(room, {
-          type: "player_reconnected",
-          playerId: message.playerId,
-          playerName: playerName,
-        }, ws);
-        
-        // Send players_updated with all players (active + disconnected)
-        const allPlayersForBroadcast = [
-          ...room.players.map((p) => ({ id: p.id, name: p.name })),
-          ...Array.from(room.disconnectedPlayers.entries()).map(([id, data]) => ({ 
-            id, 
-            name: data.player.name,
-            disconnected: true 
-          }))
-        ];
-        
+          type: "host_changed",
+          newHostId: newHostId,
+          newHostName: newHost.name,
+        });
+
         broadcastToRoom(room, {
           type: "players_updated",
-          players: allPlayersForBroadcast,
-          hostId: room.hostId,
+          players: room.players.map((p) => ({ 
+            id: p.id, 
+            name: p.name, 
+            isHost: p.id === newHostId,
+            isReady: room!.readyPlayers.has(p.id)
+          })),
+          hostId: newHostId,
+          readyPlayers: Array.from(room.readyPlayers),
         });
+
+        console.log(`[transfer_host] Host transferred from ${player.name} to ${newHost.name} in room ${room.id}`);
+        break;
+      }
+
+      case "kick_player": {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const room = rooms.get(player.roomId);
+        if (!room) return;
+
+        if (room.hostId !== player.id) {
+          send(ws, { type: "error", message: "فقط المضيف يمكنه طرد اللاعبين" });
+          return;
+        }
+
+        const targetPlayerId = message.targetPlayerId;
+        
+        if (targetPlayerId === player.id) {
+          send(ws, { type: "error", message: "لا يمكنك طرد نفسك" });
+          return;
+        }
+
+        const targetPlayer = room.players.find(p => p.id === targetPlayerId);
+        if (!targetPlayer) {
+          send(ws, { type: "error", message: "اللاعب غير موجود" });
+          return;
+        }
+
+        const gsResult = gameStorage.kickPlayer(room.id, player.id, targetPlayerId);
+        if (!gsResult.success) {
+          send(ws, { type: "error", message: gsResult.error });
+          return;
+        }
+
+        send(targetPlayer.ws, {
+          type: "kicked_from_room",
+          message: "تم طردك من الغرفة من قبل المضيف",
+        });
+
+        room.players = room.players.filter(p => p.id !== targetPlayerId);
+        room.readyPlayers.delete(targetPlayerId);
+        players.delete(targetPlayer.ws);
+        gameStorage.removePlayerConnection(targetPlayer.ws);
+
+        broadcastToRoom(room, {
+          type: "player_kicked",
+          playerId: targetPlayerId,
+          playerName: targetPlayer.name,
+        });
+
+        broadcastToRoom(room, {
+          type: "players_updated",
+          players: room.players.map((p) => ({ 
+            id: p.id, 
+            name: p.name, 
+            isHost: p.id === room!.hostId,
+            isReady: room!.readyPlayers.has(p.id)
+          })),
+          hostId: room.hostId,
+          readyPlayers: Array.from(room.readyPlayers),
+        });
+
+        console.log(`[kick_player] Player ${targetPlayer.name} kicked from room ${room.id} by ${player.name}`);
         break;
       }
 
@@ -2040,6 +2101,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
         break;
       }
     }
+  }
+
+  function handleReconnectSuccess(ws: WebSocket, room: Room, playerId: string, playerName: string) {
+    console.log(`Player ${playerName} reconnected to room ${room.id}`);
+    
+    const allPlayersInfo = [
+      ...room.players.map((p) => ({ 
+        id: p.id, 
+        name: p.name,
+        isHost: p.id === room.hostId,
+        isReady: room.readyPlayers.has(p.id)
+      })),
+      ...Array.from(room.disconnectedPlayers?.entries() || []).map(([id, data]) => ({ 
+        id, 
+        name: data.player.name,
+        isHost: false,
+        isReady: false,
+        disconnected: true 
+      }))
+    ];
+    
+    send(ws, {
+      type: "room_rejoined",
+      roomId: room.id,
+      playerId: playerId,
+      playerName: playerName,
+      hostId: room.hostId,
+      players: allPlayersInfo,
+      readyPlayers: Array.from(room.readyPlayers),
+    });
+    
+    if (room.game) {
+      send(ws, {
+        type: "game_state",
+        sharedSecret: room.game.sharedSecret,
+        status: room.game.status,
+        settings: room.settings,
+        gameStartTime: room.game.startTime,
+      });
+      
+      const playerData = room.game.players.get(playerId);
+      if (playerData) {
+        send(ws, {
+          type: "player_game_state",
+          attempts: playerData.attempts,
+          finished: playerData.finished,
+          won: playerData.won,
+        });
+        
+        if (playerData.finished) {
+          const freshResults = calculateGameResults(room);
+          const reason = room.game.lastResults?.reason || "player_finished";
+          send(ws, {
+            type: "game_results",
+            winners: freshResults.winners,
+            losers: freshResults.losers,
+            stillPlaying: freshResults.stillPlaying,
+            sharedSecret: room.game.sharedSecret,
+            reason: reason,
+          });
+        }
+      }
+    }
+    
+    broadcastToRoom(room, {
+      type: "player_reconnected",
+      playerId: playerId,
+      playerName: playerName,
+    }, ws);
+    
+    const allPlayersForBroadcast = [
+      ...room.players.map((p) => ({ 
+        id: p.id, 
+        name: p.name,
+        isHost: p.id === room.hostId,
+        isReady: room.readyPlayers.has(p.id)
+      })),
+      ...Array.from(room.disconnectedPlayers?.entries() || []).map(([id, data]) => ({ 
+        id, 
+        name: data.player.name,
+        isHost: false,
+        isReady: false,
+        disconnected: true 
+      }))
+    ];
+    
+    broadcastToRoom(room, {
+      type: "players_updated",
+      players: allPlayersForBroadcast,
+      hostId: room.hostId,
+      readyPlayers: Array.from(room.readyPlayers),
+    });
   }
 
   function send(ws: WebSocket, message: any) {

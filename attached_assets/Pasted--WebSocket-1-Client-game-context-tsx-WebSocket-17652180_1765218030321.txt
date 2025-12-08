@@ -1,0 +1,171 @@
+آلية الاتصال (WebSocket)
+1. من جانب العميل (Client)
+في game-context.tsx، يتم إنشاء اتصال WebSocket عند تحميل التطبيق:
+
+useEffect(() => {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  const ws = new WebSocket(wsUrl);
+  ws.onopen = () => {
+    setIsConnected(true);
+    // محاولة إعادة الاتصال بالجلسة المحفوظة
+    const session = getSession();
+    if (session) {
+      ws.send(JSON.stringify({
+        type: "reconnect",
+        data: { sessionToken: session.sessionToken, roomCode: session.roomCode }
+      }));
+    }
+  };
+  ws.onmessage = (event) => {
+    const message: ServerMessage = JSON.parse(event.data);
+    handleServerMessage(message);
+  };
+}, []);
+الخطوات:
+
+يتم إنشاء اتصال WebSocket على المسار /ws
+عند الاتصال، يتم التحقق من وجود جلسة محفوظة للمحاولة إعادة الاتصال
+يتم الاستماع للرسائل الواردة من الخادم
+2. من جانب الخادم (Server)
+في routes.ts، يتم إنشاء خادم WebSocket:
+
+export async function registerRoutes(httpServer: Server, app: Express) {
+  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  wss.on("connection", (ws: WebSocket) => {
+    ws.on("message", (data: Buffer) => {
+      handleMessage(ws, data.toString());
+    });
+    ws.on("close", () => {
+      // معالجة انقطاع الاتصال
+      markPlayerDisconnected(playerId);
+    });
+  });
+}
+آلية إنشاء الغرفة
+1. من واجهة المستخدم
+في home.tsx أو أي صفحة أخرى، يقوم المستخدم بإدخال اسمه واختيار وضع اللعبة، ثم:
+
+const { createRoom } = useGame();
+const handleCreate = (data: CreateInput) => {
+  createRoom(data.playerName, data.gameMode);
+};
+2. في GameContext
+في game-context.tsx، يتم إرسال رسالة WebSocket:
+
+const createRoom = useCallback(
+  (playerName: string, gameMode: GameMode) => {
+    sendMessage({ 
+      type: "create_room", 
+      data: { playerName, gameMode } 
+    });
+  },
+  [sendMessage]
+);
+3. معالجة الطلب في الخادم
+في routes.ts، يتم معالجة رسالة create_room:
+
+case "create_room": {
+  const result = createRoom(message.data.playerName, message.data.gameMode);
+  clients.set(result.playerId, ws); // حفظ اتصال WebSocket للاعب
+  playerConnections.set(ws, result.playerId); // ربط الاتصال بمعرف اللاعب
+  
+  sendToPlayer(result.playerId, {
+    type: "room_created",
+    data: { 
+      room: result.room, 
+      playerId: result.playerId, 
+      sessionToken: result.sessionToken 
+    },
+  });
+  break;
+}
+4. إنشاء الغرفة في التخزين
+في game-storage.ts، دالة createRoom تقوم بـ:
+
+export function createRoom(playerName: string, gameMode: GameMode) {
+  const roomId = generateRoomId(); // توليد رمز غرفة من 6 أحرف
+  const playerId = generatePlayerId();
+  const sessionToken = generateSessionToken();
+  
+  const room: Room = {
+    id: roomId,
+    hostId: playerId,
+    players: [{
+      id: playerId,
+      name: playerName,
+      isHost: true,
+      isReady: false,
+      score: 0,
+      sessionToken
+    }],
+    gameMode,
+    phase: "lobby",
+    // ... باقي الإعدادات
+  };
+  
+  rooms.set(roomId, room);
+  return { room, playerId, sessionToken };
+}
+5. تلقي الرد في العميل
+في game-context.tsx، يتم معالجة رسالة room_created:
+
+const handleServerMessage = useCallback((message: ServerMessage) => {
+  switch (message.type) {
+    case "room_created":
+      setRoom(message.data.room);
+      setPlayerId(message.data.playerId);
+      
+      // حفظ الجلسة للمحاولة إعادة الاتصال لاحقاً
+      saveSession({
+        sessionToken: message.data.sessionToken,
+        roomCode: message.data.room.id,
+        playerId: message.data.playerId,
+      });
+      break;
+  }
+}, []);
+6. الانتقال إلى صفحة الغرفة
+في home.tsx، يتم مراقبة تغيير حالة room:
+
+useEffect(() => {
+  if (room) {
+    setLocation(`/room/${room.id}`);
+  }
+}, [room, setLocation]);
+الانضمام إلى غرفة موجودة
+باستخدام رمز الغرفة
+في join.tsx:
+
+const handleJoin = (data: JoinInput) => {
+  joinRoom(data.playerName, roomId.toUpperCase());
+};
+الرسالة المرسلة:
+
+case "join_room": {
+  const result = joinRoom(message.data.playerName, message.data.roomCode);
+  // معالجة مشابهة لإنشاء الغرفة
+}
+باستخدام رابط مباشر
+عند مشاركة رابط /join/{roomId}، يتم:
+
+استخراج roomId من URL
+عرض نموذج لإدخال الاسم
+الانضمام تلقائياً بعد إدخال الاسم
+خصائص مهمة
+1. إعادة الاتصال التلقائي
+يتم حفظ sessionToken في localStorage
+عند إعادة تحميل الصفحة، يتم محاولة إعادة الاتصال تلقائياً
+2. إدارة الاتصالات
+const clients = new Map<string, WebSocket>(); // ربط معرف اللاعب بـ WebSocket
+const playerConnections = new Map<WebSocket, string>(); // العكس
+3. البث إلى جميع اللاعبين في الغرفة
+function broadcastToRoom(roomId: string, message: ServerMessage) {
+  const room = getRoom(roomId);
+  room.players.forEach((player) => {
+    const client = clients.get(player.id);
+    if (client?.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(message));
+    }
+  });
+}

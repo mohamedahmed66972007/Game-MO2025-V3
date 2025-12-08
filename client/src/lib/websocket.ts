@@ -24,15 +24,25 @@ let isManualDisconnect = false;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 2000;
 
-const saveSessionToStorage = (playerName: string, playerId: string, roomId: string) => {
+const saveSessionToStorage = (playerName: string, playerId: string, roomId: string, sessionToken?: string) => {
   const store = useNumberGame.getState();
   const isInGame = store.multiplayer.gameStatus === "playing";
   const isFinished = store.multiplayer.gameStatus === "finished";
+  
+  const existingSession = localStorage.getItem("multiplayerSession");
+  let existingToken = sessionToken;
+  if (!existingToken && existingSession) {
+    try {
+      const parsed = JSON.parse(existingSession);
+      existingToken = parsed.sessionToken;
+    } catch (e) {}
+  }
   
   const sessionData = {
     playerName,
     playerId,
     roomId,
+    sessionToken: existingToken,
     timestamp: Date.now(),
     gameState: isInGame || isFinished ? {
       gameStatus: store.multiplayer.gameStatus,
@@ -49,6 +59,7 @@ const saveSessionToStorage = (playerName: string, playerId: string, roomId: stri
     playerName,
     playerId,
     roomId,
+    sessionToken: existingToken,
     timestamp: Date.now(),
     startTime: store.multiplayer.startTime,
   }));
@@ -117,7 +128,7 @@ const attemptReconnect = () => {
 
   // Use best available player name (account displayName takes priority)
   const playerName = getBestPlayerName(session.playerName);
-  reconnectWithRetry(playerName, session.playerId, session.roomId);
+  reconnectWithRetry(playerName, session.playerId, session.roomId, session.sessionToken);
 };
 
 export const connectWebSocket = (playerName: string, roomId?: string) => {
@@ -217,6 +228,14 @@ export const disconnect = () => {
   toast.dismiss("reconnect-toast");
 };
 
+export const transferHost = (newHostId: string) => {
+  send({ type: "transfer_host", newHostId });
+};
+
+export const kickPlayer = (targetPlayerId: string) => {
+  send({ type: "kick_player", targetPlayerId });
+};
+
 export const reconnectToSession = () => {
   const session = getSessionFromStorage();
   if (session && session.playerId && session.roomId) {
@@ -246,13 +265,13 @@ export const autoReconnectOnLoad = () => {
       duration: 5000,
     });
     
-    reconnectWithRetry(playerName, session.playerId, session.roomId);
+    reconnectWithRetry(playerName, session.playerId, session.roomId, session.sessionToken);
     return true;
   }
   return false;
 };
 
-export const reconnectWithRetry = (playerName: string, playerId: string, roomId: string) => {
+export const reconnectWithRetry = (playerName: string, playerId: string, roomId: string, sessionToken?: string) => {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}/game`;
 
@@ -270,7 +289,8 @@ export const reconnectWithRetry = (playerName: string, playerId: string, roomId:
       type: "reconnect", 
       playerId, 
       playerName,
-      roomId 
+      roomCode: roomId,
+      sessionToken: sessionToken
     });
   };
 
@@ -317,8 +337,8 @@ const handleMessage = (message: any) => {
         store.setReadyPlayers(message.readyPlayers);
       }
       store.setIsConnecting(false);
-      saveSessionToStorage(store.multiplayer.playerName, message.playerId, message.roomId);
-      console.log("Room created:", message.roomId, "Host:", message.hostId);
+      saveSessionToStorage(store.multiplayer.playerName, message.playerId, message.roomId, message.sessionToken);
+      console.log("Room created:", message.roomId, "Host:", message.hostId, "SessionToken:", message.sessionToken ? "received" : "none");
       break;
 
     case "room_joined":
@@ -332,8 +352,8 @@ const handleMessage = (message: any) => {
         store.setReadyPlayers(message.readyPlayers);
       }
       store.setIsConnecting(false);
-      saveSessionToStorage(store.multiplayer.playerName, message.playerId, message.roomId);
-      console.log("Room joined:", message.roomId, "Host:", message.hostId);
+      saveSessionToStorage(store.multiplayer.playerName, message.playerId, message.roomId, message.sessionToken);
+      console.log("Room joined:", message.roomId, "Host:", message.hostId, "SessionToken:", message.sessionToken ? "received" : "none");
       break;
 
     case "players_updated":
@@ -361,6 +381,9 @@ const handleMessage = (message: any) => {
 
     case "host_changed":
       store.setHostId(message.newHostId);
+      if (message.newHostName) {
+        toast.info(`تم نقل القيادة إلى ${message.newHostName}`, { duration: 5000, icon: "👑" });
+      }
       break;
 
     case "settings_updated":
@@ -797,8 +820,15 @@ const handleMessage = (message: any) => {
 
     case "kicked_from_room":
       console.log("Kicked from room:", message.message);
+      toast.error(message.message || "تم طردك من الغرفة", { duration: 5000 });
+      clearSession();
       store.resetMultiplayer();
       store.setMode("menu");
+      break;
+
+    case "player_kicked":
+      console.log(`Player ${message.playerName} was kicked`);
+      toast.info(`تم طرد اللاعب ${message.playerName} من الغرفة`, { duration: 5000, icon: "🚫" });
       break;
 
     case "room_deleted":
