@@ -823,15 +823,16 @@ const handleMessage = (message: any) => {
       });
       clearSession();
       clearPersistentRoom();
-      disconnect();
+      
       const { resetMultiplayer, setMode } = useNumberGame.getState();
       resetMultiplayer();
       setMode("menu");
+      
+      // Close websocket connection
+      disconnect();
+      
       // Redirect to home page immediately
-      window.history.pushState({}, '', '/');
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 500);
+      window.location.href = '/';
       break;
 
     case "player_kicked":
