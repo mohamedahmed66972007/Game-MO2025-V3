@@ -285,6 +285,14 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
     send({ type: "rematch_vote", accepted });
   };
 
+  const handleKickPlayer = (playerId: string) => {
+    kickPlayer(playerId);
+  };
+
+  const handleTransferHost = (playerId: string) => {
+    transferHost(playerId);
+  };
+
   const formatDuration = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -1165,11 +1173,11 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                             <>
                               {/* Backdrop overlay */}
                               <div 
-                                className="fixed inset-0 z-[60]"
+                                className="fixed inset-0 z-[999]"
                                 onClick={() => setPlayerMenuId(null)}
                               />
                               {/* Mobile bottom sheet */}
-                              <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl border-t border-gray-200 z-[70] p-4 space-y-2 animate-slide-up">
+                              <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl border-t border-gray-200 z-[1000] p-4 space-y-2 animate-slide-up">
                                 <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4" />
                                 <div className="text-center text-gray-700 font-bold mb-3">
                                   إدارة اللاعب: {player.name}
@@ -1282,7 +1290,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
 
         {showStartDialog && (
           <div 
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
             onClick={() => setShowStartDialog(false)}
           >
             <div 
@@ -1358,7 +1366,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
 
         {showNoPlayersDialog && (
           <div 
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
             onClick={() => setShowNoPlayersDialog(false)}
           >
             <div 
@@ -1398,7 +1406,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
         {/* Kick Confirmation Dialog */}
         {showKickConfirm && (
           <div 
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
             onClick={() => setShowKickConfirm(null)}
           >
             <div 
@@ -1446,7 +1454,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
         {/* Transfer Host Confirmation Dialog */}
         {showTransferConfirm && (
           <div 
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
             onClick={() => setShowTransferConfirm(null)}
           >
             <div 
