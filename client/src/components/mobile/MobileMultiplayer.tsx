@@ -286,11 +286,17 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   };
 
   const handleKickPlayer = (playerId: string) => {
+    const player = multiplayer.players.find(p => p.id === playerId);
     kickPlayer(playerId);
+    setShowKickConfirm(null);
+    setPlayerMenuId(null);
   };
 
   const handleTransferHost = (playerId: string) => {
+    const player = multiplayer.players.find(p => p.id === playerId);
     transferHost(playerId);
+    setShowTransferConfirm(null);
+    setPlayerMenuId(null);
   };
 
   const formatDuration = (ms: number) => {
@@ -1438,10 +1444,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                   إلغاء
                 </button>
                 <button
-                  onClick={() => {
-                    handleKickPlayer(showKickConfirm);
-                    setShowKickConfirm(null);
-                  }}
+                  onClick={() => handleKickPlayer(showKickConfirm)}
                   className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 rounded-xl transition-all touch-manipulation"
                 >
                   طرد
@@ -1486,10 +1489,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                   إلغاء
                 </button>
                 <button
-                  onClick={() => {
-                    handleTransferHost(showTransferConfirm);
-                    setShowTransferConfirm(null);
-                  }}
+                  onClick={() => handleTransferHost(showTransferConfirm)}
                   className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 rounded-xl transition-all touch-manipulation"
                 >
                   نقل القيادة
