@@ -28,7 +28,7 @@ const saveSessionToStorage = (playerName: string, playerId: string, roomId: stri
   const store = useNumberGame.getState();
   const isInGame = store.multiplayer.gameStatus === "playing";
   const isFinished = store.multiplayer.gameStatus === "finished";
-  
+
   const existingSession = localStorage.getItem("multiplayerSession");
   let existingToken = sessionToken;
   if (!existingToken && existingSession) {
@@ -37,7 +37,7 @@ const saveSessionToStorage = (playerName: string, playerId: string, roomId: stri
       existingToken = parsed.sessionToken;
     } catch (e) {}
   }
-  
+
   const sessionData = {
     playerName,
     playerId,
@@ -52,7 +52,7 @@ const saveSessionToStorage = (playerName: string, playerId: string, roomId: stri
       settings: store.multiplayer.settings,
     } : null,
   };
-  
+
   localStorage.setItem("multiplayerSession", JSON.stringify(sessionData));
   localStorage.setItem("lastPlayerName", playerName);
   localStorage.setItem("lastRoomSession", JSON.stringify({
@@ -83,7 +83,7 @@ const getSessionFromStorage = () => {
       localStorage.removeItem("multiplayerSession");
     }
   }
-  
+
   const lastRoomSession = localStorage.getItem("lastRoomSession");
   if (lastRoomSession) {
     try {
@@ -97,7 +97,7 @@ const getSessionFromStorage = () => {
       localStorage.removeItem("lastRoomSession");
     }
   }
-  
+
   return null;
 };
 
@@ -120,7 +120,7 @@ const attemptReconnect = () => {
 
   reconnectAttempts++;
   console.log(`Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-  
+
   toast.loading(`جاري إعادة الاتصال... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`, {
     id: "reconnect-toast",
     duration: RECONNECT_DELAY,
@@ -137,7 +137,7 @@ export const connectWebSocket = (playerName: string, roomId?: string) => {
 
   isManualDisconnect = false;
   reconnectAttempts = 0;
-  
+
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout);
     reconnectTimeout = null;
@@ -149,7 +149,7 @@ export const connectWebSocket = (playerName: string, roomId?: string) => {
     console.log("WebSocket connected");
     reconnectAttempts = 0;
     toast.dismiss("reconnect-toast");
-    
+
     if (roomId) {
       send({ type: "join_room", roomId, playerName });
     } else {
@@ -164,7 +164,7 @@ export const connectWebSocket = (playerName: string, roomId?: string) => {
 
   socket.onclose = (event) => {
     console.log("WebSocket disconnected", event.code, event.reason);
-    
+
     if (!isManualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       const session = getSessionFromStorage();
       if (session) {
@@ -249,22 +249,22 @@ export const autoReconnectOnLoad = () => {
   if (session && session.playerId && session.roomId) {
     // Use best available player name (account displayName takes priority)
     const playerName = getBestPlayerName(session.playerName);
-    
+
     // Only proceed if we have a valid player name
     if (!playerName) {
       console.log("No player name available for reconnect");
       return false;
     }
-    
+
     console.log("Found saved session, attempting auto-reconnect to room:", session.roomId, "as:", playerName);
     isManualDisconnect = false;
     reconnectAttempts = 0;
-    
+
     toast.loading("جاري إعادة الاتصال بالغرفة...", {
       id: "auto-reconnect-toast",
       duration: 5000,
     });
-    
+
     reconnectWithRetry(playerName, session.playerId, session.roomId, session.sessionToken);
     return true;
   }
@@ -284,10 +284,10 @@ export const reconnectWithRetry = (playerName: string, playerId: string, roomId:
     toast.success("تم إعادة الاتصال بنجاح!", {
       duration: 3000,
     });
-    
-    send({ 
-      type: "reconnect", 
-      playerId, 
+
+    send({
+      type: "reconnect",
+      playerId,
       playerName,
       roomCode: roomId,
       sessionToken: sessionToken
@@ -301,7 +301,7 @@ export const reconnectWithRetry = (playerName: string, playerId: string, roomId:
 
   socket.onclose = (event) => {
     console.log("WebSocket disconnected during reconnect", event.code, event.reason);
-    
+
     if (!isManualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       const session = getSessionFromStorage();
       if (session) {
@@ -371,11 +371,9 @@ const handleMessage = (message: any) => {
       break;
 
     case "ready_notification":
-      import("sonner").then(({ toast }) => {
-        toast.info("القائد يطلب منك الاستعداد للعب!", {
-          duration: 5000,
-          position: "top-center",
-        });
+      toast.info(message.message, {
+        duration: 5000,
+        className: "text-right",
       });
       break;
 
@@ -402,7 +400,7 @@ const handleMessage = (message: any) => {
       const selectedChallenge = message.settings?.selectedChallenge ?? store.multiplayer.settings.selectedChallenge;
       // Use server start time for synchronization (0 means waiting for challenges)
       const serverGameStartTime = message.serverStartTime || (cardsEnabled ? 0 : Date.now());
-      
+
       useNumberGame.setState((state) => ({
         multiplayer: {
           ...state.multiplayer,
@@ -432,31 +430,31 @@ const handleMessage = (message: any) => {
           } : state.multiplayer.settings,
         },
       }));
-      
+
       // Clear card award flag for new game
       const cardAwardKeyToClear = `card_awarded_${store.multiplayer.roomId}_${store.multiplayer.playerId}`;
       sessionStorage.removeItem(cardAwardKeyToClear);
-      
+
       // Reset challenges state to prevent incorrect card awards from previous game
       const challengesStore = useChallenges.getState();
       challengesStore.resetChallengesHub();
       console.log("Challenges state reset for new game");
-      
+
       // Initialize cards system if enabled
       const cardsStore = useCards.getState();
-      
+
       // Always clear revealed/burned and player cards for new game
       cardsStore.clearRevealedAndBurned();
       cardsStore.clearAllActiveEffects();
-      
+
       // Clear existing player cards to prevent duplication
       useCards.setState({ playerCards: [] });
-      
+
       // Sync card settings from server for all players
       if (message.settings?.cardSettings) {
         cardsStore.setCardSettings(message.settings.cardSettings);
       }
-      
+
       if (cardsEnabled) {
         cardsStore.enableCards();
         cardsStore.initializePlayerCards(store.multiplayer.playerId);
@@ -464,7 +462,7 @@ const handleMessage = (message: any) => {
       } else {
         cardsStore.resetCards();
       }
-      
+
       saveSessionToStorage(store.multiplayer.playerName, store.multiplayer.playerId, store.multiplayer.roomId);
       console.log("Game started with shared secret, cardsEnabled:", cardsEnabled, "showPreGameChallenge:", cardsEnabled, "startTime:", serverGameStartTime);
       break;
@@ -490,10 +488,10 @@ const handleMessage = (message: any) => {
       // Prioritize: 1. Server's playerName (most reliable), 2. Account displayName, 3. Session
       // Server now preserves the original name if client sends empty
       const playerName = message.playerName || getBestPlayerName();
-      
+
       toast.dismiss("auto-reconnect-toast");
       toast.dismiss("reconnect-toast");
-      
+
       store.setRoomId(message.roomId);
       store.setPlayerId(message.playerId);
       store.setHostId(message.hostId);
@@ -504,7 +502,7 @@ const handleMessage = (message: any) => {
         localStorage.setItem("lastPlayerName", playerName);
       }
       store.setIsConnecting(false);
-      
+
       saveSessionToStorage(playerName, message.playerId, message.roomId);
       toast.success("تم إعادة الاتصال بالغرفة بنجاح!", { duration: 3000 });
       console.log("Successfully reconnected to room", message.roomId, "as player", playerName);
@@ -568,16 +566,16 @@ const handleMessage = (message: any) => {
         correctPositionCount: message.correctPositionCount,
       };
       store.addMultiplayerAttempt(attempt);
-      
+
       if (message.won) {
         const wasAlreadyWon = store.multiplayer.phase === "won";
         store.setMultiplayerPhase("won");
         store.setMultiplayerEndTime();
-        
+
         // Award ONE card to the winner - only if not already won and card not already awarded in this game
         const cardAwardKey = `card_awarded_${store.multiplayer.roomId}_${store.multiplayer.playerId}`;
         const alreadyAwarded = sessionStorage.getItem(cardAwardKey) === "true";
-        
+
         if (!wasAlreadyWon && !alreadyAwarded && store.multiplayer.settings.cardsEnabled) {
           const cardsStore = useCards.getState();
           const allowedCards = store.multiplayer.settings.allowedCards;
@@ -637,10 +635,10 @@ const handleMessage = (message: any) => {
         },
       });
       console.log("Game finished - results received", { winners: message.winners.length, losers: message.losers.length, stillPlaying: message.stillPlaying?.length });
-      
+
       // حفظ الجلسة للسماح بإعادة الاتصال حتى بعد النتائج
       saveSessionToStorage(store.multiplayer.playerName, store.multiplayer.playerId, store.multiplayer.roomId);
-      
+
       if (message.reason === "time_expired") {
         toast.info("انتهى الوقت! انتهت اللعبة 🕐", {
           duration: 7000,
@@ -653,7 +651,7 @@ const handleMessage = (message: any) => {
         // Check if current player won or lost
         const playerId = useNumberGame.getState().multiplayer.playerId;
         const isWinner = message.winners.some((w: any) => w.playerId === playerId);
-        
+
         if (isWinner) {
           toast.success("تهانينا! 🎉 لقد فزت! جاري عرض النتائج...", {
             duration: 5000,
@@ -664,7 +662,7 @@ const handleMessage = (message: any) => {
           });
         }
       }
-      
+
       // Save round to history when game is fully finished (all players finished or time expired)
       if (message.reason === "time_expired" || message.reason === "all_finished") {
         store.saveRoundToHistory();
@@ -702,18 +700,18 @@ const handleMessage = (message: any) => {
       // Round history is saved in game_results handler when game fully finishes
       store.resetMultiplayerGame();
       store.setPlayers(message.players);
-      
+
       // Clear card award flag for new game
       const cardAwardKeyForRematch = `card_awarded_${store.multiplayer.roomId}_${store.multiplayer.playerId}`;
       sessionStorage.removeItem(cardAwardKeyForRematch);
-      
+
       // Reset cards system for rematch - ALWAYS clear ALL state regardless of cardsEnabled
       const cardsStoreRematch = useCards.getState();
       const preservedCardSettings = { ...cardsStoreRematch.cardSettings };
-      
+
       // Clear all player effects first
       cardsStoreRematch.clearAllActiveEffects();
-      
+
       // Full reset of all card state - always reset revealedDigits, burnedNumbers, and playerCards
       useCards.setState({
         cardsEnabled: false,
@@ -722,14 +720,14 @@ const handleMessage = (message: any) => {
         burnedNumbers: [],
         cardSettings: preservedCardSettings,
       });
-      
+
       // Also call explicit clear methods for any additional cleanup
       cardsStoreRematch.clearRevealedAndBurned();
-      
+
       // Reset challenges state to prevent incorrect card awards
       const challengesStoreRematch = useChallenges.getState();
       challengesStoreRematch.resetChallengesHub();
-      
+
       console.log("Rematch starting - game, cards, challenges fully reset (settings preserved)");
       break;
 
@@ -737,9 +735,9 @@ const handleMessage = (message: any) => {
       const cardsStore = useCards.getState();
       const currentPlayerId = store.multiplayer.playerId;
       const currentCardSettings = cardsStore.cardSettings;
-      
+
       console.log(`[Cards WS] Card used: ${message.cardType} from ${message.fromPlayerName} to ${message.targetPlayerName || "self"}`);
-      
+
       // Handle revealNumber card - permanent effect, not expiring
       if (message.cardType === "revealNumber" && message.fromPlayerId === currentPlayerId) {
         // Only add to revealedDigits if this is my own card and effectValue has position/digit
@@ -752,16 +750,16 @@ const handleMessage = (message: any) => {
         }
         break;
       }
-      
+
       // Determine who receives the effect
       const isAttackCard = ["freeze"].includes(message.cardType);
       const effectRecipientId = isAttackCard && message.targetPlayerId
         ? message.targetPlayerId
         : message.fromPlayerId;
-      
+
       // Initialize the recipient if not exists
       cardsStore.initializePlayerCards(effectRecipientId);
-      
+
       // Apply the effect (for cards that have duration like freeze, shield)
       // Use the correct duration from card settings
       if (["freeze", "shield"].includes(message.cardType)) {
@@ -770,16 +768,16 @@ const handleMessage = (message: any) => {
         if (message.cardType === "shield" && message.fromPlayerId === currentPlayerId) {
           break;
         }
-        
+
         let effectDuration = message.effectDuration || 30000;
-        
+
         // Use card settings for freeze duration
         if (message.cardType === "freeze") {
           effectDuration = (currentCardSettings.freezeDuration || 30) * 1000;
         } else if (message.cardType === "shield") {
           effectDuration = (currentCardSettings.shieldDuration || 120) * 1000;
         }
-        
+
         const effect = {
           cardType: message.cardType,
           targetPlayerId: message.targetPlayerId,
@@ -788,10 +786,10 @@ const handleMessage = (message: any) => {
           expiresAt: Date.now() + effectDuration,
           value: message.effectValue,
         };
-        
+
         cardsStore.addActiveEffect(effectRecipientId, effect);
       }
-      
+
       // Show notification based on who used the card
       if (message.fromPlayerId === currentPlayerId) {
         // I used the card
@@ -819,11 +817,19 @@ const handleMessage = (message: any) => {
       break;
 
     case "kicked_from_room":
-      console.log("Kicked from room:", message.message);
-      toast.error(message.message || "تم طردك من الغرفة", { duration: 5000 });
+      toast.error(message.message || "تم طردك من الغرفة", {
+        duration: 5000,
+        className: "text-right",
+      });
       clearSession();
-      store.resetMultiplayer();
-      store.setMode("menu");
+      clearPersistentRoom();
+      disconnect();
+      const { resetMultiplayer, setMode } = useNumberGame.getState();
+      resetMultiplayer();
+      setMode("menu");
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
       break;
 
     case "player_kicked":
@@ -853,7 +859,7 @@ const handleMessage = (message: any) => {
 
     case "error":
       console.error("Server error:", message.message);
-      
+
       // Map server errors to user-friendly Arabic messages
       let errorMessage = message.message;
       if (message.message.includes("Room not found")) {
@@ -863,7 +869,7 @@ const handleMessage = (message: any) => {
       } else if (message.message.includes("session not found")) {
         errorMessage = "❌ الجلسة انتهت - يرجى محاولة مرة أخرى";
       }
-      
+
       store.setConnectionError(errorMessage);
       store.setIsConnecting(false);
       store.setRoomId("");

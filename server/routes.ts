@@ -137,28 +137,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/accounts/create", async (req, res) => {
     try {
       const { displayName, username, password } = req.body;
-      
+
       if (!displayName || !username || !password) {
         return res.status(400).json({ error: "الاسم واسم المستخدم وكلمة المرور مطلوبان" });
       }
-      
+
       if (username.length < 3 || username.length > 30) {
         return res.status(400).json({ error: "اسم المستخدم يجب أن يكون بين 3 و 30 حرف" });
       }
-      
+
       if (!/^[a-zA-Z0-9_]+$/.test(username)) {
         return res.status(400).json({ error: "اسم المستخدم يجب أن يحتوي على أحرف إنجليزية وأرقام فقط" });
       }
-      
+
       if (password.length < 4) {
         return res.status(400).json({ error: "كلمة المرور يجب أن تكون 4 أحرف على الأقل" });
       }
-      
+
       const existing = await storage.getAccountByUsername(username);
       if (existing) {
         return res.status(409).json({ error: "اسم المستخدم مستخدم بالفعل" });
       }
-      
+
       const account = await storage.createAccount({ displayName, username, password });
       res.json({ id: account.id, displayName: account.displayName, username: account.username });
     } catch (error) {
@@ -170,18 +170,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/accounts/login", async (req, res) => {
     try {
       const { username, password } = req.body;
-      
+
       if (!username || !password) {
         return res.status(400).json({ error: "اسم المستخدم وكلمة المرور مطلوبان" });
       }
-      
+
       const account = await storage.getAccountByUsername(username);
       if (!account) {
         return res.status(401).json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" });
       }
-      
+
       let isValidPassword = false;
-      
+
       if (account.password.startsWith("$2b$") || account.password.startsWith("$2a$")) {
         isValidPassword = await bcrypt.compare(password, account.password);
       } else {
@@ -191,11 +191,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateAccountPassword(account.id, hashedPassword);
         }
       }
-      
+
       if (!isValidPassword) {
         return res.status(401).json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" });
       }
-      
+
       res.json({ id: account.id, displayName: account.displayName, username: account.username });
     } catch (error) {
       console.error("Error logging in:", error);
@@ -206,22 +206,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/accounts/update", async (req, res) => {
     try {
       const { id, displayName, username, currentPassword, newPassword } = req.body;
-      
+
       if (!id) {
         return res.status(400).json({ error: "معرف الحساب مطلوب" });
       }
-      
+
       const account = await storage.getAccount(id);
       if (!account) {
         return res.status(404).json({ error: "الحساب غير موجود" });
       }
-      
+
       const updates: { displayName?: string; username?: string; password?: string } = {};
-      
+
       if (displayName && displayName !== account.displayName) {
         updates.displayName = displayName;
       }
-      
+
       if (username && username.toLowerCase() !== account.username) {
         if (username.length < 3 || username.length > 30) {
           return res.status(400).json({ error: "اسم المستخدم يجب أن يكون بين 3 و 30 حرف" });
@@ -235,19 +235,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         updates.username = username;
       }
-      
+
       if (newPassword) {
         if (!currentPassword) {
           return res.status(400).json({ error: "كلمة المرور الحالية مطلوبة" });
         }
-        
+
         let isValidPassword = false;
         if (account.password.startsWith("$2b$") || account.password.startsWith("$2a$")) {
           isValidPassword = await bcrypt.compare(currentPassword, account.password);
         } else {
           isValidPassword = currentPassword === account.password;
         }
-        
+
         if (!isValidPassword) {
           return res.status(401).json({ error: "كلمة المرور الحالية غير صحيحة" });
         }
@@ -256,11 +256,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         updates.password = newPassword;
       }
-      
+
       if (Object.keys(updates).length === 0) {
         return res.json({ id: account.id, displayName: account.displayName, username: account.username });
       }
-      
+
       const updatedAccount = await storage.updateAccount(id, updates);
       res.json({ id: updatedAccount?.id, displayName: updatedAccount?.displayName, username: updatedAccount?.username });
     } catch (error) {
@@ -311,24 +311,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/friends/request", async (req, res) => {
     try {
       const { fromUserId, toUserId } = req.body;
-      
+
       if (fromUserId === toUserId) {
         return res.status(400).json({ error: "لا يمكنك إضافة نفسك" });
       }
-      
+
       const areFriends = await storage.areFriends(fromUserId, toUserId);
       if (areFriends) {
         return res.status(400).json({ error: "أنتما أصدقاء بالفعل" });
       }
-      
+
       const pendingRequests = await storage.getSentFriendRequests(fromUserId);
       const alreadySent = pendingRequests.some(r => r.toUserId === toUserId);
       if (alreadySent) {
         return res.status(400).json({ error: "تم إرسال طلب الصداقة بالفعل" });
       }
-      
+
       const request = await storage.createFriendRequest({ fromUserId, toUserId });
-      
+
       const fromUser = await storage.getAccount(fromUserId);
       await storage.createNotification({
         userId: toUserId,
@@ -337,7 +337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: `${fromUser?.displayName || "شخص ما"} يريد إضافتك كصديق`,
         data: JSON.stringify({ requestId: request.id, fromUserId }),
       });
-      
+
       const targetWs = onlineUsers.get(toUserId);
       if (targetWs && targetWs.readyState === WebSocket.OPEN) {
         targetWs.send(JSON.stringify({
@@ -345,7 +345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           request: { id: request.id, fromUserId, fromUser: { id: fromUser?.id, displayName: fromUser?.displayName, username: fromUser?.username } },
         }));
       }
-      
+
       res.json(request);
     } catch (error) {
       console.error("Error creating friend request:", error);
@@ -367,17 +367,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/friends/accept", async (req, res) => {
     try {
       const { requestId, userId } = req.body;
-      
+
       const requests = await storage.getPendingFriendRequests(userId);
       const request = requests.find(r => r.id === requestId);
-      
+
       if (!request) {
         return res.status(404).json({ error: "طلب الصداقة غير موجود" });
       }
-      
+
       await storage.createFriendship(request.fromUserId, request.toUserId);
       await storage.deleteFriendRequest(requestId);
-      
+
       const toUser = await storage.getAccount(userId);
       await storage.createNotification({
         userId: request.fromUserId,
@@ -386,7 +386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: `${toUser?.displayName || "شخص ما"} قبل طلب صداقتك`,
         data: JSON.stringify({ userId }),
       });
-      
+
       const fromWs = onlineUsers.get(request.fromUserId);
       if (fromWs && fromWs.readyState === WebSocket.OPEN) {
         fromWs.send(JSON.stringify({
@@ -394,7 +394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           friend: { id: toUser?.id, displayName: toUser?.displayName, username: toUser?.username, isOnline: toUser?.isOnline },
         }));
       }
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error accepting friend request:", error);
@@ -471,14 +471,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/invite/send", async (req, res) => {
     try {
       const { fromUserId, toUserId, roomId } = req.body;
-      
+
       const fromUser = await storage.getAccount(fromUserId);
       const toUser = await storage.getAccount(toUserId);
-      
+
       if (!toUser) {
         return res.status(404).json({ error: "المستخدم غير موجود" });
       }
-      
+
       await storage.createNotification({
         userId: toUserId,
         type: "room_invite",
@@ -486,7 +486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: `${fromUser?.displayName || "صديقك"} يدعوك للانضمام إلى غرفته`,
         data: JSON.stringify({ roomId, fromUserId, fromUserName: fromUser?.displayName }),
       });
-      
+
       const targetWs = onlineUsers.get(toUserId);
       if (targetWs && targetWs.readyState === WebSocket.OPEN) {
         targetWs.send(JSON.stringify({
@@ -495,7 +495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fromUser: { id: fromUser?.id, displayName: fromUser?.displayName, username: fromUser?.username },
         }));
       }
-      
+
       if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
         try {
           const subscriptions = await storage.getPushSubscriptions(toUserId);
@@ -506,7 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               process.env.VAPID_PUBLIC_KEY,
               process.env.VAPID_PRIVATE_KEY
             );
-            
+
             const payload = JSON.stringify({
               title: "دعوة للعب!",
               body: `${fromUser?.displayName || "صديقك"} يدعوك للانضمام لغرفته`,
@@ -515,7 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               tag: `room-invite-${roomId}`,
               data: { roomId, fromUserId, fromUserName: fromUser?.displayName }
             });
-            
+
             for (const sub of subscriptions) {
               try {
                 await webpush.sendNotification({
@@ -534,7 +534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error("Push notification setup error:", pushError);
         }
       }
-      
+
       res.json({ success: true, isOnline: !!targetWs });
     } catch (error) {
       console.error("Error sending invite:", error);
@@ -553,18 +553,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/push/subscribe", async (req, res) => {
     try {
       const { userId, subscription } = req.body;
-      
+
       if (!userId || !subscription) {
         return res.status(400).json({ error: "Missing required fields" });
       }
-      
+
       await storage.savePushSubscription({
         userId,
         endpoint: subscription.endpoint,
         p256dh: subscription.keys.p256dh,
         auth: subscription.keys.auth,
       });
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error saving push subscription:", error);
@@ -575,13 +575,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/push/unsubscribe", async (req, res) => {
     try {
       const { userId, endpoint } = req.body;
-      
+
       if (!userId || !endpoint) {
         return res.status(400).json({ error: "Missing required fields" });
       }
-      
+
       await storage.deletePushSubscriptionByEndpoint(userId, endpoint);
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error removing push subscription:", error);
@@ -593,17 +593,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/permanent-rooms/create", async (req, res) => {
     try {
       const { userId, name } = req.body;
-      
+
       if (!userId) {
         return res.status(400).json({ error: "معرف المستخدم مطلوب" });
       }
-      
+
       // Check if user already has a permanent room
       const existingRoom = await storage.getUserPermanentRoom(userId);
       if (existingRoom) {
         return res.status(400).json({ error: "لديك غرفة دائمة بالفعل", roomId: existingRoom.roomId });
       }
-      
+
       const roomId = generateRoomId();
       const permanentRoom = await storage.createPermanentRoom({
         roomId,
@@ -611,14 +611,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         leaderId: userId,
         name: name || null,
       });
-      
+
       // Add owner as member with leader role
       await storage.addPermanentRoomMember({
         roomId: permanentRoom.id,
         userId,
         role: "leader",
       });
-      
+
       res.json({ 
         success: true, 
         roomId: permanentRoom.roomId,
@@ -634,13 +634,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.userId);
       const room = await storage.getUserPermanentRoom(userId);
-      
+
       if (!room) {
         return res.json({ room: null });
       }
-      
+
       const members = await storage.getPermanentRoomMembers(room.id);
-      
+
       res.json({ 
         room,
         members: members.map(m => ({
@@ -662,13 +662,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const roomId = req.params.roomId;
       const room = await storage.getPermanentRoomByRoomId(roomId);
-      
+
       if (!room) {
         return res.status(404).json({ error: "الغرفة غير موجودة" });
       }
-      
+
       const members = await storage.getPermanentRoomMembers(room.id);
-      
+
       res.json({ 
         room,
         members: members.map(m => ({
@@ -689,30 +689,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/permanent-rooms/join", async (req, res) => {
     try {
       const { userId, roomId } = req.body;
-      
+
       if (!userId || !roomId) {
         return res.status(400).json({ error: "معرف المستخدم ومعرف الغرفة مطلوبان" });
       }
-      
+
       const room = await storage.getPermanentRoomByRoomId(roomId);
       if (!room) {
         return res.status(404).json({ error: "الغرفة غير موجودة" });
       }
-      
+
       // Check if already in another permanent room
       const existingRoom = await storage.getUserPermanentRoom(userId);
       if (existingRoom && existingRoom.id !== room.id) {
         return res.status(400).json({ error: "أنت موجود في غرفة دائمة أخرى", roomId: existingRoom.roomId });
       }
-      
+
       await storage.addPermanentRoomMember({
         roomId: room.id,
         userId,
         role: "member",
       });
-      
+
       await storage.updatePermanentRoomActivity(roomId);
-      
+
       res.json({ success: true, room });
     } catch (error) {
       console.error("Error joining permanent room:", error);
@@ -723,12 +723,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/permanent-rooms/leave", async (req, res) => {
     try {
       const { userId, roomId } = req.body;
-      
+
       const room = await storage.getPermanentRoomByRoomId(roomId);
       if (!room) {
         return res.status(404).json({ error: "الغرفة غير موجودة" });
       }
-      
+
       // If leaving user is the owner, delete the room
       if (room.ownerId === userId) {
         await storage.deletePermanentRoom(roomId);
@@ -748,7 +748,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = await storage.getAccount(userId);
       if (!user) return;
-      
+
       // Notify friends
       const friends = await storage.getFriends(userId);
       for (const friend of friends) {
@@ -760,7 +760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             displayName: user.displayName,
           }));
         }
-        
+
         // Send push notification if friend has subscriptions
         if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
           try {
@@ -772,7 +772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 process.env.VAPID_PUBLIC_KEY,
                 process.env.VAPID_PRIVATE_KEY
               );
-              
+
               const payload = JSON.stringify({
                 title: "صديق متصل!",
                 body: `${user.displayName} أصبح متصلاً الآن`,
@@ -781,7 +781,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 tag: `friend-online-${userId}`,
                 data: { userId, displayName: user.displayName, type: "friend_online" }
               });
-              
+
               for (const sub of subscriptions) {
                 try {
                   await webpush.sendNotification({
@@ -800,14 +800,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
-      
+
       // Notify permanent room members
       const permanentRoom = await storage.getUserPermanentRoom(userId);
       if (permanentRoom) {
         const members = await storage.getPermanentRoomMembers(permanentRoom.id);
         for (const member of members) {
           if (member.userId === userId) continue;
-          
+
           const memberWs = onlineUsers.get(member.userId);
           if (memberWs && memberWs.readyState === WebSocket.OPEN) {
             memberWs.send(JSON.stringify({
@@ -817,7 +817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               roomId: permanentRoom.roomId,
             }));
           }
-          
+
           // Send push notification
           if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
             try {
@@ -829,7 +829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   process.env.VAPID_PUBLIC_KEY,
                   process.env.VAPID_PRIVATE_KEY
                 );
-                
+
                 const payload = JSON.stringify({
                   title: "عضو الغرفة متصل!",
                   body: `${user.displayName} متصل الآن في غرفتك الدائمة`,
@@ -838,7 +838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   tag: `room-member-online-${userId}`,
                   data: { userId, displayName: user.displayName, roomId: permanentRoom.roomId, type: "room_member_online" }
                 });
-                
+
                 for (const sub of subscriptions) {
                   try {
                     await webpush.sendNotification({
@@ -865,7 +865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   httpServer.on("upgrade", (request, socket, head) => {
     const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
-    
+
     if (pathname === "/game") {
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit("connection", ws, request);
@@ -892,18 +892,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (room) {
           // Remove from active players
           room.players = room.players.filter((p) => p.id !== player.id);
-          
+
           // Keep player in disconnectedPlayers for reconnection indefinitely
           const disconnectTime = Date.now();
           player.disconnectTime = disconnectTime;
-          
+
           // No timeout - keep players in room indefinitely until they explicitly leave
           // Create a dummy timeout handle that never fires (for interface compatibility)
           const dummyTimeoutHandle = setTimeout(() => {}, 365 * 24 * 60 * 60 * 1000); // 1 year (effectively never)
-          
+
           room.disconnectedPlayers.set(player.id, { player, disconnectTime, timeoutHandle: dummyTimeoutHandle });
           console.log(`Player ${player.name} disconnected from ${room.game?.status === "finished" ? "finished" : "active"} game - allowing reconnection indefinitely`);
-          
+
           // Notify others that player disconnected (but only if game is active)
           if (!room.game || room.game.status !== "finished") {
             broadcastToRoom(room, {
@@ -912,11 +912,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               playerName: player.name,
             });
           }
-          
+
           // Check if room should be deleted (only if all players left explicitly, not just disconnected)
           // Only delete if no active AND no disconnected players
           if (room.players.length === 0 && room.disconnectedPlayers.size === 0) {
-            // Clean up all timers
             if (room.game?.rematchState.countdownHandle) {
               clearInterval(room.game.rematchState.countdownHandle);
             }
@@ -924,22 +923,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
               clearTimeout(room.game.gameTimerHandle);
             }
             rooms.delete(room.id);
-            console.log(`Room ${room.id} deleted (no players)`);
-          } else {
-            // Room still has players (active or disconnected)
-            // If host left, assign new host from active players
-            if (room.hostId === player.id && room.players.length > 0) {
+            console.log(`Room ${room.id} deleted (all players left)`);
+          } else if (room.players.length > 0) {
+            // Update host if needed (only if there are still active players)
+            if (room.hostId === player.id) {
               room.hostId = room.players[0].id;
               broadcastToRoom(room, {
                 type: "host_changed",
                 newHostId: room.hostId,
               });
             }
-            
+
+            // Notify remaining players
             broadcastToRoom(room, {
               type: "players_updated",
-              players: room.players.map((p) => ({ id: p.id, name: p.name })),
+              players: room.players.map((p) => ({ 
+                id: p.id, 
+                name: p.name, 
+                isHost: p.id === room!.hostId,
+                isReady: room!.readyPlayers.has(p.id)
+              })),
               hostId: room.hostId,
+              readyPlayers: Array.from(room.readyPlayers),
             });
           }
         }
@@ -948,23 +953,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Check if room should be deleted (only 1 player or empty)
+  // Check if room should be deleted (only if no players left)
   function checkAndDeleteRoomIfNeeded(room: Room): boolean {
     const totalPlayers = room.players.length + room.disconnectedPlayers.size;
-    
-    // Delete room if only 1 player left (can't play multiplayer alone)
-    // OR if room is completely empty
-    if (totalPlayers <= 1) {
-      // Kick the last remaining player if any
-      if (room.players.length === 1) {
-        const lastPlayer = room.players[0];
-        send(lastPlayer.ws, {
-          type: "room_deleted",
-          message: "جميع اللاعبين غادروا الغرفة",
-        });
-        console.log(`Kicking last player ${lastPlayer.name} from room ${room.id}`);
-      }
-      
+
+    // Only delete room if NO players are left (not even the host)
+    if (totalPlayers === 0) {
       // Clean up all timers
       if (room.game?.rematchState.countdownHandle) {
         clearInterval(room.game.rematchState.countdownHandle);
@@ -972,26 +966,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (room.game?.gameTimerHandle) {
         clearTimeout(room.game.gameTimerHandle);
       }
-      
-      // Clear all disconnected player timeouts
       room.disconnectedPlayers.forEach((disconnected) => {
         clearTimeout(disconnected.timeoutHandle);
       });
-      
+
       rooms.delete(room.id);
-      console.log(`Room ${room.id} deleted (insufficient players: ${totalPlayers})`);
+      console.log(`Room ${room.id} deleted (no players left)`);
       return true;
     }
-    
+
     return false;
   }
 
   // Send current game results to ALL finished players
   function sendResultsToAllFinishedPlayers(room: Room, reason: string = "player_finished") {
     if (!room.game) return;
-    
+
     const results = calculateGameResults(room);
-    
+
     // Store results for reconnecting players
     room.game.lastResults = {
       winners: results.winners,
@@ -999,7 +991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       stillPlaying: results.stillPlaying,
       reason: reason,
     };
-    
+
     // Send updated results to ALL connected players who have finished
     room.players.forEach((player) => {
       const playerData = room.game!.players.get(player.id);
@@ -1018,22 +1010,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   function checkGameEnd(room: Room) {
     if (!room.game || room.game.status !== "playing") return;
-    
+
     const allGamePlayers = Array.from(room.game.players.values());
     const allPlayersFinished = allGamePlayers.every(p => p.finished);
-    
+
     // Only end game when ALL players have finished (won, lost, or timed out)
     // Do NOT auto-win the last remaining player - they must play until they finish naturally
     if (allPlayersFinished && room.game) {
       room.game.status = "finished";
       room.game.endTime = Date.now();
-      
+
       // Clear the game timer since game is ending
       if (room.game.gameTimerHandle) {
         clearTimeout(room.game.gameTimerHandle);
         room.game.gameTimerHandle = undefined;
       }
-      
+
       // Send final results to ALL finished players (everyone at this point)
       sendResultsToAllFinishedPlayers(room, "all_finished");
     }
@@ -1041,11 +1033,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   function calculateGameResults(room: Room) {
     if (!room.game) return { winners: [], losers: [], stillPlaying: [] };
-    
+
     const winners: any[] = [];
     const losers: any[] = [];
     const stillPlaying: any[] = [];
-    
+
     room.game.players.forEach((playerData) => {
       const endTime = playerData.endTime || Date.now();
       const playerInfo = {
@@ -1055,7 +1047,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         duration: endTime - playerData.startTime,
         attemptsDetails: playerData.attempts,
       };
-      
+
       if (playerData.won) {
         winners.push(playerInfo);
       } else if (playerData.finished) {
@@ -1064,7 +1056,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stillPlaying.push(playerInfo);
       }
     });
-    
+
     // Sort winners: first by attempts (ascending), then by duration (ascending)
     winners.sort((a, b) => {
       if (a.attempts !== b.attempts) {
@@ -1072,15 +1064,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       return a.duration - b.duration;
     });
-    
+
     // Sort losers by duration (ascending) - those who lasted longer are ranked better among losers
     losers.sort((a, b) => b.duration - a.duration);
-    
+
     // Assign ranks to winners
     winners.forEach((winner, index) => {
       winner.rank = index + 1;
     });
-    
+
     return { winners, losers, stillPlaying };
   }
 
@@ -1089,7 +1081,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       case "create_room": {
         const result = gameStorage.createRoom(message.playerName, message.gameMode);
         const { room: gsRoom, playerId, sessionToken } = result;
-        
+
         const player: Player = {
           id: playerId,
           name: message.playerName,
@@ -1109,7 +1101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         rooms.set(gsRoom.id, room);
         players.set(ws, player);
-        
+
         gameStorage.setPlayerConnection(playerId, ws);
         const gsPlayer = gsRoom.players.find((p: gameStorage.Player) => p.id === playerId);
         if (gsPlayer) {
@@ -1125,7 +1117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           players: [{ id: playerId, name: message.playerName, isHost: true, isReady: false }],
           readyPlayers: [],
         });
-        
+
         console.log(`[create_room] Room ${gsRoom.id} created by ${message.playerName} (${playerId})`);
         break;
       }
@@ -1133,20 +1125,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       case "join_room": {
         const roomCode = message.roomId.toUpperCase();
         const joinResult = gameStorage.joinRoom(message.playerName, roomCode);
-        
+
         if ("error" in joinResult) {
           send(ws, { type: "error", message: joinResult.error });
           return;
         }
-        
+
         const { room: gsRoom, playerId, sessionToken } = joinResult;
-        
+
         let room = rooms.get(roomCode);
         if (!room) {
           send(ws, { type: "error", message: "الغرفة غير موجودة" });
           return;
         }
-        
+
         const player: Player = {
           id: playerId,
           name: message.playerName,
@@ -1160,7 +1152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         room.players.push(player);
         players.set(ws, player);
-        
+
         gameStorage.setPlayerConnection(playerId, ws);
         const gsPlayer = gsRoom.players.find((p: gameStorage.Player) => p.id === playerId);
         if (gsPlayer) {
@@ -1188,7 +1180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hostId: room.hostId,
           readyPlayers: Array.from(room.readyPlayers),
         });
-        
+
         console.log(`[join_room] Player ${message.playerName} (${playerId}) joined room ${roomCode}`);
         break;
       }
@@ -1220,7 +1212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? { ...room.settings.cardSettings, ...message.settings.cardSettings }
             : room.settings.cardSettings,
         };
-        
+
         console.log(`[update_settings] Room ${room.id} - roundDuration: ${room.settings.cardSettings?.roundDuration}, cardsEnabled: ${room.settings.cardsEnabled}`);
 
         broadcastToRoom(room, {
@@ -1306,7 +1298,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Check if this is a force start or a restart after a game
         const forceStart = (message as any).forceStart === true;
         const isRestart = (message as any).isRestart === true;
-        
+
         // Also skip ready check if there's a finished game (meaning this is a restart from lobby)
         const hasFinishedGame = room.game && room.game.status === "finished";
 
@@ -1316,7 +1308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // So we need at least 1 other ready player (total effective ready = readyPlayers + host if not in set)
           const hostIsInReadySet = room.readyPlayers.has(room.hostId);
           const effectiveReadyCount = hostIsInReadySet ? room.readyPlayers.size : room.readyPlayers.size + 1;
-          
+
           // Need at least 2 ready players (host + 1 other), unless force starting
           if (effectiveReadyCount < 2) {
             send(ws, { type: "error", message: "يجب أن يكون هناك لاعب واحد جاهز على الأقل (القائد جاهز تلقائياً)" });
@@ -1331,7 +1323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Generate shared secret
         const sharedSecret = generateSecretCode(room.settings.numDigits);
-        
+
         // Initialize game session - start in pre-game challenge mode
         const game: GameSession = {
           sharedSecret,
@@ -1371,12 +1363,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const gameStartTime = Date.now();
           game.status = "playing";
           game.startTime = gameStartTime;
-          
+
           // Update all player startTimes
           game.players.forEach((playerData) => {
             playerData.startTime = gameStartTime;
           });
-          
+
           const roundDurationMinutes = room.settings.cardSettings?.roundDuration ?? 5;
           const timerDuration = roundDurationMinutes * 60 * 1000;
           console.log(`Cards disabled - Starting game timer immediately: ${roundDurationMinutes} minutes (${timerDuration}ms) for room ${room.id}`);
@@ -1413,7 +1405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             shieldDuration: 5000
           }
         };
-        
+
         broadcastToRoom(room, {
           type: "game_started",
           sharedSecret, // All players get the same secret
@@ -1505,7 +1497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const { correctCount, correctPositionCount } = checkGuess(room.game.sharedSecret, message.guess);
-        
+
         const attempt: PlayerAttempt = {
           guess: message.guess,
           correctCount,
@@ -1517,7 +1509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const won = correctPositionCount === room.settings.numDigits;
         const isLastAttempt = playerData.attempts.length >= room.settings.maxAttempts;
-        
+
         // Mark as finished if won OR if this was the last attempt and didn't win
         if (won) {
           playerData.won = true;
@@ -1562,7 +1554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               message: "لقد استنفذت جميع محاولاتك",
             });
           }
-          
+
           sendResultsToAllFinishedPlayers(room, "player_finished");
           // Check if all players finished for final cleanup
           checkGameEnd(room);
@@ -1613,7 +1605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         room.game.rematchState.requested = true;
         room.game.rematchState.votes.clear();
         room.game.rematchState.countdown = 10;
-        
+
         // Player who requested automatically votes yes
         room.game.rematchState.votes.set(player.id, true);
 
@@ -1639,33 +1631,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           if (room.game.rematchState.countdown <= 0) {
             clearInterval(countdownHandle);
-            
+
             // Process rematch
             const acceptedPlayers = Array.from(room.game.rematchState.votes.entries())
               .filter(([_, accepted]) => accepted)
               .map(([playerId, _]) => playerId);
-            
+
             // Need at least 2 players who accepted
             if (acceptedPlayers.length >= 2) {
               // Remove players who didn't accept
               const rejectedPlayers = room.players.filter(
                 p => !acceptedPlayers.includes(p.id) && p.id !== room.hostId
               );
-              
+
               rejectedPlayers.forEach(p => {
                 send(p.ws, {
                   type: "kicked_from_room",
                   message: "لم تقبل إعادة المباراة",
                 });
               });
-              
+
               room.players = room.players.filter(p => 
                 acceptedPlayers.includes(p.id) || p.id === room.hostId
               );
-              
+
               // Reset game
               room.game = null;
-              
+
               broadcastToRoom(room, {
                 type: "rematch_starting",
                 players: room.players.map((p) => ({ id: p.id, name: p.name })),
@@ -1754,32 +1746,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const rejectedPlayers = room.players.filter(
             p => !acceptedPlayers.includes(p.id) && p.id !== room.hostId
           );
-          
+
           rejectedPlayers.forEach(p => {
             send(p.ws, {
               type: "kicked_from_room",
               message: "لم تقبل إعادة المباراة",
             });
           });
-          
+
           room.players = room.players.filter(p => 
             acceptedPlayers.includes(p.id) || p.id === room.hostId
           );
-          
+
           // Remove players from disconnected as well
           rejectedPlayers.forEach(p => {
             room.disconnectedPlayers?.delete(p.id);
           });
-          
+
           // Reset game
           room.game = null;
-          
+
           // Notify accepted players that rematch is starting
           broadcastToRoom(room, {
             type: "rematch_starting",
             players: room.players.map((p) => ({ id: p.id, name: p.name })),
           });
-          
+
           // Start new game automatically
           const sharedSecret = generateSecretCode(room.settings.numDigits);
           const game: GameSession = {
@@ -1822,11 +1814,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   playerData.won = false;
                 }
               });
-              
+
               room.game.status = "finished";
               room.game.endTime = Date.now();
               room.game.gameTimerHandle = undefined;
-              
+
               sendResultsToAllFinishedPlayers(room, "time_expired");
             }
           }, 5 * 60 * 1000);
@@ -1850,53 +1842,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
           send(ws, { type: "error", message: "رمز الغرفة مطلوب" });
           return;
         }
-        
+
         const gsResult = gameStorage.reconnectPlayer(message.sessionToken, roomCode.toUpperCase());
-        
+
         if ("error" in gsResult) {
           const room = rooms.get(roomCode.toUpperCase());
           if (!room) {
             send(ws, { type: "error", message: gsResult.error });
             return;
           }
-          
+
           const disconnected = room.disconnectedPlayers?.get(message.playerId);
           if (!disconnected) {
             send(ws, { type: "error", message: gsResult.error });
             return;
           }
-          
+
           clearTimeout(disconnected.timeoutHandle);
           room.disconnectedPlayers.delete(message.playerId);
-          
+
           const playerName = message.playerName && message.playerName.trim() !== "" 
             ? message.playerName 
             : disconnected.player.name;
-          
+
           const reconnectedPlayer: Player = {
             id: message.playerId,
             name: playerName,
             ws,
             roomId: room.id,
           };
-          
+
           room.players.push(reconnectedPlayer);
           players.set(ws, reconnectedPlayer);
-          
+
           handleReconnectSuccess(ws, room, message.playerId, playerName);
           return;
         }
-        
+
         const { room: gsRoom, player: gsPlayer } = gsResult;
-        
+
         let room = rooms.get(gsRoom.id);
         if (!room) {
           send(ws, { type: "error", message: "الغرفة غير موجودة" });
           return;
         }
-        
+
         room.disconnectedPlayers?.delete(gsPlayer.id);
-        
+
         const existingPlayerIndex = room.players.findIndex(p => p.id === gsPlayer.id);
         if (existingPlayerIndex !== -1) {
           room.players[existingPlayerIndex].ws = ws;
@@ -1909,11 +1901,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
           room.players.push(reconnectedPlayer);
         }
-        
+
         players.set(ws, { id: gsPlayer.id, name: gsPlayer.name, ws, roomId: room.id });
         gameStorage.setPlayerConnection(gsPlayer.id, ws);
         gsPlayer.ws = ws;
-        
+
         handleReconnectSuccess(ws, room, gsPlayer.id, gsPlayer.name);
         break;
       }
@@ -1932,7 +1924,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const newHostId = message.newHostId;
         const newHost = room.players.find(p => p.id === newHostId);
-        
+
         if (!newHost) {
           send(ws, { type: "error", message: "اللاعب غير موجود" });
           return;
@@ -1945,7 +1937,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         room.hostId = newHostId;
-        
+
         broadcastToRoom(room, {
           type: "host_changed",
           newHostId: newHostId,
@@ -1981,7 +1973,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const targetPlayerId = message.targetPlayerId;
-        
+
         if (targetPlayerId === player.id) {
           send(ws, { type: "error", message: "لا يمكنك طرد نفسك" });
           return;
@@ -2044,19 +2036,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (playerData && !playerData.finished) {
             playerData.finished = true;
             playerData.endTime = Date.now();
-            
+
             broadcastToRoom(room, {
               type: "player_quit",
               playerId: player.id,
               playerName: player.name,
             }, ws);
-            
+
             checkGameEnd(room);
           }
         }
-        
+
         room.players = room.players.filter((p) => p.id !== player.id);
-        
+
         // Check if room should be deleted
         if (!checkAndDeleteRoomIfNeeded(room)) {
           // Room still has enough players
@@ -2067,14 +2059,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               newHostId: room.hostId,
             });
           }
-          
+
           broadcastToRoom(room, {
             type: "players_updated",
             players: room.players.map((p) => ({ id: p.id, name: p.name })),
             hostId: room.hostId,
           });
         }
-        
+
         players.delete(ws);
         break;
       }
@@ -2112,7 +2104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   function handleReconnectSuccess(ws: WebSocket, room: Room, playerId: string, playerName: string) {
     console.log(`Player ${playerName} reconnected to room ${room.id}`);
-    
+
     const allPlayersInfo = [
       ...room.players.map((p) => ({ 
         id: p.id, 
@@ -2128,7 +2120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         disconnected: true 
       }))
     ];
-    
+
     send(ws, {
       type: "room_rejoined",
       roomId: room.id,
@@ -2138,7 +2130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       players: allPlayersInfo,
       readyPlayers: Array.from(room.readyPlayers),
     });
-    
+
     if (room.game) {
       send(ws, {
         type: "game_state",
@@ -2147,7 +2139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         settings: room.settings,
         gameStartTime: room.game.startTime,
       });
-      
+
       const playerData = room.game.players.get(playerId);
       if (playerData) {
         send(ws, {
@@ -2156,7 +2148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           finished: playerData.finished,
           won: playerData.won,
         });
-        
+
         if (playerData.finished) {
           const freshResults = calculateGameResults(room);
           const reason = room.game.lastResults?.reason || "player_finished";
@@ -2171,13 +2163,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     }
-    
+
     broadcastToRoom(room, {
       type: "player_reconnected",
       playerId: playerId,
       playerName: playerName,
     }, ws);
-    
+
     const allPlayersForBroadcast = [
       ...room.players.map((p) => ({ 
         id: p.id, 
@@ -2193,7 +2185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         disconnected: true 
       }))
     ];
-    
+
     broadcastToRoom(room, {
       type: "players_updated",
       players: allPlayersForBroadcast,
