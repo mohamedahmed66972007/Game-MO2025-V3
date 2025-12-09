@@ -827,8 +827,10 @@ const handleMessage = (message: any) => {
       const { resetMultiplayer, setMode } = useNumberGame.getState();
       resetMultiplayer();
       setMode("menu");
+      // Redirect to home page immediately
+      window.history.pushState({}, '', '/');
       setTimeout(() => {
-        window.location.reload();
+        window.location.href = '/';
       }, 500);
       break;
 

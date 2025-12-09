@@ -292,33 +292,74 @@ export function MultiplayerLobby() {
                       )}
                       
                       {canManage && (
-                        <div className="relative">
+                        <>
                           <button
                             onClick={() => setPlayerMenuId(showMenu ? null : player.id)}
-                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation"
                           >
                             <MoreVertical className="w-4 h-4 text-gray-500" />
                           </button>
                           
                           {showMenu && (
-                            <div className="absolute left-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-200 z-20 min-w-[140px]">
-                              <button
-                                onClick={() => setShowTransferConfirm(player.id)}
-                                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 text-blue-700 text-sm font-medium rounded-t-xl transition-colors"
-                              >
-                                <ArrowRightLeft className="w-4 h-4" />
-                                نقل القيادة
-                              </button>
-                              <button
-                                onClick={() => setShowKickConfirm(player.id)}
-                                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-red-50 text-red-600 text-sm font-medium rounded-b-xl transition-colors"
-                              >
-                                <UserX className="w-4 h-4" />
-                                طرد اللاعب
-                              </button>
-                            </div>
+                            <>
+                              {/* Backdrop overlay for mobile */}
+                              <div 
+                                className="fixed inset-0 z-[60] md:hidden"
+                                onClick={() => setPlayerMenuId(null)}
+                              />
+                              {/* Desktop dropdown */}
+                              <div className="hidden md:block absolute left-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-200 z-20 min-w-[140px]">
+                                <button
+                                  onClick={() => setShowTransferConfirm(player.id)}
+                                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 text-blue-700 text-sm font-medium rounded-t-xl transition-colors"
+                                >
+                                  <ArrowRightLeft className="w-4 h-4" />
+                                  نقل القيادة
+                                </button>
+                                <button
+                                  onClick={() => setShowKickConfirm(player.id)}
+                                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-red-50 text-red-600 text-sm font-medium rounded-b-xl transition-colors"
+                                >
+                                  <UserX className="w-4 h-4" />
+                                  طرد اللاعب
+                                </button>
+                              </div>
+                              {/* Mobile bottom sheet */}
+                              <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl border-t border-gray-200 z-[70] p-4 space-y-2 animate-slide-up">
+                                <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4" />
+                                <div className="text-center text-gray-700 font-bold mb-3">
+                                  إدارة اللاعب: {player.name}
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setPlayerMenuId(null);
+                                    setShowTransferConfirm(player.id);
+                                  }}
+                                  className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl transition-colors touch-manipulation"
+                                >
+                                  <ArrowRightLeft className="w-5 h-5" />
+                                  نقل القيادة
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setPlayerMenuId(null);
+                                    setShowKickConfirm(player.id);
+                                  }}
+                                  className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition-colors touch-manipulation"
+                                >
+                                  <UserX className="w-5 h-5" />
+                                  طرد اللاعب
+                                </button>
+                                <button
+                                  onClick={() => setPlayerMenuId(null)}
+                                  className="w-full px-4 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors touch-manipulation"
+                                >
+                                  إلغاء
+                                </button>
+                              </div>
+                            </>
                           )}
-                        </div>
+                        </>
                       )}
                     </div>
                   </div>

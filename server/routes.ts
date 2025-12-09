@@ -1991,15 +1991,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
+        // Send kick message first and wait for it to be sent
         send(targetPlayer.ws, {
           type: "kicked_from_room",
           message: "تم طردك من الغرفة من قبل المضيف",
         });
 
-        room.players = room.players.filter(p => p.id !== targetPlayerId);
-        room.readyPlayers.delete(targetPlayerId);
-        players.delete(targetPlayer.ws);
-        gameStorage.removePlayerConnection(targetPlayer.ws);
+        // Small delay to ensure message is sent before cleanup
+        setTimeout(() => {
+          room.players = room.players.filter(p => p.id !== targetPlayerId);
+          room.readyPlayers.delete(targetPlayerId);
+          players.delete(targetPlayer.ws);
+          gameStorage.removePlayerConnection(targetPlayer.ws);
+        }, 100);
 
         broadcastToRoom(room, {
           type: "player_kicked",
