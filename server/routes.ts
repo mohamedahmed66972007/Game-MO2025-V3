@@ -2109,6 +2109,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   function handleReconnectSuccess(ws: WebSocket, room: Room, playerId: string, playerName: string) {
     console.log(`Player ${playerName} reconnected to room ${room.id}`);
 
+    // التأكد من تطابق hostId مع game-storage
+    const gsRoom = gameStorage.getRoom(room.id);
+    if (gsRoom) {
+      room.hostId = gsRoom.hostId;
+    }
+
     const allPlayersInfo = [
       ...room.players.map((p) => ({ 
         id: p.id, 
