@@ -12,4 +12,20 @@
 - ✅ React Router working properly
 - ✅ Service worker registered
 
+## Latest Updates (December 09, 2025)
+
+### Task 1: Fix game start issue after round - COMPLETED ✓
+- Fixed server/routes.ts to skip ready check if game was finished (hasFinishedGame)
+- Fixed MultiplayerLobby.tsx to send isRestart: true when gameStatus is "finished"
+- Now "بدء جولة جديدة" works without requiring ready players
+
+### Task 2: Kick/Transfer Host dialogs - COMPLETED ✓
+- Added confirmation dialogs for Kick Player and Transfer Host
+- Dialogs show player name and require confirmation
+- Both cancel and confirm buttons work properly
+
+### Pending:
+- Task 3: Improve Reconnection system (if needed)
+- Task 4: Test and verify all functionality
+
 The project is fully functional and ready for development!

@@ -48,6 +48,12 @@ export function MultiplayerLobby() {
   const handleStartGame = () => {
     if (!canStartGame) return;
     
+    // If game was finished (restart scenario), skip ready checks
+    if (multiplayer.gameStatus === "finished" || multiplayer.showResults) {
+      send({ type: "start_game", isRestart: true });
+      return;
+    }
+    
     if (!hasReadyPlayers) {
       setShowNoPlayersDialog(true);
       return;
@@ -501,6 +507,94 @@ export function MultiplayerLobby() {
               >
                 <Bell className="w-5 h-5" />
                 إعلامهم بالاستعداد
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showKickConfirm && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+          onClick={() => setShowKickConfirm(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <UserX className="w-5 h-5 text-red-500" />
+                طرد اللاعب
+              </h2>
+              <button 
+                onClick={() => setShowKickConfirm(null)}
+                className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <p className="text-gray-600 mb-6 text-center">
+              هل أنت متأكد من طرد {multiplayer.players.find(p => p.id === showKickConfirm)?.name}؟
+            </p>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowKickConfirm(null)}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 rounded-xl transition-all"
+              >
+                إلغاء
+              </Button>
+              <Button
+                onClick={() => handleKickPlayer(showKickConfirm)}
+                className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 rounded-xl transition-all"
+              >
+                طرد
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTransferConfirm && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+          onClick={() => setShowTransferConfirm(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <ArrowRightLeft className="w-5 h-5 text-blue-500" />
+                نقل القيادة
+              </h2>
+              <button 
+                onClick={() => setShowTransferConfirm(null)}
+                className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <p className="text-gray-600 mb-6 text-center">
+              هل أنت متأكد من نقل القيادة إلى {multiplayer.players.find(p => p.id === showTransferConfirm)?.name}؟
+            </p>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowTransferConfirm(null)}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 rounded-xl transition-all"
+              >
+                إلغاء
+              </Button>
+              <Button
+                onClick={() => handleTransferHost(showTransferConfirm)}
+                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 rounded-xl transition-all"
+              >
+                نقل القيادة
               </Button>
             </div>
           </div>

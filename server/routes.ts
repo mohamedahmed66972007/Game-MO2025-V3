@@ -1306,9 +1306,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Check if this is a force start or a restart after a game
         const forceStart = (message as any).forceStart === true;
         const isRestart = (message as any).isRestart === true;
+        
+        // Also skip ready check if there's a finished game (meaning this is a restart from lobby)
+        const hasFinishedGame = room.game && room.game.status === "finished";
 
         // Skip ready check if this is a restart after a game ended
-        if (!isRestart && !forceStart) {
+        if (!isRestart && !forceStart && !hasFinishedGame) {
           // Count ready players - host is automatically counted as ready
           // So we need at least 1 other ready player (total effective ready = readyPlayers + host if not in set)
           const hostIsInReadySet = room.readyPlayers.has(room.hostId);
@@ -1321,7 +1324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        console.log(`[start_game] Force start: ${forceStart}, isRestart: ${isRestart}`);
+        console.log(`[start_game] Force start: ${forceStart}, isRestart: ${isRestart}, hasFinishedGame: ${hasFinishedGame}`);
 
         // Clear ready states for the new game
         room.readyPlayers.clear();
