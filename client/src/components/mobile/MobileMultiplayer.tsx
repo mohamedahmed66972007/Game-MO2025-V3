@@ -5,8 +5,8 @@ import { useNumberGame } from "@/lib/stores/useNumberGame";
 import { useAudio } from "@/lib/stores/useAudio";
 import { useCards } from "@/lib/stores/useCards";
 import { useAccount } from "@/lib/stores/useAccount";
-import { send, connectWebSocket, disconnect, clearSession, clearPersistentRoom } from "@/lib/websocket";
-import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Trophy, Maximize2, Minimize2, LogOut, UserPlus, CheckCircle2, Circle, Bell, AlertTriangle } from "lucide-react";
+import { send, connectWebSocket, disconnect, clearSession, clearPersistentRoom, kickPlayer, transferHost } from "@/lib/websocket";
+import { Home, Check, X, Users, Copy, Crown, Play, Settings, RefreshCw, Eye, Trophy, Maximize2, Minimize2, LogOut, UserPlus, CheckCircle2, Circle, Bell, AlertTriangle, MoreVertical, UserX, ArrowRightLeft } from "lucide-react";
 import { GameSettings } from "../ui/GameSettings";
 import { CardHand, CardEffectDisplay } from "../game/cards/CardSystem";
 import { MultiplayerChallenge } from "../game/MultiplayerChallenge";
@@ -49,6 +49,9 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [showNoPlayersDialog, setShowNoPlayersDialog] = useState(false);
+  const [playerMenuId, setPlayerMenuId] = useState<string | null>(null);
+  const [showKickConfirm, setShowKickConfirm] = useState<string | null>(null);
+  const [showTransferConfirm, setShowTransferConfirm] = useState<string | null>(null);
 
   const [input, setInput] = useState<string[]>([]);
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -123,17 +126,17 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
 
   const handleStartGame = () => {
     if (!canStartGame) return;
-    
+
     if (!hasReadyPlayers) {
       setShowNoPlayersDialog(true);
       return;
     }
-    
+
     if (!allOthersReady) {
       setShowStartDialog(true);
       return;
     }
-    
+
     send({ type: "start_game" });
   };
 
@@ -165,14 +168,14 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   const isBurnedNumber = (num: number): boolean => {
     return burnedNumbers.includes(num);
   };
-  
+
   const getParityAtPosition = (position: number): { isEven: boolean } | null => {
     const player = playerCards.find(p => p.playerId === multiplayer.playerId);
     if (!player) return null;
-    
+
     const parityEffect = player.activeEffects.find(e => e.cardType === "revealParity" && e.expiresAt > Date.now());
     if (!parityEffect || !parityEffect.value) return null;
-    
+
     const parityInfos = parityEffect.value as { position: number; isEven: boolean }[];
     const parityInfo = parityInfos.find(p => p.position === position);
     return parityInfo ? { isEven: parityInfo.isEven } : null;
@@ -180,7 +183,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
 
   const handleNumberInput = (num: string) => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
-    
+
     if (isPlayerFrozen()) {
       playError();
       return;
@@ -195,7 +198,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
     // البحث عن أول خانة فارغة (سواء كانت مكشوفة أو لا)
     // الخانات المكشوفة تعتبر كتلميحات يمكن الكتابة فوقها
     const currentInputLength = multiplayer.currentGuess.length;
-    
+
     if (currentInputLength >= numDigits) {
       playError();
       return;
@@ -203,27 +206,27 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
 
     playDigit(parseInt(num));
     addMultiplayerDigit(parseInt(num));
-    
+
     // تحديث focusedIndex للخانة التالية
     setFocusedIndex(currentInputLength + 1);
   };
 
   const handleBackspace = () => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
-    
+
     const currentInputLength = multiplayer.currentGuess.length;
     if (currentInputLength === 0) return;
 
     playDelete();
     deleteMultiplayerDigit();
-    
+
     // الرجوع للخانة السابقة
     setFocusedIndex(Math.max(0, currentInputLength - 1));
   };
 
   const handleSubmit = () => {
     if (multiplayer.gameStatus !== "playing" || multiplayer.phase !== "playing") return;
-    
+
     if (isPlayerFrozen()) {
       playError();
       return;
@@ -322,10 +325,10 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
 
   // Check if current player has finished
   const playerFinished = multiplayer.phase === "won" || multiplayer.phase === "lost";
-  
+
   // Check if game is finished (all players done)
   const gameFinished = multiplayer.gameStatus === "finished";
-  
+
   // Show results screen if explicitly requested OR if game is finished and player has finished
   const shouldShowResults = multiplayer.showResults || (gameFinished && playerFinished);
 
@@ -469,7 +472,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
           <div className="bg-white rounded-xl p-6 shadow-md text-center">
             <div className="text-6xl mb-4">🏆</div>
             <h2 className="text-3xl font-bold text-purple-600 mb-6">نتائج اللعبة</h2>
-            
+
             {multiplayer.winners.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-xl font-bold text-green-600 mb-3 flex items-center justify-center gap-2">
@@ -580,13 +583,13 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
           {/* Number Input Section */}
           <div className="bg-white rounded-xl p-4 shadow-md">
             <h3 className="text-base font-bold text-gray-800 mb-3 text-center">أدخل {numDigits} أرقام</h3>
-            
+
             <div className="flex gap-2 justify-center mb-4" dir="ltr">
               {input.map((digit, idx) => {
                 const revealedDigit = getRevealedDigitAtPosition(idx);
                 const isRevealed = revealedDigit !== null;
                 const parityInfo = getParityAtPosition(idx);
-                
+
                 return (
                   <div
                     key={idx}
@@ -779,12 +782,12 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                 const cardsState = useCards.getState();
                 const playerCardsData = cardsState.playerCards.find(p => p.playerId === multiplayer.playerId);
                 const card = playerCardsData?.cards.find(c => c.id === cardId);
-                
+
                 if (!card) return;
-                
+
                 // حفظ عدد الأرقام المكشوفة قبل الاستخدام
                 const prevRevealedCount = cardsState.revealedDigits.length;
-                
+
                 // استخدام البطاقة عبر المتجر - يتم حساب كل شيء هناك
                 const success = cardsState.useCard(
                   multiplayer.playerId, 
@@ -793,13 +796,13 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                   multiplayer.sharedSecret,
                   multiplayer.settings.numDigits
                 );
-                
+
                 if (success) {
                   // الحصول على التأثير من المتجر
                   const updatedCardsState = useCards.getState();
                   const updatedPlayerCards = updatedCardsState.playerCards.find(p => p.playerId === multiplayer.playerId);
                   const latestEffect = updatedPlayerCards?.activeEffects[updatedPlayerCards.activeEffects.length - 1];
-                  
+
                   // للبطاقة revealNumber مع إظهار في الخانة، نحصل على القيمة من revealedDigits
                   let effectValue: any = latestEffect?.value;
                   if (card.type === "revealNumber" && updatedCardsState.cardSettings.revealNumberShowPosition) {
@@ -808,7 +811,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                       effectValue = { position: newRevealed.position, digit: newRevealed.digit };
                     }
                   }
-                  
+
                   // إرسال استخدام البطاقة عبر WebSocket
                   send({
                     type: "use_card",
@@ -834,14 +837,14 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
   // Handle join from URL - show join form when accessing room link directly
   const handleJoinFromUrl = () => {
     if (!playerName.trim() || !joinRoomIdFromUrl) return;
-    
+
     // Validate room ID format (should be 6 characters)
     const normalizedRoomId = joinRoomIdFromUrl.toUpperCase().trim();
     if (normalizedRoomId.length !== 6) {
       setConnectionError("رمز الغرفة غير صالح");
       return;
     }
-    
+
     setIsJoining(true);
     localStorage.setItem("lastPlayerName", playerName.trim());
     setIsConnecting(true);
@@ -895,7 +898,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
             </div>
             <h2 className="text-2xl font-bold text-gray-800">الانضمام للغرفة</h2>
             <p className="text-gray-600">رقم الغرفة: <span className="font-mono font-bold text-blue-600">{joinRoomIdFromUrl}</span></p>
-            
+
             <div className="space-y-4">
               <input
                 type="text"
@@ -1108,37 +1111,34 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                 const isHost = player.id === multiplayer.hostId;
                 const isYou = player.id === multiplayer.playerId;
                 const isReady = isHost || multiplayer.readyPlayers.includes(player.id);
-                
+                const showMenu = playerMenuId === player.id;
+                const canManage = multiplayer.isHost && !isYou && !isHost;
+
                 return (
                   <div
                     key={player.id}
-                    className={`p-3 rounded-xl flex items-center justify-between ${
+                    className={`p-3 rounded-xl flex items-center justify-between relative ${
                       isYou
                         ? "bg-gradient-to-r from-blue-100 to-purple-100 border-2 border-blue-300"
-                        : "bg-gray-50 border border-gray-200"
+                        : "bg-white border border-gray-300"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <span className="text-gray-800 font-medium flex items-center gap-2">
                       {isHost && (
-                        <Crown className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+                        <Crown className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                       )}
-                      {!isHost && (
-                        <span className="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-xs">
-                          👤
-                        </span>
-                      )}
-                      <span className="font-bold text-gray-800">{player.name}</span>
+                      <span className="font-bold text-sm">{player.name}</span>
                       {isYou && (
-                        <span className="text-xs bg-blue-200 text-blue-700 px-2 py-0.5 rounded-lg">
+                        <span className="text-blue-700 text-xs bg-blue-200 px-2 py-0.5 rounded-lg">
                           (أنت)
                         </span>
                       )}
                       {isHost && (
-                        <span className="text-xs bg-yellow-200 text-yellow-700 px-2 py-0.5 rounded-lg">
+                        <span className="text-yellow-700 text-xs bg-yellow-200 px-2 py-0.5 rounded-lg">
                           (القائد)
                         </span>
                       )}
-                    </div>
+                    </span>
                     <div className="flex items-center gap-2">
                       {isReady ? (
                         <span className="flex items-center gap-1 text-green-600 font-bold text-xs bg-green-100 px-2 py-1 rounded-lg">
@@ -1150,6 +1150,60 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                           <Circle className="w-4 h-4" />
                           غير جاهز
                         </span>
+                      )}
+
+                      {canManage && (
+                        <>
+                          <button
+                            onClick={() => setPlayerMenuId(showMenu ? null : player.id)}
+                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation"
+                          >
+                            <MoreVertical className="w-4 h-4 text-gray-500" />
+                          </button>
+
+                          {showMenu && (
+                            <>
+                              {/* Backdrop overlay */}
+                              <div 
+                                className="fixed inset-0 z-[60]"
+                                onClick={() => setPlayerMenuId(null)}
+                              />
+                              {/* Mobile bottom sheet */}
+                              <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl border-t border-gray-200 z-[70] p-4 space-y-2 animate-slide-up">
+                                <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4" />
+                                <div className="text-center text-gray-700 font-bold mb-3">
+                                  إدارة اللاعب: {player.name}
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setPlayerMenuId(null);
+                                    setShowTransferConfirm(player.id);
+                                  }}
+                                  className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl transition-colors touch-manipulation"
+                                >
+                                  <ArrowRightLeft className="w-5 h-5" />
+                                  نقل القيادة
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setPlayerMenuId(null);
+                                    setShowKickConfirm(player.id);
+                                  }}
+                                  className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition-colors touch-manipulation"
+                                >
+                                  <UserX className="w-5 h-5" />
+                                  طرد اللاعب
+                                </button>
+                                <button
+                                  onClick={() => setPlayerMenuId(null)}
+                                  className="w-full px-4 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors touch-manipulation"
+                                >
+                                  إلغاء
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -1264,7 +1318,7 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                     </div>
                   </div>
                 )}
-                
+
                 {notReadyOtherPlayers.length > 0 && (
                   <div>
                     <p className="text-orange-600 text-sm mb-2 flex items-center gap-2">
@@ -1335,6 +1389,102 @@ export function MobileMultiplayer({ joinRoomIdFromUrl }: MobileMultiplayerProps)
                 >
                   <Bell className="w-5 h-5" />
                   إعلامهم بالاستعداد
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Kick Confirmation Dialog */}
+        {showKickConfirm && (
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            onClick={() => setShowKickConfirm(null)}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <UserX className="w-5 h-5 text-red-500" />
+                  طرد اللاعب
+                </h2>
+                <button 
+                  onClick={() => setShowKickConfirm(null)}
+                  className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              <p className="text-gray-600 mb-6 text-center">
+                هل أنت متأكد من طرد {multiplayer.players.find(p => p.id === showKickConfirm)?.name}؟
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowKickConfirm(null)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 rounded-xl transition-all touch-manipulation"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={() => {
+                    handleKickPlayer(showKickConfirm);
+                    setShowKickConfirm(null);
+                  }}
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 rounded-xl transition-all touch-manipulation"
+                >
+                  طرد
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transfer Host Confirmation Dialog */}
+        {showTransferConfirm && (
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            onClick={() => setShowTransferConfirm(null)}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <ArrowRightLeft className="w-5 h-5 text-blue-500" />
+                  نقل القيادة
+                </h2>
+                <button 
+                  onClick={() => setShowTransferConfirm(null)}
+                  className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              <p className="text-gray-600 mb-6 text-center">
+                هل أنت متأكد من نقل القيادة إلى {multiplayer.players.find(p => p.id === showTransferConfirm)?.name}؟
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowTransferConfirm(null)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 rounded-xl transition-all touch-manipulation"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={() => {
+                    handleTransferHost(showTransferConfirm);
+                    setShowTransferConfirm(null);
+                  }}
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 rounded-xl transition-all touch-manipulation"
+                >
+                  نقل القيادة
                 </button>
               </div>
             </div>
