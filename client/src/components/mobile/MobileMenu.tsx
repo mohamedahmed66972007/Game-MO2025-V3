@@ -81,6 +81,15 @@ export function MobileMenu() {
       
       <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
+          <a
+            href="https://game-spy-mo2025.onrender.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 px-3 py-1.5 bg-white/10 backdrop-blur-md border border-gray-800/40 hover:border-gray-700 text-gray-800 hover:bg-white/20 rounded-lg transition-all text-xs font-bold shadow-md"
+          >
+            <span className="text-sm">#</span>
+            <span>الجاسوس</span>
+          </a>
           {isInstallable && (
             <button
               onClick={handleInstallClick}
