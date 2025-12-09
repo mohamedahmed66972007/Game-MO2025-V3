@@ -83,6 +83,15 @@ export function Menu() {
       <ProfileDialog isOpen={showProfileDialog} onClose={() => setShowProfileDialog(false)} />
       
       <div className="absolute top-4 left-4 flex items-center gap-3 z-50">
+        <a
+          href="https://game-spy-mo2025.onrender.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md border-2 border-gray-800/50 hover:border-gray-700 text-gray-800 hover:bg-white/20 rounded-lg transition-all text-sm font-medium shadow-lg"
+        >
+          <span className="text-lg">#</span>
+          <span className="font-bold">الجاسوس</span>
+        </a>
         {isInstallable && (
           <button
             onClick={handleInstallClick}
@@ -139,6 +148,8 @@ export function Menu() {
           </button>
         )}
       </div>
+
+      
       
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-4">
